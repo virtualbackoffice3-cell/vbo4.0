@@ -201,7 +201,7 @@ function groupTitle(pageId) {
 }
 
 function getDefaultTeam(windowName) {
-  return "Satyam";
+  return "TeamSevai";
 }
 
 /* ===============================
@@ -522,7 +522,7 @@ function renderSingleCard(r, index, container) {
       <div class="card-row">
         <span class="card-label">Team:</span>
         <select class="teamSel">
-          <option>Satyam</option>
+          <option>TeamSevai</option>
         </select>
       </div>
       <div class="card-row">
@@ -660,7 +660,7 @@ function renderTable() {
       <td><input class="remarkInput remarkCol" value="${r.Remarks || ""}"></td>
       <td class="teamCol resizableCol">
         <select class="teamSel">
-          <option>Satyam</option>
+          <option>TeamSevai</option>
         </select>
       </td>
       <td class="modeCol resizableCol">
