@@ -27,11 +27,29 @@ const btnToggleView = document.getElementById("btnToggleView");
 let isComplainsView = false;
 
 /* ===============================
-   ✅ WINDOW SELECTOR (NEW)
+   ✅ WINDOW SELECTOR
 ================================= */
 const windowSelector = document.getElementById("windowSelector");
 let selectedWindows = ["SEVAI"];
 let isMultiWindowMode = false;
+
+/* ===============================
+   ✅ Window Indicator Update
+================================= */
+function updateWindowIndicator() {
+  const indicator = document.getElementById("windowIndicator");
+  if (indicator) {
+    if (isMultiWindowMode) {
+      indicator.textContent = "ALL";
+      indicator.style.background = "#52c41a";
+      indicator.style.color = "white";
+    } else {
+      indicator.textContent = currentWindow;
+      indicator.style.background = "#e6f7ff";
+      indicator.style.color = "var(--accent)";
+    }
+  }
+}
 
 if (windowSelector) {
     windowSelector.value = currentWindow;
@@ -49,9 +67,10 @@ if (windowSelector) {
             selectedWindows = [selectedValue];
             fetchData(); // Load data for single window
         }
+        
+        updateWindowIndicator(); // ✅ Window change पर indicator update
     };
 }
-
 /* ===============================
    ✅ PON Excel-style multi select
 ================================= */
