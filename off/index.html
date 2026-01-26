@@ -28,6 +28,7 @@
         <h1>
             Complain Manager
             <span id="userCount">(0)</span>
+            <span class="window-indicator" id="windowIndicator">SEVAI</span>
         </h1>
 
         <button class="hamburger-btn" id="menuToggle">
@@ -35,6 +36,14 @@
         </button>
 
         <nav class="top-menu" id="topMenu">
+            <!-- ✅ Window Selector Dropdown -->
+            <select id="windowSelector" class="nav-select">
+                <option value="SEVAI" selected>Sevai</option>
+                <option value="MEDANTA">Medanta</option>
+                <option value="INFOTECH">Infotech</option>
+                
+            </select>
+            
             <button class="nav-btn" id="btnComplains">Complains</button>
             <button class="nav-btn" id="btnDrops">Drops</button>
             <button class="nav-btn" id="btnRefresh">Refresh</button>

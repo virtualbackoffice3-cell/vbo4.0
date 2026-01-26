@@ -27,13 +27,13 @@ html, body {
 }
 
 /* ===============================
-   HEADER (match current HTML)
+   HEADER
 ================================= */
 header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
+  padding: 12px 14px;
   background: white;
   box-shadow: var(--shadow);
   position: sticky;
@@ -56,9 +56,19 @@ header h1 {
   color: var(--text-secondary);
 }
 
+/* Window Indicator */
+.window-indicator {
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: #e6f7ff;
+  color: var(--accent);
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 123, 255, 0.2);
+}
+
 /* ===============================
-   HAMBURGER (match current HTML)
-   (same feel as icon-btn)
+   HAMBURGER
 ================================= */
 .hamburger-btn {
   width: 36px;
@@ -81,8 +91,7 @@ header h1 {
 }
 
 /* ===============================
-   TOP MENU (match current HTML)
-   (same feel as top-controls)
+   TOP MENU
 ================================= */
 .top-menu {
   display: none;
@@ -96,7 +105,7 @@ header h1 {
   padding: 10px;
   gap: 6px;
   z-index: 999;
-  width: 180px;
+  width: 200px;
   animation: fadeIn 0.3s ease;
 }
 
@@ -109,8 +118,28 @@ header h1 {
   to { opacity: 1; transform: translateY(0); }
 }
 
-.top-menu button,
-.top-menu select {
+/* Window Selector Dropdown */
+.nav-select {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: white;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: var(--transition);
+  appearance: none;
+  background: 
+    #fff
+    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12"><path fill="%23595959" d="M10.293 3.293 6 7.586 1.707 3.293A1 1 0 0 0 .293 4.707l5 5a.997.997 0 0 0 1.414 0l5-5a1 1 0 1 0-1.414-1.414z"/></svg>')
+    no-repeat right 10px center / 10px;
+}
+
+.nav-select:hover {
+  border-color: var(--accent);
+}
+
+/* Top Menu Buttons */
+.top-menu button {
   padding: 8px 12px;
   border-radius: 6px;
   border: 1px solid var(--border);
@@ -120,13 +149,7 @@ header h1 {
   transition: var(--transition);
 }
 
-.top-menu select {
-  appearance: none;
-  background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12"><path fill="%23595959" d="M10.293 3.293 6 7.586 1.707 3.293A1 1 0 0 0 .293 4.707l5 5a.997.997 0 0 0 1.414 0l5-5a1 1 0 1 0-1.414-1.414z"/></svg>') no-repeat right 10px center / 10px;
-}
-
-.top-menu button:hover,
-.top-menu select:hover {
+.top-menu button:hover {
   border-color: var(--accent);
 }
 
@@ -135,8 +158,7 @@ header h1 {
 }
 
 /* ===============================
-   FILTERS (match current HTML)
-   using same "filters-inline" feel
+   FILTERS
 ================================= */
 .filters {
   padding: 10px 14px;
@@ -164,17 +186,10 @@ header h1 {
   outline: none;
 }
 
-/* Make power min/max side-by-side like old power-filters */
-.filters #powerMin,
-.filters #powerMax {
-  width: 100%;
-}
-
 .filters input[type="number"] {
   appearance: textfield;
 }
 
-/* Make select grid look same as select-filters */
 .filters select {
   appearance: none;
   background:
@@ -382,7 +397,7 @@ tbody tr:hover {
 }
 
 /* ===============================
-   RESPONSIVE (same as original)
+   RESPONSIVE
 ================================= */
 @media (min-width: 768px) {
   .filters {
@@ -392,18 +407,17 @@ tbody tr:hover {
     align-items: center;
   }
 
-  /* make search full width on top */
   #globalSearch {
     grid-column: 1 / -1;
   }
 
-  /* make power min/max on same row */
-  #powerMin, #powerMax {
-    width: 100%;
-  }
-
   .card-view {
     grid-template-columns: repeat(2, 1fr);
+  }
+  
+  /* Mobile में top-menu width adjust */
+  .top-menu {
+    width: 220px;
   }
 }
 
@@ -783,4 +797,31 @@ header h1 {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* ===============================
+   ✅ Mobile Responsive Adjustments
+================================= */
+@media (max-width: 767px) {
+  header {
+    padding: 10px 12px;
+  }
+  
+  header h1 {
+    font-size: 1rem;
+  }
+  
+  .window-indicator {
+    font-size: 0.7rem;
+    padding: 2px 8px;
+  }
+  
+  .nav-select {
+    width: 100%;
+  }
+  
+  .top-menu {
+    width: 180px;
+    right: 10px;
+  }
 }

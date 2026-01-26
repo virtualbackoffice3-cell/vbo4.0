@@ -27,6 +27,32 @@ const btnToggleView = document.getElementById("btnToggleView");
 let isComplainsView = false;
 
 /* ===============================
+   ✅ WINDOW SELECTOR (NEW)
+================================= */
+const windowSelector = document.getElementById("windowSelector");
+let selectedWindows = ["SEVAI"];
+let isMultiWindowMode = false;
+
+if (windowSelector) {
+    windowSelector.value = currentWindow;
+    
+    windowSelector.onchange = () => {
+        const selectedValue = windowSelector.value;
+        
+        if (selectedValue === "ALL") {
+            isMultiWindowMode = true;
+            selectedWindows = ["SEVAI", "MEDANTA", "INFOTECH"];
+            showToast("All Windows selected - click Complains to load");
+        } else {
+            isMultiWindowMode = false;
+            currentWindow = selectedValue;
+            selectedWindows = [selectedValue];
+            fetchData(); // Load data for single window
+        }
+    };
+}
+
+/* ===============================
    ✅ PON Excel-style multi select
 ================================= */
 const ponMultiWrap = document.getElementById("ponMultiWrap");
@@ -84,7 +110,11 @@ async function fetchWindowData(windowName) {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    return (data.rows || []).map(row => ({ ...row, _runtime_timestamp: data.runtime_timestamp || "" }));
+    return (data.rows || []).map(row => ({ 
+      ...row, 
+      _runtime_timestamp: data.runtime_timestamp || "",
+      _sourceWindow: windowName // Tag with window name
+    }));
   } catch (err) {
     showToast(`Failed to load ${windowName}`);
     return [];
@@ -109,7 +139,7 @@ async function fetchOpenComplaintUsers(windowName) {
       const prevTs = prev ? new Date(prev.created_at || 0).getTime() : -1;
 
       if (!prev || currTs >= prevTs) {
-        latestMap[uid] = r;
+        latestMap[uid] = { ...r, _window: windowName };
       }
     });
 
@@ -303,9 +333,14 @@ async function openComplaintPopup(windowName, userId, userName) {
 async function fetchData() {
   showSpinner();
   try {
-    rawRows = await fetchWindowData(currentWindow);
+    if (isMultiWindowMode) {
+      showToast("Please use 'Complains' button for multi-window view");
+      rawRows = [];
+    } else {
+      rawRows = await fetchWindowData(currentWindow);
+      showToast(rawRows.length ? `${rawRows.length} users loaded from ${currentWindow}` : "No users found");
+    }
     
-    showToast(rawRows.length ? `${rawRows.length} users loaded` : "No users found");
     populateFilters();
     applyAllFilters();
   } catch (err) {
@@ -451,10 +486,11 @@ function renderSingleCard(r, index, container) {
   }
 
   const statusEmoji = r["User status"] === "UP" ? '📶' : r["User status"] === "DOWN" ? '📵' : '💀';
+  const windowTag = isMultiWindowMode ? `<span style="font-size:0.7rem;background:#eee;padding:2px 6px;border-radius:10px;">${r._sourceWindow || r._window || currentWindow}</span>` : '';
 
   card.innerHTML = `
       <div class="card-header">
-        ${r.Name || "Unknown"} <span>${statusEmoji}</span>
+        ${r.Name || "Unknown"} ${windowTag} <span>${statusEmoji}</span>
       </div>
       <div class="card-row"><span class="card-label">User ID:</span><span class="card-value">${r.Users || ""}</span></div>
       <div class="card-row"><span class="card-label">Mobile:</span><span class="card-value">${r["Last called no"] || ""}</span></div>
@@ -487,7 +523,7 @@ function renderSingleCard(r, index, container) {
   card.onclick = (e) => {
     if (e.target.closest("button") || e.target.closest("select") || e.target.closest("input")) return;
     if (!isComplainsView || !r._complain_open) return;
-    openComplaintPopup(currentWindow, r.Users || "", r.Name || "");
+    openComplaintPopup(r._sourceWindow || currentWindow, r.Users || "", r.Name || "");
   };
 
   const teamSel = card.querySelector(".teamSel");
@@ -499,6 +535,7 @@ function renderSingleCard(r, index, container) {
   // ✅ MARK: no reload
   card.querySelector(".mark-btn").onclick = async (e) => {
     e.stopPropagation();
+    const targetWindow = r._sourceWindow || currentWindow;
     const payload = {
       user_id: r.Users || "",
       name: r.Name || "",
@@ -509,10 +546,10 @@ function renderSingleCard(r, index, container) {
       Phone: r["Last called no"] || "",
       Team: teamSel.value,
       pon: r.PON || "",
-      window: currentWindow
+      window: targetWindow
     };
     try {
-      await fetch(`${baseUrl}/${currentWindow}/mark_complain`, {
+      await fetch(`${baseUrl}/${targetWindow}/mark_complain`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -527,8 +564,9 @@ function renderSingleCard(r, index, container) {
   // ✅ DELETE: no reload
   card.querySelector(".remove-btn").onclick = async (e) => {
     e.stopPropagation();
+    const targetWindow = r._sourceWindow || currentWindow;
     try {
-      await fetch(`${baseUrl}/${currentWindow}/delete_complain`, {
+      await fetch(`${baseUrl}/${targetWindow}/delete_complain`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: r.Users || "" })
@@ -582,6 +620,7 @@ function renderTable() {
 
     const tr = document.createElement("tr");
     const statusEmoji = r["User status"] === "UP" ? '📶' : r["User status"] === "DOWN" ? '📵' : '💀';
+    const windowTag = isMultiWindowMode ? `<br><small style="color:#666;">[${r._sourceWindow || r._window || currentWindow}]</small>` : '';
 
     if (r["User status"] === "DOWN") {
       tr.classList.add("ticket");
@@ -596,7 +635,7 @@ function renderTable() {
       <td>${r.PON || ""}</td>
       <td>${r.Users || ""}</td>
       <td>${r["Last called no"] || ""}</td>
-      <td>${r.Name || ""}</td>
+      <td>${r.Name || ""}${windowTag}</td>
       <td>${r.MAC || ""}<br><small>${r.Serial || ""}</small></td>
       <td>${r.Drops || ""}</td>
       <td><input class="remarkInput remarkCol" value="${r.Remarks || ""}"></td>
@@ -625,7 +664,7 @@ function renderTable() {
     tr.onclick = (e) => {
       if (e.target.closest("button") || e.target.closest("select") || e.target.closest("input")) return;
       if (!isComplainsView || !r._complain_open) return;
-      openComplaintPopup(currentWindow, r.Users || "", r.Name || "");
+      openComplaintPopup(r._sourceWindow || currentWindow, r.Users || "", r.Name || "");
     };
 
     const teamSelect = tr.querySelector(".teamSel");
@@ -637,6 +676,7 @@ function renderTable() {
     // MARK: no reload
     tr.querySelector(".mark-btn").onclick = async (e) => {
       e.stopPropagation();
+      const targetWindow = r._sourceWindow || currentWindow;
       const payload = {
         user_id: r.Users || "",
         name: r.Name || "",
@@ -647,10 +687,10 @@ function renderTable() {
         Phone: r["Last called no"] || "",
         Team: teamSelect.value,
         pon: r.PON || "",
-        window: currentWindow
+        window: targetWindow
       };
       try {
-        await fetch(`${baseUrl}/${currentWindow}/mark_complain`, {
+        await fetch(`${baseUrl}/${targetWindow}/mark_complain`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
@@ -665,8 +705,9 @@ function renderTable() {
     // DELETE: no reload
     tr.querySelector(".remove-btn").onclick = async (e) => {
       e.stopPropagation();
+      const targetWindow = r._sourceWindow || currentWindow;
       try {
-        await fetch(`${baseUrl}/${currentWindow}/delete_complain`, {
+        await fetch(`${baseUrl}/${targetWindow}/delete_complain`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ user_id: r.Users || "" })
@@ -729,8 +770,9 @@ document.getElementById("btnCsv").onclick = () => {
     return;
   }
 
-  const headers = ["PON", "User ID", "Mobile", "Name", "Mac / Serial", "Down", "Remark", "Team", "Mode", "Power", "Location", "Status"];
+  const headers = ["Window", "PON", "User ID", "Mobile", "Name", "Mac / Serial", "Down", "Remark", "Team", "Mode", "Power", "Location", "Status"];
   const csvContent = [headers.join(","), ...filtered.map(r => [
+    r._sourceWindow || currentWindow,
     r.PON || "",
     r.Users || "",
     r["Last called no"] || "",
@@ -761,17 +803,44 @@ document.getElementById("btnComplains").onclick = async () => {
   try {
     isComplainsView = true;
 
-    const openComplaints = await fetchOpenComplaintUsers(currentWindow);
+    let openComplaints = [];
+    
+    // Multi-window fetch
+    if (isMultiWindowMode) {
+      const promises = selectedWindows.map(window => 
+        fetchOpenComplaintUsers(window)
+      );
+      const results = await Promise.all(promises);
+      openComplaints = results.flat();
+    } else {
+      openComplaints = await fetchOpenComplaintUsers(currentWindow);
+    }
 
-    // load normal list
-    await fetchData();
-
+    // Create map of open complaints
     const openMap = {};
     openComplaints.forEach(c => {
       const id = String(c.user_id || "").trim().toLowerCase();
       if (id) openMap[id] = c;
     });
 
+    // Fetch data from selected windows
+    if (isMultiWindowMode) {
+      const allWindowData = [];
+      for (const window of selectedWindows) {
+        const windowData = await fetchWindowData(window);
+        const taggedData = windowData.map(row => ({
+          ...row,
+          _sourceWindow: window
+        }));
+        allWindowData.push(...taggedData);
+      }
+      rawRows = allWindowData;
+    } else {
+      // Single window
+      rawRows = await fetchWindowData(currentWindow);
+    }
+
+    // Filter rows with open complaints
     rawRows = rawRows
       .filter(r => openMap[String(r.Users || "").trim().toLowerCase()])
       .map(r => {
@@ -780,22 +849,29 @@ document.getElementById("btnComplains").onclick = async () => {
           ...r,
           _complain_open: true,
           _page_id: c.page_id || "Others",
-          _created_at: c.created_at || ""
+          _created_at: c.created_at || "",
+          _window: c._window || r._sourceWindow || currentWindow
         };
       });
 
+    // Sort
     rawRows.sort((a, b) => {
       const po = pageOrder(a._page_id) - pageOrder(b._page_id);
       if (po !== 0) return po;
       return safeParseDate(b._created_at) - safeParseDate(a._created_at);
     });
 
-    showToast(rawRows.length ? `${rawRows.length} open complains users loaded` : "No open complains found");
+    const windowMsg = isMultiWindowMode ? "all windows" : currentWindow;
+    showToast(rawRows.length ? 
+      `${rawRows.length} open complains loaded from ${windowMsg}` : 
+      "No open complains found");
+    
     populateFilters();
     applyAllFilters();
 
   } catch (e) {
     showToast("Failed to load complains");
+    console.error(e);
   } finally {
     hideSpinner();
   }
