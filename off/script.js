@@ -1,4 +1,4 @@
-const baseUrl = "https://app.vbo.co.in";
+const baseUrl = "https://app2.vbo.co.in";
 let currentWindow = "SEVAI";
 let rawRows = [];
 let filtered = [];
