@@ -2,7 +2,7 @@
 // Power Variance Analysis Page - Fixed PON Filter
 // ===============================
 
-const baseUrl = "https://app.vbo.co.in";
+const baseUrl = "https://app2.vbo.co.in";
 let currentWindow = "ALL";
 
 let mode = "power"; // power | event | daywise | eventwise
@@ -1359,4 +1359,5 @@ async function loadAll() {
 }
 
 // init
+
 loadAll();
