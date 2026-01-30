@@ -1,6 +1,6 @@
 // Production Grade Configuration
 const CONFIG = {
-    API_BASE_URL: 'https://app.vbo.co.in',
+    API_BASE_URL: 'https://app2.vbo.co.in',
     CURRENT_WINDOW: 'ALL',  // Default ALL (shows all windows)
     REFRESH_INTERVAL: 90000,
     SCREENSHOT_QUALITY: 2,
@@ -857,4 +857,5 @@ const app = {
 };
 
 document.addEventListener('DOMContentLoaded', () => app.initialize());
+
 window.addEventListener('beforeunload', () => app.cleanup());
