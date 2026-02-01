@@ -2,7 +2,7 @@
 const CONFIG = {
     API_BASE_URL: 'https://app2.vbo.co.in',
     CURRENT_WINDOW: 'ALL',  // Default ALL (shows all windows)
-    REFRESH_INTERVAL: 90000,
+    REFRESH_INTERVAL: 270000,
     SCREENSHOT_QUALITY: 2,
     MIN_DROPS_THRESHOLD: 3,
     MAX_PONS_PER_OLT: 16,
@@ -857,5 +857,4 @@ const app = {
 };
 
 document.addEventListener('DOMContentLoaded', () => app.initialize());
-
 window.addEventListener('beforeunload', () => app.cleanup());
