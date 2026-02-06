@@ -59,7 +59,7 @@ if (windowSelector) {
         
         if (selectedValue === "ALL") {
             isMultiWindowMode = true;
-            selectedWindows = ["SEVAI", "MEDANTA", "INFOTECH"];
+            selectedWindows = ["SEVAI", "MEDANTA", "AMANWIZ"];
             showToast("All Windows selected - click Complains to load");
         } else {
             isMultiWindowMode = false;
