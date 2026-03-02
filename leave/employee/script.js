@@ -11,7 +11,8 @@ const CONFIG = {
 // ========== STATE ==========
 let isSubmitting = false;
 let isLoading = false;
-let leaveData = [];
+let allLeaves = []; // Store all leaves
+let filteredLeaves = []; // Store filtered leaves
 
 // ========== DOM ELEMENTS ==========
 const elements = {
@@ -26,7 +27,10 @@ const elements = {
     totalLeaves: document.getElementById('totalLeaves'),
     approvedLeaves: document.getElementById('approvedLeaves'),
     pendingLeaves: document.getElementById('pendingLeaves'),
+    rejectedLeaves: document.getElementById('rejectedLeaves'),
     leaveCount: document.getElementById('leaveCount'),
+    monthTotalDays: document.getElementById('monthTotalDays'),
+    monthFilter: document.getElementById('monthFilter'),
     toast: document.getElementById('toast'),
     loading: document.getElementById('loading'),
     empBadge: document.getElementById('empBadge'),
@@ -96,44 +100,17 @@ function formatDate(dateStr) {
     }
 }
 
-// ========== GET STATUS BADGE ==========
-function getStatusBadge(status) {
-    status = (status || 'pending').toLowerCase();
-    const icons = { approved: '✅', rejected: '❌', pending: '⏳' };
-    return `<span class="status-badge ${status}">${icons[status] || '📝'} ${status}</span>`;
-}
-
-// ========== RENDER TABLE ==========
-function renderLeavesTable() {
-    if (!leaveData || leaveData.length === 0) {
-        elements.tableBody.innerHTML = `
-            <tr>
-                <td colspan="5" class="empty-state">
-                    <span>📋</span>
-                    <p>No leaves</p>
-                </td>
-            </tr>
-        `;
-        updateStats();
-        return;
+// ========== GET MONTH FROM DATE ==========
+function getMonthFromDate(dateStr) {
+    if (!dateStr) return '';
+    try {
+        const date = new Date(dateStr);
+        const yyyy = date.getFullYear();
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        return `${yyyy}-${mm}`;
+    } catch {
+        return '';
     }
-    
-    let html = '';
-    leaveData.forEach((leave, index) => {
-        const days = calculateLeaveDays(leave.from_date, leave.to_date);
-        html += `
-            <tr>
-                <td>${index + 1}</td>
-                <td>${formatDate(leave.from_date)}</td>
-                <td>${formatDate(leave.to_date)}</td>
-                <td><span class="days-badge">${days}</span></td>
-                <td>${getStatusBadge(leave.status)}</td>
-            </tr>
-        `;
-    });
-    
-    elements.tableBody.innerHTML = html;
-    updateStats();
 }
 
 // ========== CALCULATE LEAVE DAYS ==========
@@ -149,16 +126,83 @@ function calculateLeaveDays(fromDate, toDate) {
     }
 }
 
+// ========== GET STATUS BADGE ==========
+function getStatusBadge(status) {
+    status = (status || 'pending').toLowerCase();
+    const icons = { approved: '✅', rejected: '❌', pending: '⏳' };
+    return `<span class="status-badge ${status}">${icons[status] || '📝'} ${status}</span>`;
+}
+
+// ========== FILTER LEAVES BY MONTH ==========
+function filterLeavesByMonth() {
+    const selectedMonth = elements.monthFilter.value;
+    
+    if (!selectedMonth) {
+        filteredLeaves = [...allLeaves];
+    } else {
+        filteredLeaves = allLeaves.filter(leave => {
+            const leaveMonth = getMonthFromDate(leave.from_date);
+            return leaveMonth === selectedMonth;
+        });
+    }
+    
+    renderLeavesTable();
+    updateStats();
+    updateMonthTotalDays();
+}
+
+// ========== UPDATE MONTH TOTAL DAYS ==========
+function updateMonthTotalDays() {
+    const totalDays = filteredLeaves.reduce((sum, leave) => {
+        return sum + calculateLeaveDays(leave.from_date, leave.to_date);
+    }, 0);
+    
+    elements.monthTotalDays.textContent = `${totalDays} days`;
+}
+
+// ========== RENDER TABLE ==========
+function renderLeavesTable() {
+    if (!filteredLeaves || filteredLeaves.length === 0) {
+        elements.tableBody.innerHTML = `
+            <tr>
+                <td colspan="5" class="empty-state">
+                    <span>📋</span>
+                    <p>No leaves for this month</p>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    let html = '';
+    filteredLeaves.forEach((leave, index) => {
+        const days = calculateLeaveDays(leave.from_date, leave.to_date);
+        html += `
+            <tr>
+                <td>${index + 1}</td>
+                <td>${formatDate(leave.from_date)}</td>
+                <td>${formatDate(leave.to_date)}</td>
+                <td><span class="days-badge">${days}</span></td>
+                <td>${getStatusBadge(leave.status)}</td>
+            </tr>
+        `;
+    });
+    
+    elements.tableBody.innerHTML = html;
+}
+
 // ========== UPDATE STATS ==========
 function updateStats() {
-    const total = leaveData.length;
-    const approved = leaveData.filter(l => l.status?.toLowerCase() === 'approved').length;
-    const pending = leaveData.filter(l => l.status?.toLowerCase() === 'pending').length;
+    const total = filteredLeaves.length;
+    const approved = filteredLeaves.filter(l => l.status?.toLowerCase() === 'approved').length;
+    const pending = filteredLeaves.filter(l => l.status?.toLowerCase() === 'pending').length;
+    const rejected = filteredLeaves.filter(l => l.status?.toLowerCase() === 'rejected').length;
     
     elements.totalLeaves.textContent = total;
     elements.approvedLeaves.textContent = approved;
     elements.pendingLeaves.textContent = pending;
-    elements.leaveCount.textContent = total;
+    elements.rejectedLeaves.textContent = rejected;
+    elements.leaveCount.textContent = allLeaves.length; // Show total in badge
 }
 
 // ========== TOAST ==========
@@ -192,19 +236,32 @@ async function loadLeaves() {
         const response = await fetch(`${CONFIG.API_BASE}/amanwiz/leave/my?employee_id=${CONFIG.employee_id}`);
         const data = await response.json();
         
-        leaveData = data.data || [];
-        renderLeavesTable();
+        allLeaves = data.data || [];
+        
+        // Set current month as default (March 2024)
+        const today = new Date();
+        const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+        elements.monthFilter.value = currentMonth;
+        
+        filterLeavesByMonth();
         
     } catch (error) {
         console.error('Load error:', error);
         
-        // Demo data if API fails
-        leaveData = [
+        // Demo data with rejected leaves
+        allLeaves = [
             { id: 1, from_date: '2024-03-15', to_date: '2024-03-16', status: 'approved' },
             { id: 2, from_date: '2024-03-18', to_date: '2024-03-20', status: 'pending' },
-            { id: 3, from_date: '2024-03-10', to_date: '2024-03-13', status: 'approved' }
+            { id: 3, from_date: '2024-03-10', to_date: '2024-03-13', status: 'approved' },
+            { id: 4, from_date: '2024-02-05', to_date: '2024-02-06', status: 'rejected' },
+            { id: 5, from_date: '2024-02-15', to_date: '2024-02-17', status: 'approved' },
+            { id: 6, from_date: '2024-03-22', to_date: '2024-03-23', status: 'rejected' },
+            { id: 7, from_date: '2024-01-10', to_date: '2024-01-12', status: 'approved' }
         ];
-        renderLeavesTable();
+        
+        // Set current month as default
+        elements.monthFilter.value = '2024-03';
+        filterLeavesByMonth();
         showToast('Demo data loaded', 'success');
     } finally {
         isLoading = false;
@@ -258,8 +315,8 @@ async function applyLeave() {
             to_date: elements.toDate.value,
             status: 'pending'
         };
-        leaveData.unshift(newLeave);
-        renderLeavesTable();
+        allLeaves.unshift(newLeave);
+        filterLeavesByMonth();
         clearForm();
         showToast(`Applied for ${elements.totalDays.textContent} days! (Demo)`, 'success');
         
@@ -325,6 +382,9 @@ elements.reason.addEventListener('input', function() {
 
 // Set min dates
 setMinDates();
+
+// Month filter change
+elements.monthFilter.addEventListener('change', filterLeavesByMonth);
 
 // Button listeners
 elements.applyBtn.addEventListener('click', applyLeave);
