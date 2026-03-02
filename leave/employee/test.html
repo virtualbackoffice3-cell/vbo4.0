@@ -9,13 +9,13 @@
 <body>
 
 <div class="container">
-    <!-- Header - Compact -->
+    <!-- Header -->
     <div class="header">
         <h2>Leave Panel</h2>
         <span class="emp-badge" id="empBadge">EMP0001</span>
     </div>
 
-    <!-- Apply Leave Card - Compact -->
+    <!-- Apply Leave Card -->
     <div class="card">
         <div class="card-header">
             <span class="card-icon">📝</span>
@@ -33,6 +33,13 @@
             </div>
         </div>
 
+        <!-- Days Calculator -->
+        <div class="days-box" id="daysBox">
+            <span class="days-label">Total Days:</span>
+            <span class="days-value" id="totalDays">0</span>
+            <span class="days-suffix">day(s)</span>
+        </div>
+
         <div class="form-group">
             <label>Reason</label>
             <textarea id="reason" class="form-input" placeholder="Reason (min. 10 chars)" rows="2"></textarea>
@@ -45,12 +52,12 @@
         </div>
 
         <button class="apply-btn" id="applyBtn">
-            <span>Apply</span>
+            <span>Apply Leave</span>
             <span class="btn-icon">→</span>
         </button>
     </div>
 
-    <!-- My Leaves Card - Compact -->
+    <!-- My Leaves Card -->
     <div class="card">
         <div class="card-header">
             <span class="card-icon">📋</span>
@@ -58,23 +65,23 @@
             <span class="stats-badge" id="leaveCount">0</span>
         </div>
         
-        <!-- Compact Stats -->
+        <!-- Stats -->
         <div class="stats-row">
             <div class="stat-pill total">
                 <span class="stat-dot">●</span>
-                <span id="totalLeaves">0</span>
+                <span id="totalLeaves">0</span> Total
             </div>
             <div class="stat-pill approved">
                 <span class="stat-dot">●</span>
-                <span id="approvedLeaves">0</span>
+                <span id="approvedLeaves">0</span> Approved
             </div>
             <div class="stat-pill pending">
                 <span class="stat-dot">●</span>
-                <span id="pendingLeaves">0</span>
+                <span id="pendingLeaves">0</span> Pending
             </div>
         </div>
 
-        <!-- Compact Table -->
+        <!-- Table with Days Column -->
         <div class="table-wrapper">
             <table id="leaveTable">
                 <thead>
@@ -82,12 +89,13 @@
                         <th>#</th>
                         <th>From</th>
                         <th>To</th>
+                        <th>Days</th>
                         <th>Status</th>
                     </tr>
                 </thead>
                 <tbody id="leaveTableBody">
                     <tr>
-                        <td colspan="4" class="empty-state">
+                        <td colspan="5" class="empty-state">
                             <span>📋</span>
                             <p>No leaves</p>
                         </td>
@@ -97,7 +105,7 @@
         </div>
     </div>
 
-    <!-- Quick Actions - Compact -->
+    <!-- Quick Actions -->
     <div class="action-bar">
         <button class="action-btn" id="refreshBtn" title="Refresh">↻</button>
         <button class="action-btn" id="clearBtn" title="Clear">⌫</button>
