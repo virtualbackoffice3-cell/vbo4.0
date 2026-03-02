@@ -5,7 +5,7 @@ const CONFIG = {
     employee_name: "Test Employee",
     employee_email: "shahzebinfo2@gmail.com",
     manager_emails: ["manager@gmail.com"],
-    owner_emails: ["owner@gmail.com"]
+    owner_emails: ["aamanwiz@gmail.com"]
 };
 
 // ========== STATE ==========
