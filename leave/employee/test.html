@@ -62,46 +62,39 @@
         <div class="card-header">
             <span class="card-icon">📋</span>
             <h3>My Leaves</h3>
-            <span class="stats-badge" id="leaveCount">0</span>
+            <span class="stats-badge" id="totalDaysAll">0</span>
         </div>
         
-        <!-- Month Filter -->
-        <div class="filter-row">
-            <select id="monthFilter" class="month-filter">
-                <option value="">All Months</option>
-                <option value="2024-01">Jan 2024</option>
-                <option value="2024-02">Feb 2024</option>
-                <option value="2024-03" selected>Mar 2024</option>
-                <option value="2024-04">Apr 2024</option>
-                <option value="2024-05">May 2024</option>
-                <option value="2024-06">Jun 2024</option>
-                <option value="2024-07">Jul 2024</option>
-                <option value="2024-08">Aug 2024</option>
-                <option value="2024-09">Sep 2024</option>
-                <option value="2024-10">Oct 2024</option>
-                <option value="2024-11">Nov 2024</option>
-                <option value="2024-12">Dec 2024</option>
+        <!-- Dynamic Month & Year Selector -->
+        <div class="filter-row" id="filterRow">
+            <select id="monthSelector" class="month-filter">
+                <option value="">Select Month</option>
             </select>
-            <span class="total-days-badge" id="monthTotalDays">0 days</span>
+            
+            <select id="yearSelector" class="month-filter">
+                <option value="">Select Year</option>
+            </select>
+            
+            <span class="total-days-badge" id="monthTotalDays">0</span>
         </div>
         
-        <!-- Stats with Rejected -->
+        <!-- Stats with DAYS COUNT -->
         <div class="stats-row">
             <div class="stat-pill total">
                 <span class="stat-dot">●</span>
-                <span id="totalLeaves">0</span> Total
+                <span id="totalDaysCount">0</span> Days
             </div>
             <div class="stat-pill approved">
                 <span class="stat-dot">●</span>
-                <span id="approvedLeaves">0</span> Approved
+                <span id="approvedDays">0</span> Approved
             </div>
             <div class="stat-pill pending">
                 <span class="stat-dot">●</span>
-                <span id="pendingLeaves">0</span> Pending
+                <span id="pendingDays">0</span> Pending
             </div>
             <div class="stat-pill rejected">
                 <span class="stat-dot">●</span>
-                <span id="rejectedLeaves">0</span> Rejected
+                <span id="rejectedDays">0</span> Rejected
             </div>
         </div>
 
