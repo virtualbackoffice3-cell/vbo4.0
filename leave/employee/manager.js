@@ -3,7 +3,7 @@ const CONFIG = {
     API_BASE: "https://app.vbo.co.in",
     manager_name: "Manager",
     manager_email: "manager@gmail.com",
-    owner_emails: ["owner@gmail.com"]
+    owner_emails: ["aamanwiz@gmail.com"]
 };
 
 // ========== STATE ==========
