@@ -3,75 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-    <title>Leave Panel - EMP0001</title>
+    <title>Leave Panel</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div class="container">
-    <!-- Header -->
+    <!-- Header - Compact -->
     <div class="header">
         <h2>Leave Panel</h2>
         <span class="emp-badge" id="empBadge">EMP0001</span>
     </div>
 
-    <!-- Apply Leave Card -->
+    <!-- Apply Leave Card - Compact -->
     <div class="card">
-        <h3>Apply Leave</h3>
+        <div class="card-header">
+            <span class="card-icon">📝</span>
+            <h3>Apply Leave</h3>
+        </div>
         
-        <div class="form-group">
-            <label>📅 From Date</label>
-            <input type="date" id="from_date" class="form-input">
+        <div class="form-row">
+            <div class="form-group half">
+                <label>From</label>
+                <input type="date" id="from_date" class="form-input" min="">
+            </div>
+            <div class="form-group half">
+                <label>To</label>
+                <input type="date" id="to_date" class="form-input" min="">
+            </div>
         </div>
 
         <div class="form-group">
-            <label>📅 To Date</label>
-            <input type="date" id="to_date" class="form-input">
+            <label>Reason</label>
+            <textarea id="reason" class="form-input" placeholder="Reason (min. 10 chars)" rows="2"></textarea>
+            <small class="char-counter"><span id="charCount">0</span>/10</small>
         </div>
 
         <div class="form-group">
-            <label>📝 Reason</label>
-            <textarea id="reason" class="form-input" placeholder="Enter reason (min. 10 characters)"></textarea>
-            <small class="char-counter"><span id="charCount">0</span>/10 minimum</small>
-        </div>
-
-        <div class="form-group">
-            <label>👥 Handover To</label>
+            <label>Handover To</label>
             <input type="text" id="handover" class="form-input" placeholder="Colleague name">
         </div>
 
         <button class="apply-btn" id="applyBtn">
-            <span class="btn-text">Apply Leave</span>
+            <span>Apply</span>
             <span class="btn-icon">→</span>
         </button>
     </div>
 
-    <!-- My Leaves Card -->
-    <div class="card leaves-card">
-        <h3>My Leaves</h3>
+    <!-- My Leaves Card - Compact -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-icon">📋</span>
+            <h3>My Leaves</h3>
+            <span class="stats-badge" id="leaveCount">0</span>
+        </div>
         
-        <!-- Stats -->
-        <div class="leave-stats">
-            <div class="stat-item">
-                <span class="stat-value" id="totalLeaves">0</span>
-                <span class="stat-label">Total</span>
+        <!-- Compact Stats -->
+        <div class="stats-row">
+            <div class="stat-pill total">
+                <span class="stat-dot">●</span>
+                <span id="totalLeaves">0</span>
             </div>
-            <div class="stat-item">
-                <span class="stat-value approved" id="approvedLeaves">0</span>
-                <span class="stat-label">Approved</span>
+            <div class="stat-pill approved">
+                <span class="stat-dot">●</span>
+                <span id="approvedLeaves">0</span>
             </div>
-            <div class="stat-item">
-                <span class="stat-value pending" id="pendingLeaves">0</span>
-                <span class="stat-label">Pending</span>
+            <div class="stat-pill pending">
+                <span class="stat-dot">●</span>
+                <span id="pendingLeaves">0</span>
             </div>
         </div>
 
-        <!-- Table -->
+        <!-- Compact Table -->
         <div class="table-wrapper">
             <table id="leaveTable">
                 <thead>
                     <tr>
-                        <th>ID</th>
+                        <th>#</th>
                         <th>From</th>
                         <th>To</th>
                         <th>Status</th>
@@ -81,7 +89,7 @@
                     <tr>
                         <td colspan="4" class="empty-state">
                             <span>📋</span>
-                            <p>Loading leaves...</p>
+                            <p>No leaves</p>
                         </td>
                     </tr>
                 </tbody>
@@ -89,23 +97,19 @@
         </div>
     </div>
 
-    <!-- Quick Actions -->
-    <div class="quick-actions">
-        <button class="action-btn" id="refreshBtn" title="Refresh">🔄</button>
-        <button class="action-btn" id="clearBtn" title="Clear Form">🗑️</button>
-        <button class="action-btn" id="topBtn" title="Top">⬆️</button>
+    <!-- Quick Actions - Compact -->
+    <div class="action-bar">
+        <button class="action-btn" id="refreshBtn" title="Refresh">↻</button>
+        <button class="action-btn" id="clearBtn" title="Clear">⌫</button>
+        <button class="action-btn" id="topBtn" title="Top">↑</button>
     </div>
 </div>
 
-<!-- Toast & Loading -->
+<!-- Toast -->
 <div class="toast" id="toast"></div>
-<div class="loading-spinner" id="loadingSpinner">
-    <div class="spinner"></div>
-    <span>Loading...</span>
-</div>
 
-<!-- Pull to Refresh Indicator -->
-<div class="pull-to-refresh" id="pullRefresh">⬇️ Refreshing...</div>
+<!-- Loading -->
+<div class="loading" id="loading">⏳</div>
 
 <script src="script.js"></script>
 </body>
