@@ -38,64 +38,8 @@
     </div>
 </div>
 
-<script>
-// ================= CONFIG =================
-const CONFIG = {
-    API_BASE: "https://app.vbo.co.in",
-    employee_id: "EMP0001",
-    employee_name: "Test employee",
-    employee_email: "shahzebinfo2@gmail.com",
-    manager_emails: ["manager@gmail.com"],
-    owner_emails: ["owner@gmail.com"]
-};
-
-// ================= APPLY =================
-async function applyLeave() {
-    const payload = {
-        employee_id: CONFIG.employee_id,
-        employee_name: CONFIG.employee_name,
-        employee_email: CONFIG.employee_email,
-        from_date: document.getElementById("from_date").value,
-        to_date: document.getElementById("to_date").value,
-        reason: document.getElementById("reason").value,
-        handover_to: document.getElementById("handover").value,
-        manager_emails: CONFIG.manager_emails,
-        owner_emails: CONFIG.owner_emails
-    };
-
-    const res = await fetch(CONFIG.API_BASE + "/amanwiz/leave/apply", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-    });
-
-    const data = await res.json();
-    alert(data.message || data.status);
-    loadLeaves();
-}
-
-// ================= LOAD =================
-async function loadLeaves() {
-    const res = await fetch(`${CONFIG.API_BASE}/amanwiz/leave/my?employee_id=${CONFIG.employee_id}`);
-    const data = await res.json();
-
-    const tbody = document.querySelector("#leaveTable tbody");
-    tbody.innerHTML = "";
-
-    (data.data || []).forEach(row => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-            <td>${row.id}</td>
-            <td>${row.from_date}</td>
-            <td>${row.to_date}</td>
-            <td class="status ${row.status}">${row.status}</td>
-        `;
-        tbody.appendChild(tr);
-    });
-}
-
-loadLeaves();
-</script>
+<!-- JavaScript Import -->
+<script src="script.js"></script>
 
 </body>
 </html>
