@@ -85,6 +85,39 @@ h2 {
     font-weight: 600;
 }
 
+/* ========== FILTER ROW ========== */
+.filter-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    align-items: center;
+}
+
+.month-filter {
+    flex: 1;
+    padding: 8px 10px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 30px;
+    font-size: 13px;
+    background: white;
+    outline: none;
+    color: #2d3748;
+}
+
+.month-filter:focus {
+    border-color: #667eea;
+}
+
+.total-days-badge {
+    background: #667eea;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 30px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
 /* ========== FORM ========== */
 .form-row {
     display: flex;
@@ -220,24 +253,26 @@ textarea.form-input {
 /* ========== STATS ========== */
 .stats-row {
     display: flex;
-    gap: 6px;
+    gap: 4px;
     margin-bottom: 12px;
     background: #f8fafc;
     padding: 6px;
     border-radius: 30px;
+    flex-wrap: wrap;
 }
 
 .stat-pill {
-    flex: 1;
+    flex: 1 0 auto;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 2px;
-    padding: 6px 0;
-    font-size: 12px;
+    padding: 6px 4px;
+    font-size: 11px;
     font-weight: 500;
     border-radius: 20px;
     white-space: nowrap;
+    min-width: 60px;
 }
 
 .stat-pill.total {
@@ -253,6 +288,11 @@ textarea.form-input {
 .stat-pill.pending {
     background: #feebc8;
     color: #7b341e;
+}
+
+.stat-pill.rejected {
+    background: #fed7d7;
+    color: #742a2a;
 }
 
 .stat-dot {
@@ -447,12 +487,13 @@ input[type="date"]:valid {
     }
     
     .stats-row {
-        gap: 4px;
+        gap: 2px;
     }
     
     .stat-pill {
-        font-size: 10px;
-        padding: 4px 0;
+        font-size: 9px;
+        padding: 4px 2px;
+        min-width: 45px;
     }
     
     th, td {
@@ -471,5 +512,15 @@ input[type="date"]:valid {
     
     .days-value {
         font-size: 18px;
+    }
+    
+    .month-filter {
+        font-size: 11px;
+        padding: 6px 8px;
+    }
+    
+    .total-days-badge {
+        font-size: 10px;
+        padding: 4px 8px;
     }
 }
