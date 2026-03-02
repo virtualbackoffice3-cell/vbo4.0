@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>Manager Panel - Leave Management</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+    <!-- Header -->
+    <div class="header">
+        <h2>Manager Panel</h2>
+        <span class="emp-badge" id="managerBadge">Manager</span>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="stats-grid">
+        <div class="stat-card total">
+            <span class="stat-label">Total</span>
+            <span class="stat-number" id="totalLeaves">0</span>
+        </div>
+        <div class="stat-card approved">
+            <span class="stat-label">Approved</span>
+            <span class="stat-number" id="totalApproved">0</span>
+        </div>
+        <div class="stat-card pending">
+            <span class="stat-label">Pending</span>
+            <span class="stat-number" id="totalPending">0</span>
+        </div>
+        <div class="stat-card rejected">
+            <span class="stat-label">Rejected</span>
+            <span class="stat-number" id="totalRejected">0</span>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-icon">🔍</span>
+            <h3>Filter Leaves</h3>
+            <span class="stats-badge" id="filteredCount">0</span>
+        </div>
+        
+        <!-- Filter Row 1 -->
+        <div class="filters-row">
+            <!-- Employee Filter -->
+            <div class="filter-group">
+                <label>👤 Employee</label>
+                <select id="employeeFilter" class="form-input">
+                    <option value="">All Employees</option>
+                </select>
+            </div>
+            
+            <!-- Month Filter -->
+            <div class="filter-group">
+                <label>📅 Month</label>
+                <select id="monthFilter" class="form-input">
+                    <option value="">All Months</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- Filter Row 2 -->
+        <div class="filters-row">
+            <!-- Year Filter -->
+            <div class="filter-group">
+                <label>📆 Year</label>
+                <select id="yearFilter" class="form-input">
+                    <option value="">All Years</option>
+                </select>
+            </div>
+            
+            <!-- Status Filter (Default Pending) -->
+            <div class="filter-group">
+                <label>⚡ Status</label>
+                <select id="statusFilter" class="form-input">
+                    <option value="">All Status</option>
+                    <option value="pending" selected>⏳ Pending</option>
+                    <option value="approved">✅ Approved</option>
+                    <option value="rejected">❌ Rejected</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- Active Filters -->
+        <div class="active-filters" id="activeFilters"></div>
+        
+        <!-- Filter Actions -->
+        <div class="filter-actions">
+            <button class="clear-filters-btn" id="clearFilters">Clear All</button>
+        </div>
+    </div>
+
+    <!-- Leave Requests Card -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-icon">📋</span>
+            <h3>Leave Requests</h3>
+        </div>
+        
+        <!-- Filter Summary -->
+        <div class="filter-summary" id="filterSummary">
+            Showing all leaves
+        </div>
+
+        <!-- Table -->
+        <div class="table-wrapper">
+            <table id="leaveTable">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Dates</th>
+                        <th>Days</th>
+                        <th>Reason</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="leaveTableBody">
+                    <tr>
+                        <td colspan="7" class="empty-state">
+                            <span>📋</span>
+                            <p>Loading leaves...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="action-bar">
+        <button class="action-btn" id="refreshBtn" title="Refresh">↻</button>
+        <button class="action-btn" id="pendingBtn" title="Show Pending">⏳</button>
+        <button class="action-btn" id="topBtn" title="Top">↑</button>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Loading -->
+<div class="loading" id="loading">⏳</div>
+
+<script src="manager.js"></script>
+</body>
+</html>
