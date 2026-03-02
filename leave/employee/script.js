@@ -1,132 +1,220 @@
-// ================= CONFIG =================
-const CONFIG = {
-    API_BASE: "https://app.vbo.co.in",
-    employee_id: "EMP0001",
-    employee_name: "Test employee",
-    employee_email: "shahzebinfo2@gmail.com",
-    manager_emails: ["manager@gmail.com"],
-    owner_emails: ["owner@gmail.com"]
-};
+/* ========== ADD THESE TO EXISTING CSS ========== */
 
-// ================= TOAST FUNCTION =================
-function showToast(msg) {
-    let t = document.createElement("div");
-    t.className = "toast";
-    t.innerText = msg;
-    document.body.appendChild(t);
-
-    setTimeout(() => t.classList.add("show"), 100);
-    setTimeout(() => {
-        t.classList.remove("show");
-        setTimeout(() => t.remove(), 300);
-    }, 2500);
+/* Loading Spinner */
+.loading-spinner {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 20px 30px;
+    border-radius: 60px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 2000;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    backdrop-filter: blur(10px);
 }
 
-// ================= APPLY LEAVE =================
-let isSubmitting = false;
+.loading-spinner.show {
+    opacity: 1;
+}
 
-async function applyLeave() {
-    if (isSubmitting) return;
+.spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: spin 0.8s linear infinite;
+}
 
-    // Validation
-    const fromDate = document.getElementById("from_date").value;
-    const toDate = document.getElementById("to_date").value;
-    const reason = document.getElementById("reason").value;
-    const handover = document.getElementById("handover").value;
+/* Button Spinner */
+.btn-spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: spin 0.6s linear infinite;
+    margin-right: 8px;
+}
 
-    if (!fromDate || !toDate || !reason || !handover) {
-        showToast("Please fill all fields ❌");
-        return;
+/* Status Badge */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    border-radius: 30px;
+    font-size: 13px;
+    font-weight: 600;
+    background: #edf2f7;
+    color: #2d3748;
+}
+
+.status-badge.approved {
+    background: linear-gradient(135deg, #c6f6d5, #9ae6b4);
+    color: #22543d;
+}
+
+.status-badge.pending {
+    background: linear-gradient(135deg, #feebc8, #fbd38d);
+    color: #7b341e;
+}
+
+.status-badge.rejected {
+    background: linear-gradient(135deg, #fed7d7, #feb2b2);
+    color: #742a2a;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 40px 20px !important;
+    background: #f7fafc !important;
+}
+
+.empty-state span {
+    font-size: 48px;
+    display: block;
+    margin-bottom: 12px;
+}
+
+.empty-state p {
+    font-size: 16px;
+    color: #4a5568;
+    margin-bottom: 4px;
+}
+
+.empty-state small {
+    font-size: 14px;
+    color: #718096;
+}
+
+/* Error State */
+.error-state {
+    text-align: center;
+    padding: 30px 20px !important;
+    background: #fff5f5 !important;
+}
+
+.error-state span {
+    font-size: 36px;
+    display: block;
+    margin-bottom: 8px;
+}
+
+.error-state p {
+    color: #c53030;
+    margin-bottom: 12px;
+}
+
+.retry-btn {
+    width: auto;
+    padding: 8px 24px;
+    margin-top: 8px;
+    font-size: 14px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border: none;
+    border-radius: 30px;
+    cursor: pointer;
+}
+
+/* Pull to Refresh */
+.pull-to-refresh {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    text-align: center;
+    padding: 15px;
+    transform: translateY(-100%);
+    transition: transform 0.3s;
+    z-index: 1500;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.pull-to-refresh.show {
+    transform: translateY(0);
+}
+
+/* Input States */
+input.filled, textarea.filled {
+    border-color: #667eea;
+    background-color: #f0f5ff;
+}
+
+input.valid {
+    border-color: #48bb78;
+}
+
+input.invalid {
+    border-color: #f56565;
+}
+
+/* Table Row Animation */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
     }
-
-    if (new Date(fromDate) > new Date(toDate)) {
-        showToast("To date must be after from date ❌");
-        return;
-    }
-
-    isSubmitting = true;
-    const btn = document.querySelector("button");
-    btn.disabled = true;
-    btn.innerText = "Submitting...";
-
-    const payload = {
-        employee_id: CONFIG.employee_id,
-        employee_name: CONFIG.employee_name,
-        employee_email: CONFIG.employee_email,
-        from_date: fromDate,
-        to_date: toDate,
-        reason: reason,
-        handover_to: handover,
-        manager_emails: CONFIG.manager_emails,
-        owner_emails: CONFIG.owner_emails
-    };
-
-    try {
-        const res = await fetch(CONFIG.API_BASE + "/amanwiz/leave/apply", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        });
-
-        const data = await res.json();
-
-        if (res.ok) {
-            showToast(data.message || "Leave Applied ✅");
-            // Clear form
-            document.getElementById("from_date").value = "";
-            document.getElementById("to_date").value = "";
-            document.getElementById("reason").value = "";
-            document.getElementById("handover").value = "";
-        } else {
-            showToast(data.message || "Error ❌");
-        }
-        
-        loadLeaves();
-
-    } catch (err) {
-        showToast("Network Error ❌");
-        console.error("Error:", err);
-    } finally {
-        btn.disabled = false;
-        btn.innerText = "Apply";
-        isSubmitting = false;
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
 }
 
-// ================= LOAD LEAVES =================
-async function loadLeaves() {
-    try {
-        const res = await fetch(`${CONFIG.API_BASE}/amanwiz/leave/my?employee_id=${CONFIG.employee_id}`);
-        const data = await res.json();
-
-        const tbody = document.querySelector("#leaveTable tbody");
-        tbody.innerHTML = "";
-
-        if (data.data && data.data.length > 0) {
-            (data.data || []).forEach(row => {
-                const tr = document.createElement("tr");
-                tr.innerHTML = `
-                    <td>${row.id || '-'}</td>
-                    <td>${row.from_date || '-'}</td>
-                    <td>${row.to_date || '-'}</td>
-                    <td class="status ${(row.status || '').toLowerCase()}">${row.status || 'Pending'}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-        } else {
-            const tr = document.createElement("tr");
-            tr.innerHTML = `<td colspan="4" style="text-align: center;">No leaves found</td>`;
-            tbody.appendChild(tr);
-        }
-
-    } catch (err) {
-        console.error("Error loading leaves:", err);
-        showToast("Failed to load leaves ❌");
-    }
+/* Toast Types */
+.toast.success {
+    background: linear-gradient(135deg, #48bb78, #38a169);
 }
 
-// ================= INIT =================
-// Load leaves when page loads
-document.addEventListener("DOMContentLoaded", function() {
-    loadLeaves();
-});
+.toast.error {
+    background: linear-gradient(135deg, #f56565, #c53030);
+}
+
+.toast.info {
+    background: linear-gradient(135deg, #4299e1, #3182ce);
+}
+
+/* Container Loaded Animation */
+.container {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.4s ease;
+}
+
+.container.loaded {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Touch Feedback */
+button, .card {
+    -webkit-tap-highlight-color: transparent;
+}
+
+button:active {
+    transform: scale(0.97);
+}
+
+/* Better Date Input Styling */
+input[type="date"]::-webkit-calendar-picker-indicator {
+    opacity: 0.6;
+    cursor: pointer;
+    padding: 4px;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+}
