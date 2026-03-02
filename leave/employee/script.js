@@ -21,6 +21,7 @@ const elements = {
     handover: document.getElementById('handover'),
     applyBtn: document.getElementById('applyBtn'),
     charCount: document.getElementById('charCount'),
+    totalDays: document.getElementById('totalDays'),
     tableBody: document.getElementById('leaveTableBody'),
     totalLeaves: document.getElementById('totalLeaves'),
     approvedLeaves: document.getElementById('approvedLeaves'),
@@ -45,14 +46,119 @@ function setMinDates() {
     elements.fromDate.min = minDate;
     elements.toDate.min = minDate;
     
-    // Update tomorrow's min for to_date when from_date changes
     elements.fromDate.addEventListener('change', function() {
         if (this.value) {
             elements.toDate.min = this.value;
+            calculateDays();
         } else {
             elements.toDate.min = minDate;
         }
     });
+    
+    elements.toDate.addEventListener('change', calculateDays);
+}
+
+// ========== CALCULATE DAYS ==========
+function calculateDays() {
+    const fromDate = elements.fromDate.value;
+    const toDate = elements.toDate.value;
+    
+    if (!fromDate || !toDate) {
+        elements.totalDays.textContent = '0';
+        return;
+    }
+    
+    const from = new Date(fromDate);
+    const to = new Date(toDate);
+    
+    if (to < from) {
+        elements.totalDays.textContent = '0';
+        return;
+    }
+    
+    const diffTime = to - from;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    
+    elements.totalDays.textContent = diffDays;
+}
+
+// ========== FORMAT DATE (Mar 15) ==========
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    try {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-US', { 
+            month: 'short',
+            day: '2-digit'
+        });
+    } catch {
+        return dateStr;
+    }
+}
+
+// ========== GET STATUS BADGE ==========
+function getStatusBadge(status) {
+    status = (status || 'pending').toLowerCase();
+    const icons = { approved: '✅', rejected: '❌', pending: '⏳' };
+    return `<span class="status-badge ${status}">${icons[status] || '📝'} ${status}</span>`;
+}
+
+// ========== RENDER TABLE ==========
+function renderLeavesTable() {
+    if (!leaveData || leaveData.length === 0) {
+        elements.tableBody.innerHTML = `
+            <tr>
+                <td colspan="5" class="empty-state">
+                    <span>📋</span>
+                    <p>No leaves</p>
+                </td>
+            </tr>
+        `;
+        updateStats();
+        return;
+    }
+    
+    let html = '';
+    leaveData.forEach((leave, index) => {
+        const days = calculateLeaveDays(leave.from_date, leave.to_date);
+        html += `
+            <tr>
+                <td>${index + 1}</td>
+                <td>${formatDate(leave.from_date)}</td>
+                <td>${formatDate(leave.to_date)}</td>
+                <td><span class="days-badge">${days}</span></td>
+                <td>${getStatusBadge(leave.status)}</td>
+            </tr>
+        `;
+    });
+    
+    elements.tableBody.innerHTML = html;
+    updateStats();
+}
+
+// ========== CALCULATE LEAVE DAYS ==========
+function calculateLeaveDays(fromDate, toDate) {
+    if (!fromDate || !toDate) return 0;
+    try {
+        const from = new Date(fromDate);
+        const to = new Date(toDate);
+        const diffTime = to - from;
+        return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    } catch {
+        return 0;
+    }
+}
+
+// ========== UPDATE STATS ==========
+function updateStats() {
+    const total = leaveData.length;
+    const approved = leaveData.filter(l => l.status?.toLowerCase() === 'approved').length;
+    const pending = leaveData.filter(l => l.status?.toLowerCase() === 'pending').length;
+    
+    elements.totalLeaves.textContent = total;
+    elements.approvedLeaves.textContent = approved;
+    elements.pendingLeaves.textContent = pending;
+    elements.leaveCount.textContent = total;
 }
 
 // ========== TOAST ==========
@@ -75,70 +181,6 @@ function setLoading(show) {
     }
 }
 
-// ========== FORMAT DATE ==========
-function formatDate(dateStr) {
-    if (!dateStr) return '-';
-    try {
-        const date = new Date(dateStr);
-        return date.toLocaleDateString('en-IN', { 
-            day: '2-digit', 
-            month: '2-digit'
-        });
-    } catch {
-        return dateStr;
-    }
-}
-
-// ========== GET STATUS BADGE ==========
-function getStatusBadge(status) {
-    status = (status || 'pending').toLowerCase();
-    const icons = { approved: '✅', rejected: '❌', pending: '⏳' };
-    return `<span class="status-badge ${status}">${icons[status] || '📝'} ${status}</span>`;
-}
-
-// ========== RENDER TABLE ==========
-function renderLeavesTable() {
-    if (!leaveData || leaveData.length === 0) {
-        elements.tableBody.innerHTML = `
-            <tr>
-                <td colspan="4" class="empty-state">
-                    <span>📋</span>
-                    <p>No leaves</p>
-                </td>
-            </tr>
-        `;
-        updateStats();
-        return;
-    }
-    
-    let html = '';
-    leaveData.forEach((leave, index) => {
-        html += `
-            <tr>
-                <td>${index + 1}</td>
-                <td>${formatDate(leave.from_date)}</td>
-                <td>${formatDate(leave.to_date)}</td>
-                <td>${getStatusBadge(leave.status)}</td>
-            </tr>
-        `;
-    });
-    
-    elements.tableBody.innerHTML = html;
-    updateStats();
-}
-
-// ========== UPDATE STATS ==========
-function updateStats() {
-    const total = leaveData.length;
-    const approved = leaveData.filter(l => l.status?.toLowerCase() === 'approved').length;
-    const pending = leaveData.filter(l => l.status?.toLowerCase() === 'pending').length;
-    
-    elements.totalLeaves.textContent = total;
-    elements.approvedLeaves.textContent = approved;
-    elements.pendingLeaves.textContent = pending;
-    elements.leaveCount.textContent = total;
-}
-
 // ========== LOAD LEAVES FROM API ==========
 async function loadLeaves() {
     if (isLoading) return;
@@ -155,14 +197,15 @@ async function loadLeaves() {
         
     } catch (error) {
         console.error('Load error:', error);
-        showToast('Failed to load', 'error');
         
         // Demo data if API fails
         leaveData = [
             { id: 1, from_date: '2024-03-15', to_date: '2024-03-16', status: 'approved' },
-            { id: 2, from_date: '2024-03-20', to_date: '2024-03-22', status: 'pending' }
+            { id: 2, from_date: '2024-03-18', to_date: '2024-03-20', status: 'pending' },
+            { id: 3, from_date: '2024-03-10', to_date: '2024-03-13', status: 'approved' }
         ];
         renderLeavesTable();
+        showToast('Demo data loaded', 'success');
     } finally {
         isLoading = false;
         setLoading(false);
@@ -200,7 +243,7 @@ async function applyLeave() {
         const data = await response.json();
         
         if (response.ok) {
-            showToast('Applied!', 'success');
+            showToast(`Applied for ${elements.totalDays.textContent} days!`, 'success');
             clearForm();
             loadLeaves();
         } else {
@@ -208,8 +251,6 @@ async function applyLeave() {
         }
         
     } catch (error) {
-        showToast('Error', 'error');
-        
         // Demo success if API fails
         const newLeave = {
             id: Date.now(),
@@ -220,11 +261,11 @@ async function applyLeave() {
         leaveData.unshift(newLeave);
         renderLeavesTable();
         clearForm();
-        showToast('Applied! (Demo)', 'success');
+        showToast(`Applied for ${elements.totalDays.textContent} days! (Demo)`, 'success');
         
     } finally {
         elements.applyBtn.disabled = false;
-        elements.applyBtn.innerHTML = '<span>Apply</span><span class="btn-icon">→</span>';
+        elements.applyBtn.innerHTML = '<span>Apply Leave</span><span class="btn-icon">→</span>';
         isSubmitting = false;
     }
 }
@@ -271,7 +312,8 @@ function clearForm() {
     elements.reason.value = '';
     elements.handover.value = '';
     elements.charCount.textContent = '0';
-    showToast('Cleared', 'success');
+    elements.totalDays.textContent = '0';
+    showToast('Form cleared', 'success');
 }
 
 // ========== EVENT LISTENERS ==========
