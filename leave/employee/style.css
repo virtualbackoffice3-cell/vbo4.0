@@ -1,0 +1,64 @@
+body {
+    font-family: Arial;
+    margin: 0;
+    background: #f5f6fa;
+}
+
+.container {
+    padding: 10px;
+    max-width: 500px;
+    margin: auto;
+}
+
+h2 {
+    text-align: center;
+    font-size: 18px;
+}
+
+.card {
+    background: white;
+    padding: 12px;
+    border-radius: 10px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+h3 {
+    margin: 0 0 8px 0;
+    font-size: 14px;
+}
+
+input, textarea, button {
+    width: 100%;
+    padding: 8px;
+    margin-top: 6px;
+    font-size: 13px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+}
+
+button {
+    background: #007bff;
+    color: white;
+    border: none;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    font-size: 12px;
+    border-collapse: collapse;
+}
+
+th, td {
+    padding: 6px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+}
+
+.status.pending { color: orange; }
+.status.approved { color: green; }
+.status.rejected { color: red; }
