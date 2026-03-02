@@ -77,24 +77,26 @@ h2 {
 }
 
 .stats-badge {
-    background: #667eea10;
-    color: #667eea;
-    padding: 2px 8px;
+    background: #667eea;
+    color: white;
+    padding: 4px 10px;
     border-radius: 30px;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
 }
 
 /* ========== FILTER ROW ========== */
 .filter-row {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     margin-bottom: 12px;
     align-items: center;
+    flex-wrap: wrap;
 }
 
 .month-filter {
     flex: 1;
+    min-width: 100px;
     padding: 8px 10px;
     border: 1.5px solid #e2e8f0;
     border-radius: 30px;
@@ -108,13 +110,17 @@ h2 {
     border-color: #667eea;
 }
 
+.month-filter:invalid {
+    color: #a0aec0;
+}
+
 .total-days-badge {
     background: #667eea;
     color: white;
-    padding: 6px 12px;
+    padding: 8px 12px;
     border-radius: 30px;
-    font-size: 12px;
-    font-weight: 500;
+    font-size: 13px;
+    font-weight: 600;
     white-space: nowrap;
 }
 
@@ -486,6 +492,16 @@ input[type="date"]:valid {
         padding: 12px 8px;
     }
     
+    .filter-row {
+        gap: 4px;
+    }
+    
+    .month-filter {
+        font-size: 11px;
+        padding: 6px 6px;
+        min-width: 70px;
+    }
+    
     .stats-row {
         gap: 2px;
     }
@@ -514,13 +530,8 @@ input[type="date"]:valid {
         font-size: 18px;
     }
     
-    .month-filter {
+    .total-days-badge {
         font-size: 11px;
         padding: 6px 8px;
-    }
-    
-    .total-days-badge {
-        font-size: 10px;
-        padding: 4px 8px;
     }
 }
