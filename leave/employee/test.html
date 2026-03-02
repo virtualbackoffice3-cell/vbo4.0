@@ -2,26 +2,71 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title>Leave Panel - EMP0001</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div class="container">
-    <h2>Leave Panel</h2>
-
-    <div class="card">
-        <h3>Apply Leave</h3>
-        <input type="date" id="from_date">
-        <input type="date" id="to_date">
-        <textarea id="reason" placeholder="Reason"></textarea>
-        <input type="text" id="handover" placeholder="Handover To">
-        <button onclick="applyLeave()">Apply</button>
+    <!-- Header -->
+    <div class="header">
+        <h2>Leave Panel</h2>
+        <span class="emp-badge" id="empBadge">EMP0001</span>
     </div>
 
+    <!-- Apply Leave Card -->
     <div class="card">
+        <h3>Apply Leave</h3>
+        
+        <div class="form-group">
+            <label>📅 From Date</label>
+            <input type="date" id="from_date" class="form-input">
+        </div>
+
+        <div class="form-group">
+            <label>📅 To Date</label>
+            <input type="date" id="to_date" class="form-input">
+        </div>
+
+        <div class="form-group">
+            <label>📝 Reason</label>
+            <textarea id="reason" class="form-input" placeholder="Enter reason (min. 10 characters)"></textarea>
+            <small class="char-counter"><span id="charCount">0</span>/10 minimum</small>
+        </div>
+
+        <div class="form-group">
+            <label>👥 Handover To</label>
+            <input type="text" id="handover" class="form-input" placeholder="Colleague name">
+        </div>
+
+        <button class="apply-btn" id="applyBtn">
+            <span class="btn-text">Apply Leave</span>
+            <span class="btn-icon">→</span>
+        </button>
+    </div>
+
+    <!-- My Leaves Card -->
+    <div class="card leaves-card">
         <h3>My Leaves</h3>
+        
+        <!-- Stats -->
+        <div class="leave-stats">
+            <div class="stat-item">
+                <span class="stat-value" id="totalLeaves">0</span>
+                <span class="stat-label">Total</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value approved" id="approvedLeaves">0</span>
+                <span class="stat-label">Approved</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value pending" id="pendingLeaves">0</span>
+                <span class="stat-label">Pending</span>
+            </div>
+        </div>
+
+        <!-- Table -->
         <div class="table-wrapper">
             <table id="leaveTable">
                 <thead>
@@ -32,14 +77,36 @@
                         <th>Status</th>
                     </tr>
                 </thead>
-                <tbody></tbody>
+                <tbody id="leaveTableBody">
+                    <tr>
+                        <td colspan="4" class="empty-state">
+                            <span>📋</span>
+                            <p>Loading leaves...</p>
+                        </td>
+                    </tr>
+                </tbody>
             </table>
         </div>
     </div>
+
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+        <button class="action-btn" id="refreshBtn" title="Refresh">🔄</button>
+        <button class="action-btn" id="clearBtn" title="Clear Form">🗑️</button>
+        <button class="action-btn" id="topBtn" title="Top">⬆️</button>
+    </div>
 </div>
 
-<!-- JavaScript Import -->
-<script src="script.js"></script>
+<!-- Toast & Loading -->
+<div class="toast" id="toast"></div>
+<div class="loading-spinner" id="loadingSpinner">
+    <div class="spinner"></div>
+    <span>Loading...</span>
+</div>
 
+<!-- Pull to Refresh Indicator -->
+<div class="pull-to-refresh" id="pullRefresh">⬇️ Refreshing...</div>
+
+<script src="script.js"></script>
 </body>
 </html>
