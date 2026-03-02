@@ -535,3 +535,500 @@ input[type="date"]:valid {
         padding: 6px 8px;
     }
 }
+
+/* ====================================*/
+/* Manager section*/
+/* ====================================*/
+/* ========== MANAGER PANEL ADDITIONS ========== */
+
+/* Stats Grid */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-bottom: 16px;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 14px;
+    padding: 10px 4px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+    border: 1px solid #eef2f6;
+}
+
+.stat-card .stat-label {
+    font-size: 10px;
+    color: #718096;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.stat-card .stat-number {
+    font-size: 18px;
+    font-weight: 700;
+    color: #2d3748;
+}
+
+.stat-card.total .stat-number {
+    color: #667eea;
+}
+
+.stat-card.approved .stat-number {
+    color: #48bb78;
+}
+
+.stat-card.pending .stat-number {
+    color: #ecc94b;
+}
+
+.stat-card.rejected .stat-number {
+    color: #f56565;
+}
+
+/* Filters Grid */
+.filters-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.filter-group {
+    margin-bottom: 0;
+}
+
+.filter-group label {
+    display: block;
+    font-size: 10px;
+    font-weight: 500;
+    color: #718096;
+    margin-bottom: 2px;
+}
+
+/* Active Filters */
+.active-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+    min-height: 30px;
+}
+
+.filter-badge {
+    background: #667eea10;
+    border: 1px solid #667eea30;
+    color: #667eea;
+    padding: 4px 8px;
+    border-radius: 30px;
+    font-size: 11px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.filter-badge button {
+    background: none;
+    border: none;
+    color: #667eea;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 0 2px;
+    display: flex;
+    align-items: center;
+}
+
+.filter-badge button:hover {
+    color: #f56565;
+}
+
+/* Filter Summary */
+.filter-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: #718096;
+}
+
+.clear-filters-btn {
+    background: none;
+    border: 1px solid #e2e8f0;
+    padding: 4px 10px;
+    border-radius: 30px;
+    font-size: 11px;
+    color: #718096;
+    cursor: pointer;
+    display: none;
+}
+
+.clear-filters-btn:hover {
+    background: #f56565;
+    color: white;
+    border-color: #f56565;
+}
+
+/* Table Enhancements */
+.employee-cell {
+    text-align: left !important;
+}
+
+.employee-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.emp-name {
+    font-weight: 600;
+    color: #2d3748;
+    font-size: 12px;
+}
+
+.emp-id {
+    font-size: 9px;
+    color: #a0aec0;
+}
+
+/* Action Buttons */
+.action-buttons {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+}
+
+.action-small {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 20px;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.action-small.approve {
+    background: #c6f6d5;
+    color: #22543d;
+}
+
+.action-small.approve:active {
+    background: #48bb78;
+    color: white;
+}
+
+.action-small.reject {
+    background: #fed7d7;
+    color: #742a2a;
+}
+
+.action-small.reject:active {
+    background: #f56565;
+    color: white;
+}
+
+.status-text {
+    font-size: 11px;
+    color: #718096;
+    text-transform: capitalize;
+}
+
+/* Responsive */
+@media (max-width: 360px) {
+    .stats-grid {
+        gap: 4px;
+    }
+    
+    .stat-card .stat-number {
+        font-size: 16px;
+    }
+    
+    .filters-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    th, td {
+        font-size: 10px;
+    }
+    
+    .action-small {
+        width: 24px;
+        height: 24px;
+        font-size: 12px;
+    }
+}
+/* ========== MANAGER PANEL ADDITIONS ========== */
+
+/* Stats Grid */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-bottom: 16px;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 14px;
+    padding: 10px 4px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+    border: 1px solid #eef2f6;
+}
+
+.stat-card .stat-label {
+    font-size: 10px;
+    color: #718096;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.stat-card .stat-number {
+    font-size: 18px;
+    font-weight: 700;
+    color: #2d3748;
+}
+
+.stat-card.total .stat-number {
+    color: #667eea;
+}
+
+.stat-card.approved .stat-number {
+    color: #48bb78;
+}
+
+.stat-card.pending .stat-number {
+    color: #ecc94b;
+}
+
+.stat-card.rejected .stat-number {
+    color: #f56565;
+}
+
+/* Filters */
+.filters-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.filter-group {
+    flex: 1;
+}
+
+.filter-group label {
+    display: block;
+    font-size: 10px;
+    font-weight: 500;
+    color: #718096;
+    margin-bottom: 2px;
+}
+
+/* Active Filters */
+.active-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 10px 0 5px;
+    min-height: 30px;
+}
+
+.filter-badge {
+    background: #667eea10;
+    border: 1px solid #667eea30;
+    color: #667eea;
+    padding: 4px 8px;
+    border-radius: 30px;
+    font-size: 11px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.filter-badge button {
+    background: none;
+    border: none;
+    color: #667eea;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 0 2px;
+    display: flex;
+    align-items: center;
+}
+
+.filter-badge button:hover {
+    color: #f56565;
+}
+
+/* Filter Actions */
+.filter-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 8px;
+}
+
+.clear-filters-btn {
+    background: none;
+    border: 1px solid #e2e8f0;
+    padding: 6px 12px;
+    border-radius: 30px;
+    font-size: 11px;
+    color: #718096;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.clear-filters-btn:hover {
+    background: #f56565;
+    color: white;
+    border-color: #f56565;
+}
+
+/* Filter Summary */
+.filter-summary {
+    font-size: 11px;
+    color: #718096;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 1px dashed #e2e8f0;
+}
+
+/* Table Enhancements */
+.employee-cell {
+    text-align: left !important;
+}
+
+.employee-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.emp-name {
+    font-weight: 600;
+    color: #2d3748;
+    font-size: 12px;
+}
+
+.emp-id {
+    font-size: 9px;
+    color: #a0aec0;
+}
+
+.dates-cell {
+    white-space: nowrap;
+}
+
+.date-range {
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.reason-cell {
+    max-width: 100px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 11px;
+    color: #718096;
+}
+
+/* Action Buttons */
+.action-buttons {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+}
+
+.action-small {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 20px;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.action-small.approve {
+    background: #c6f6d5;
+    color: #22543d;
+}
+
+.action-small.approve:active {
+    background: #48bb78;
+    color: white;
+}
+
+.action-small.reject {
+    background: #fed7d7;
+    color: #742a2a;
+}
+
+.action-small.reject:active {
+    background: #f56565;
+    color: white;
+}
+
+.status-text {
+    font-size: 11px;
+    color: #718096;
+}
+
+/* Days Badge */
+.days-badge {
+    display: inline-block;
+    min-width: 30px;
+    padding: 2px 6px;
+    background: #e2e8f0;
+    border-radius: 30px;
+    font-weight: 600;
+    font-size: 11px;
+    color: #2d3748;
+}
+
+/* Responsive */
+@media (max-width: 360px) {
+    .stats-grid {
+        gap: 4px;
+    }
+    
+    .stat-card .stat-number {
+        font-size: 16px;
+    }
+    
+    .filters-row {
+        flex-direction: column;
+        gap: 5px;
+    }
+    
+    .filter-group {
+        width: 100%;
+    }
+    
+    th, td {
+        font-size: 10px;
+    }
+    
+    .action-small {
+        width: 24px;
+        height: 24px;
+        font-size: 12px;
+    }
+    
+    .emp-name {
+        font-size: 10px;
+    }
+    
+    .reason-cell {
+        max-width: 60px;
+    }
+}
