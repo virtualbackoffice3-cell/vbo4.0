@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Users</title>
+    <title>Complain Manager</title>
 
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -20,15 +20,21 @@
                 <div class="modalTitle" id="modalTitle">Complaint Details</div>
                 <button class="modalClose" id="modalCloseBtn">Close</button>
             </div>
+            
+            <!-- 🔹 STEP 2: Modal me button add karo (UI) -->
+            <div class="modalActions" id="modalActions">
+                <button id="btnDownUsers" class="modalActionBtn">Down users list</button>
+                <button id="modalCloseButton" class="modalCloseBtn">Close</button>
+            </div>
+            
             <div id="modalBody"></div>
         </div>
     </div>
 
     <header>
         <h1>
-            Users
+            Complain Manager
             <span id="userCount">(0)</span>
-            <span class="window-indicator" id="windowIndicator">SEVAI</span>
         </h1>
 
         <button class="hamburger-btn" id="menuToggle">
@@ -36,15 +42,15 @@
         </button>
 
         <nav class="top-menu" id="topMenu">
-            <!-- ✅ Window Selector Dropdown -->
-            <select id="windowSelector" class="nav-select">
-                <option value="SEVAI" selected>Sevai</option>
-                <option value="MEDANTA">Medanta</option>
-                <option value="INFOTECH">Amanwiz</option>
-                
+            <select id="windowSelect">
+                <option value="ALL" selected>ALL</option>
+                <option value="AMANWIZ">AMANWIZ</option>
+                <option value="MEDANTA">MEDANTA</option>
+                <option value="SEVAI">SEVAI</option>
             </select>
-            
+
             <button class="nav-btn" id="btnComplains">Complains</button>
+            <button class="nav-btn" id="btnPower">Power & event analysis</button>
             <button class="nav-btn" id="btnDrops">Drops</button>
             <button class="nav-btn" id="btnRefresh">Refresh</button>
             <button class="nav-btn" id="btnToggleView">Switch to Table</button>
@@ -53,28 +59,47 @@
         </nav>
     </header>
 
+<script>
+    const btnGoogle = document.getElementById("btnPower");
+
+if (btnGoogle) {
+  btnGoogle.onclick = () => {
+    window.location.href = "https://virtualbackoffice2.github.io/rack/off/vbo4.0/power/";
+  };
+}
+    </script>
+    
     <main id="contentWrap">
         <section class="filters">
             <input type="text" id="globalSearch" placeholder="Search by any information .. " />
 
-            <input type="text" id="powerRange" placeholder="Power range eg 26-30" />
+<input type="text" id="powerRange" placeholder="Power range eg 26-30" />
 
-            <div class="ponMultiWrap" id="ponMultiWrap">
-                <button type="button" class="ponMultiBtn" id="ponMultiBtn">All PON</button>
 
-                <div class="ponMultiDropdown" id="ponMultiDropdown">
-                    <div class="ponMultiSearch">
-                        <input type="text" id="ponMultiSearchInput" placeholder="Search PON..." />
-                    </div>
+<div class="ponMultiWrap" id="ponMultiWrap">
+  <button type="button" class="ponMultiBtn" id="ponMultiBtn">All PON</button>
 
-                    <div class="ponMultiList" id="ponMultiList"></div>
+  <div class="ponMultiDropdown" id="ponMultiDropdown">
+    <div class="ponMultiSearch">
+      <input type="text" id="ponMultiSearchInput" placeholder="Search PON..." />
+    </div>
 
-                    <div class="ponMultiFooter">
-                        <button type="button" class="ponClearBtn" id="ponClearBtn">Clear</button>
-                        <button type="button" class="ponOkBtn" id="ponOkBtn">OK</button>
-                    </div>
-                </div>
-            </div>
+    <div class="ponMultiList" id="ponMultiList"></div>
+
+    <div class="ponMultiFooter">
+      <button type="button" class="ponClearBtn" id="ponClearBtn">Clear</button>
+      <button type="button" class="ponOkBtn" id="ponOkBtn">OK</button>
+    </div>
+  </div>
+</div>
+
+
+            <select id="filterTeam">
+                <option value="">All Team</option>
+                <option value="TeamAmanwiz">TeamAmanwiz</option>
+                <option value="TeamMedanta">TeamMedanta</option>
+                <option value="TeamSevai">TeamSevai</option>
+            </select>
 
             <select id="filterMode">
                 <option value="">All Mode</option>
@@ -94,21 +119,23 @@
         <section id="tableWrap" class="table-wrap">
             <table id="dataTable">
                 <thead>
-                    <tr>
-                        <th>PON</th>
-                        <th>User ID</th>
-                        <th>Mobile</th>
-                        <th>Name</th>
-                        <th>MAC / Serial</th>
-                        <th>Down</th>
-                        <th>Remark</th>
-                        <th>Team</th>
-                        <th>Mode</th>
-                        <th>Power</th>
-                        <th>Actions</th>
-                        <th>Location</th>
-                        <th>Status</th>
-                    </tr>
+<tr>
+  <th>Window</th>
+  <th>PON</th>
+  <th>User ID</th>
+  <th>Mobile</th>
+  <th>Name</th>
+  <th>MAC / Serial</th>
+  <th>Down</th>
+  <th>Remark</th>
+  <th>Team</th>
+  <th>Mode</th>
+  <th>Power</th>
+  <th>Actions</th>
+  <th>Location</th>
+  <th>Status</th>
+</tr>
+
                 </thead>
                 <tbody></tbody>
             </table>
