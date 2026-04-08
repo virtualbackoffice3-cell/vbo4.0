@@ -903,12 +903,9 @@ document.querySelector('[name="windowoption"]').addEventListener('change', async
 
     stage = 0;
     stopPolling();
-    /*
     pendingLocationContinue = activateSelectedWindow;
     await ensureAccurateLocation();
     pendingLocationContinue = null;
-    await activateSelectedWindow();
-    */
     await activateSelectedWindow();
     return;
 
