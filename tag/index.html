@@ -2,9 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Check users on this line</title>
+  <title>Main JC Note Pad</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
+    * {box-sizing:border-box;}
     body {font-family: Arial, Helvetica, sans-serif; margin:16px; background:#f7fafc; color:#111827;}
     .page-title {font-size:20px; margin:0 0 12px 0;}
     .card {background:#fff; padding:12px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.06); max-width:980px; margin-bottom:12px;}
@@ -16,7 +17,7 @@
     .btn.success {background:#10b981; color:#fff;}
     .btn.danger {background:#ef4444; color:#fff;}
     .btn.disabled {background:#9ca3af !important; cursor:not-allowed; opacity:0.85;}
-    select,input[type="text"],input[type="number"],textarea {padding:8px; border-radius:6px; border:1px solid #d1d5db; min-width:220px;}
+    select,input[type="text"],input[type="number"],textarea {padding:8px; border-radius:6px; border:1px solid #d1d5db; min-width:220px; max-width:100%;}
     .small-text {font-size:12px;}
     .center {justify-content:center;}
     .actions {display:flex; gap:8px; align-items:center;}
@@ -27,9 +28,21 @@
     .toast.success{background:#059669;}.toast.error{background:#dc2626;}.toast.info{background:#0ea5a4;}
     .modal-overlay {display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:2000; align-items:center; justify-content:center;}
     .modal-box {background:#fff; padding:16px; border-radius:12px; max-width:1050px; width:95%; max-height:85vh; overflow:auto; box-shadow:0 8px 30px rgba(0,0,0,0.2);}
+    .confirm-overlay {display:none; position:fixed; inset:0; background:rgba(15,23,42,0.45); z-index:3000; align-items:center; justify-content:center; padding:16px;}
+    .confirm-overlay.show {display:flex;}
+    .confirm-box {background:#fff; width:min(100%, 360px); border-radius:14px; padding:16px; box-shadow:0 12px 30px rgba(15,23,42,0.22); border:1px solid #e2e8f0;}
+    .confirm-title {font-size:16px; font-weight:800; color:#0f172a; margin-bottom:6px;}
+    .confirm-text {font-size:13px; color:#475569; line-height:1.5; margin-bottom:12px;}
+    .confirm-actions {display:flex; gap:8px; justify-content:flex-end;}
     table {width:100%; border-collapse:collapse; margin-top:10px;}
     th,td {padding:8px; border:1px solid #e5e7eb; text-align:left; font-size:13px;}
     th {background:#f3f4f6;}
+    .user-cards {display:none; gap:8px; margin-top:10px;}
+    .user-card {border:1px solid #e5e7eb; border-radius:10px; padding:8px; background:#f8fafc;}
+    .user-card-title {font-size:13px; font-weight:800; color:#0f172a; margin-bottom:6px;}
+    .user-card-grid {display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:6px;}
+    .user-card-item {font-size:12px; color:#334155;}
+    .user-card-item b {display:block; color:#64748b; margin-bottom:2px;}
     #statusDot {font-size:18px; margin-right:8px; vertical-align:middle;}
     @keyframes blink {50%{opacity:0;}}
     .blink {animation:blink 1s infinite;}
@@ -58,17 +71,27 @@
       .card {padding:10px; border-radius:10px;}
       .btn {padding:12px 14px;}
       select,input[type="text"],input[type="number"],textarea {min-width:0; width:100%; font-size:16px;}
+      .row {gap:10px;}
+      .row > input,
+      .row > select,
+      .row > textarea,
+      .row > button {width:100%;}
       .wide-input {min-width:0;}
-      .row.actions {align-items:stretch;}
+      .row.actions {align-items:stretch; flex-direction:column;}
       .output-card,.input-card {padding:8px;}
       .output-card-grid,.input-card-grid {grid-template-columns:1fr;}
+      .output-card-head,.input-card-head {align-items:flex-start; flex-direction:column;}
+      .confirm-actions {flex-direction:column;}
+      table {display:none;}
+      .user-cards {display:grid;}
+      .user-card-grid {grid-template-columns:1fr;}
       .field-block label {font-size:13px;}
-      .row-btn {min-width:74px; padding:10px 10px;}
+      .row-btn {min-width:74px; padding:10px 10px; width:100%;}
     }
   </style>
 </head>
 <body>
-  <!--<header><h2 class="page-title">Check users on this line</h2></header>-->
+  <!--<header><h2 class="page-title">Main JC Note Pad</h2></header>-->
 
   <!-- Sign‑in card -->
   <div id="signinCard" class="card hidden">
@@ -108,7 +131,7 @@
 
       <!-- SINGLE ACTION BUTTON -->
       <div class="row actions">
-        <button type="button" id="tagBtn" class="btn primary" disabled>तोड़ते ही तुरंत क्लिक करें</button>
+        <button type="button" id="tagBtn" class="btn primary" disabled>Input core todte hi turant click karen</button>
         <span id="tagStatus" class="muted small-text"></span>
       </div>
 
@@ -125,7 +148,7 @@
       <div id="outputTableBody" class="output-cards"></div>
 
       <div class="row small-text muted">
-       Flow: break → button click → wait for button active → join → wait and check users live
+       Flow: Core break → button click → wait for button active → join core → wait and check users live after filling the details
       </div>
     </form>
   </div>
@@ -146,6 +169,17 @@
       </div>
 
       <div id="userListContainer"><div class="muted small-text">Waiting…</div></div>
+    </div>
+  </div>
+
+  <div id="confirmModal" class="confirm-overlay">
+    <div class="confirm-box">
+      <div class="confirm-title" id="confirmTitle">Please confirm</div>
+      <div class="confirm-text" id="confirmText">Continue?</div>
+      <div class="confirm-actions">
+        <button type="button" id="confirmCancelBtn" class="btn">Cancel</button>
+        <button type="button" id="confirmOkBtn" class="btn primary">Confirm</button>
+      </div>
     </div>
   </div>
 
@@ -170,16 +204,21 @@ let lastSeenTS = null;
 let pollTimer = null;
 let lastLocationAccuracy = null;
 let pendingLocationContinue = null;
+let saveFormDataTimer = null;
+let syncOutputRowsTimer = null;
+let confirmResolve = null;
 
 /* ========== INIT ========== */
 window.onload = () => {
   document.querySelector("input[name='email']").value = directAccessEmail;
-  document.getElementById("whoami").textContent = "Fiber line marking";
+  document.getElementById("whoami").textContent = "Main JC Note Pad";
 
   document.getElementById("closeUserListBtn").addEventListener("click", closeUserListModal);
+  document.getElementById("confirmCancelBtn").addEventListener("click", () => closeConfirmModal(false));
+  document.getElementById("confirmOkBtn").addEventListener("click", () => closeConfirmModal(true));
 
   // save/load fields
-  document.getElementById('dataForm').addEventListener('change', saveFormData);
+  document.getElementById('dataForm').addEventListener('change', scheduleSaveFormData);
 
   initializeForm();
 };
@@ -208,12 +247,61 @@ function createLocationError(message){
   return err;
 }
 function showLocationPrompt(message) {
-  const text = message || `Aage isliye block hai kyunki accurate location nahi mili. Phone ki location on karein, battery/power saving off karein, aur zarurat pade to browser ki site settings ya cookies clear karke phir Get location now dabayein. ${REQUIRED_LOCATION_ACCURACY_METERS}m ya usse better accuracy ke bina aage nahi badhega.`;
+  const text = message || `Accurate location nahi mili. Browser/site settings me permission allow karein, phone ki location on karein, battery/power saving off karein, browser se all cookies delete karen aur phir Get location now dabayein. ${REQUIRED_LOCATION_ACCURACY_METERS}m ya usse better accuracy ke bina aage nahi badhega.`;
   document.getElementById('locationAlertText').textContent = text;
   document.getElementById('locationAlert').classList.add('show');
 }
 function hideLocationPrompt() {
   document.getElementById('locationAlert').classList.remove('show');
+}
+function openConfirmModal(title, text) {
+  document.getElementById('confirmTitle').textContent = title || "Please confirm";
+  document.getElementById('confirmText').textContent = text || "Continue?";
+  document.getElementById('confirmModal').classList.add('show');
+}
+function closeConfirmModal(result) {
+  document.getElementById('confirmModal').classList.remove('show');
+  if (confirmResolve) {
+    const resolve = confirmResolve;
+    confirmResolve = null;
+    resolve(Boolean(result));
+  }
+}
+function askConfirmation(title, text) {
+  if (confirmResolve) return Promise.resolve(false);
+  openConfirmModal(title, text);
+  return new Promise(resolve => {
+    confirmResolve = resolve;
+  });
+}
+function clearSiteDataForLocationRetry() {
+  try {
+    const hostname = window.location.hostname || "";
+    const hostParts = hostname.split('.').filter(Boolean);
+    const domainVariants = [''];
+    for (let i = 0; i < hostParts.length; i++) {
+      domainVariants.push(`;domain=.${hostParts.slice(i).join('.')}`);
+    }
+    const pathVariants = ['/'];
+    const pathParts = (window.location.pathname || '/').split('/').filter(Boolean);
+    let currentPath = '';
+    pathParts.forEach(part => {
+      currentPath += `/${part}`;
+      pathVariants.push(currentPath);
+    });
+    document.cookie.split(';').forEach(cookie => {
+      const eqIndex = cookie.indexOf('=');
+      const name = (eqIndex >= 0 ? cookie.slice(0, eqIndex) : cookie).trim();
+      if (!name) return;
+      domainVariants.forEach(domain => {
+        pathVariants.forEach(path => {
+          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=${path}${domain}`;
+        });
+      });
+    });
+  } catch (_) {}
+  try { localStorage.removeItem('formData'); } catch (_) {}
+  try { sessionStorage.clear(); } catch (_) {}
 }
 
 
@@ -225,6 +313,13 @@ function saveFormData() {
   data.inputRows = getInputRows();
   data.outputRows = getOutputRows();
   localStorage.setItem('formData', JSON.stringify(data));
+}
+function scheduleSaveFormData() {
+  if (saveFormDataTimer) clearTimeout(saveFormDataTimer);
+  saveFormDataTimer = setTimeout(() => {
+    saveFormDataTimer = null;
+    saveFormData();
+  }, 180);
 }
 function loadFormData() {
   const data = JSON.parse(localStorage.getItem('formData')||"{}");
@@ -249,11 +344,12 @@ function buildSelectOptions(values, selected) {
   return values.map(opt => `<option value="${opt}"${selected === opt ? ' selected' : ''}>${opt}</option>`).join('');
 }
 function inputRowHtml(row = {}, idx = 0) {
+  const deleteHiddenClass = idx === 0 ? ' hidden' : '';
   const through = row.through || "";
   return `<div class="input-card" data-input-card>
     <div class="input-card-head">
       <div class="input-card-title">Input core ${idx + 1}</div>
-      <button type="button" class="btn danger row-btn" data-action="delete-input-row">Delete</button>
+      <button type="button" class="btn danger row-btn${deleteHiddenClass}" data-action="delete-input-row">Delete</button>
     </div>
     <div class="input-card-grid">
       <div class="field-block">
@@ -291,7 +387,7 @@ function addInputRow(row = {}) {
   renderInputRows(rows);
   saveFormData();
 }
-function deleteInputRow(button) {
+function performDeleteInputRow(button) {
   const rows = document.querySelectorAll('#inputTableBody [data-input-card]');
   if (rows.length <= 1) return;
   button.closest('[data-input-card]')?.remove();
@@ -303,6 +399,8 @@ function renumberInputCards() {
   document.querySelectorAll('#inputTableBody [data-input-card]').forEach((card, idx) => {
     const title = card.querySelector('.input-card-title');
     if (title) title.textContent = `Input core ${idx + 1}`;
+    const deleteBtn = card.querySelector('[data-action="delete-input-row"]');
+    if (deleteBtn) deleteBtn.classList.toggle('hidden', idx === 0);
   });
 }
 function updateInputCardState(card) {
@@ -414,6 +512,13 @@ function getOutputRows() {
 function syncOutputRows() {
   renderOutputRows(getOutputRows(), getInputRows());
 }
+function scheduleSyncOutputRows() {
+  if (syncOutputRowsTimer) clearTimeout(syncOutputRowsTimer);
+  syncOutputRowsTimer = setTimeout(() => {
+    syncOutputRowsTimer = null;
+    syncOutputRows();
+  }, 120);
+}
 function validateInputRows(rows) {
   if (!rows.length) return "Kam se kam ek input core bharna zaruri hai.";
   for (const row of rows) {
@@ -431,7 +536,13 @@ function validateInputRows(rows) {
   return "";
 }
 function validateOutputRows(rows, inputRows = getInputRows()) {
-  const expectedCount = inputRows.reduce((sum, row) => sum + (row.through === 'yes' && row.splitter ? (splitterOutputCount[row.splitter] || 0) : 0), 0);
+  const expectedCount = inputRows.reduce((sum, row) => {
+    if (row.through !== 'yes' || !row.splitter) return sum;
+    const splitterCapacity = splitterOutputCount[row.splitter] || 0;
+    const liveLegs = Number(row.liveLegs || 0);
+    if (!Number.isInteger(liveLegs) || liveLegs <= 0) return sum;
+    return sum + Math.min(liveLegs, splitterCapacity);
+  }, 0);
   if (expectedCount === 0) return "";
   if (!rows.length) return "Part B ke output cards auto create honge. Through yes ke baad unhe bharna zaruri hai.";
   for (const row of rows) {
@@ -444,7 +555,7 @@ function validateOutputRows(rows, inputRows = getInputRows()) {
 function getCurrentLocation() {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
-      reject(createLocationError("Aage isliye block hai kyunki is phone/browser me location support available nahi hai. Phone ki location on karein, battery/power saving off karein, aur zarurat pade to browser ki site settings ya cookies clear karke phir Get location now dabayein."));
+      reject(createLocationError("Aage isliye block hai kyunki is phone/browser me location support available nahi hai. Phone ki location on karein, battery/power saving off karein, browser se all cookies delete karen aur phir Get location now dabayein."));
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -466,15 +577,15 @@ async function ensureAccurateLocation() {
         document.getElementById('tagStatus').textContent = "";
         return;
       }
-      lastError = createLocationError(`Aage isliye block hai kyunki location mili hai lekin accuracy sirf ${Math.round(accuracy || 0)}m hai. ${REQUIRED_LOCATION_ACCURACY_METERS}m ya usse better accuracy chahiye. Phone ki location on rakhein, battery/power saving off karein, thoda open area me jaiye, aur phir Get location now dabayein.`);
+      lastError = createLocationError(`Aage isliye block hai kyunki location mili hai lekin accuracy sirf ${Math.round(accuracy || 0)}m hai. ${REQUIRED_LOCATION_ACCURACY_METERS}m ya usse better accuracy chahiye. Phone ki location on rakhein, battery/power saving off karein, thoda open area me jaiye, browser se all cookies delete karen aur phir Get location now dabayein.`);
     } catch (err) {
       if (err && typeof err.code === "number") {
-        if (err.code === 1) lastError = createLocationError("Aage isliye block hai kyunki location permission allow nahi hai. Browser/site settings me permission allow karein, phone ki location on karein, battery/power saving off karein, aur phir Get location now dabayein.");
-        else if (err.code === 2) lastError = createLocationError("Aage isliye block hai kyunki location mil nahi pa rahi. Phone ki location on karein, battery/power saving off karein, thoda open area me jaiye, aur phir Get location now dabayein.");
-        else if (err.code === 3) lastError = createLocationError("Aage isliye block hai kyunki location request timeout ho gaya. GPS/location on rakhein, battery/power saving off karein, aur zarurat pade to browser ki site settings ya cookies clear karke phir Get location now dabayein.");
-        else lastError = createLocationError("Aage isliye block hai kyunki location read nahi ho saki. Phone ki location on karein, battery/power saving off karein, aur phir Get location now dabayein.");
+        if (err.code === 1) lastError = createLocationError("Browser/site settings me permission allow karein, phone ki location on karein, battery/power saving off karein, browser se all cookies delete karen aur phir Get location now dabayein.");
+        else if (err.code === 2) lastError = createLocationError("Aage isliye block hai kyunki location mil nahi pa rahi. Phone ki location on karein, battery/power saving off karein, thoda open area me jaiye, browser se all cookies delete karen aur phir Get location now dabayein.");
+        else if (err.code === 3) lastError = createLocationError("Aage isliye block hai kyunki location request timeout ho gaya. GPS/location on rakhein, battery/power saving off karein, browser se all cookies delete karen aur phir Get location now dabayein.");
+        else lastError = createLocationError("Aage isliye block hai kyunki location read nahi ho saki. Phone ki location on karein, battery/power saving off karein, browser se all cookies delete karen aur phir Get location now dabayein.");
       } else {
-        lastError = err && err.isLocationError ? err : createLocationError("Aage isliye block hai kyunki location read nahi ho saki. Phone ki location on karein, battery/power saving off karein, aur phir Get location now dabayein.");
+        lastError = err && err.isLocationError ? err : createLocationError("Aage isliye block hai kyunki location read nahi ho saki. Phone ki location on karein, battery/power saving off karein, browser se all cookies delete karen aur phir Get location now dabayein.");
       }
     }
   }
@@ -494,21 +605,11 @@ function autoDetectLocation() {
     })
     .catch(() => {});
 }
-async function activateSelectedWindow() {
-  const winSel = document.querySelector('[name="windowoption"]');
-  const data = await fetchUsertag();
-  setLastUpdate(data.timestamp);
-  winSel.disabled = true;
-  setBtnDisabled(false, "Start");
-  setBtnDisabled(false, "à¤¤à¥‹à¥œà¤¤à¥‡ à¤¹à¥€ à¤¤à¥à¤°à¤‚à¤¤ à¤•à¥à¤²à¤¿à¤• à¤•à¤°à¥‡à¤‚");
-  setBtnDisabled(false, "Start");
-  document.getElementById('tagStatus').textContent = "";
-  hideLocationPrompt();
-}
 async function retryLocationPrompt() {
   const retryBtn = document.getElementById('locationRetryBtn');
   retryBtn.disabled = true;
   try {
+    clearSiteDataForLocationRetry();
     await ensureAccurateLocation();
     if (typeof pendingLocationContinue === "function") {
       const continueFn = pendingLocationContinue;
@@ -755,6 +856,22 @@ function renderTable(win, pon, list){
   });
 
   html += "</tbody></table>";
+  html += `<div class="user-cards">`;
+  list.forEach((u, idx)=>{
+    const ns = u.netsense || {};
+    html += `<div class="user-card">
+      <div class="user-card-title">${idx+1}. ${escapeHtml(u.name || u.user_id || "User")}</div>
+      <div class="user-card-grid">
+        <div class="user-card-item"><b>User ID</b>${escapeHtml(u.user_id)}</div>
+        <div class="user-card-item"><b>Phone</b>${escapeHtml(u.primary_phone)}</div>
+        <div class="user-card-item"><b>Address</b>${escapeHtml(u.address)}</div>
+        <div class="user-card-item"><b>rxPower</b>${escapeHtml(ns.rxPower)}</div>
+        <div class="user-card-item"><b>txPower</b>${escapeHtml(ns.txPower)}</div>
+        <div class="user-card-item"><b>Temperature</b>${escapeHtml(ns.temperature)}</div>
+      </div>
+    </div>`;
+  });
+  html += `</div>`;
   document.getElementById('userListContainer').innerHTML = html;
 }
 
@@ -834,17 +951,17 @@ async function runFinalFlow(){
     // reset flow for next usage
     stage = 0;
     breakTS = null; joinTS = null; lastSeenTS = null;
-    setBtnDisabled(false, "तोड़ते ही तुरंत क्लिक करें");
+    setBtnDisabled(false, "Input core todte hi turant click karen");
     document.getElementById('tagStatus').textContent = "";
   }catch(err){
     showToast(err.message, "error");
-    setBtnDisabled(false, stage===2 ? "यूज़र्स की लिस्ट चेक काने क लिए क्लिक करें" : (stage===1 ? "जोड़ते ही तुरंत क्लिक करें" : "तोड़ते ही तुरंत क्लिक करें"));
+    setBtnDisabled(false, stage===2 ? "यूज़र्स की लिस्ट चेक काने क लिए क्लिक करें" : (stage===1 ? "जोड़ते ही तुरंत क्लिक करें" : "Input core todte hi turant click karen"));
   }
 }
 
 /* ========== INITIALIZE FORM ========== */
 function initializeForm() {
-  document.getElementById("whoami").innerHTML = `Check users on this line`;
+  document.getElementById("whoami").innerHTML = `Main JC Note Pad`;
   loadFormData();
   autoDetectLocation();
 
@@ -856,7 +973,10 @@ function initializeForm() {
   if (!btn.dataset.defaultText) btn.dataset.defaultText = btn.textContent.trim();
   btn.addEventListener('click', onTagButtonClick);
   document.getElementById('locationRetryBtn').addEventListener('click', retryLocationPrompt);
-  document.getElementById('addInputRowBtn').addEventListener('click', () => addInputRow());
+  document.getElementById('addInputRowBtn').addEventListener('click', async () => {
+    const confirmed = await askConfirmation("Add input core", "Kya aap naya input core add karna chahte hain?");
+    if (confirmed) addInputRow();
+  });
   if (!document.querySelector('#inputTableBody [data-input-card]')) {
     renderInputRows([{}]);
   }
@@ -864,21 +984,23 @@ function initializeForm() {
   document.getElementById('inputTableBody').addEventListener('input', (e) => {
     const card = e.target.closest('[data-input-card]');
     if (card) updateInputCardState(card);
-    syncOutputRows();
-    saveFormData();
+    scheduleSyncOutputRows();
+    scheduleSaveFormData();
   });
   document.getElementById('inputTableBody').addEventListener('change', (e) => {
     const card = e.target.closest('[data-input-card]');
     if (card) updateInputCardState(card);
     syncOutputRows();
-    saveFormData();
+    scheduleSaveFormData();
   });
-  document.getElementById('inputTableBody').addEventListener('click', (e) => {
+  document.getElementById('inputTableBody').addEventListener('click', async (e) => {
     const btnEl = e.target.closest('[data-action="delete-input-row"]');
-    if (btnEl) deleteInputRow(btnEl);
+    if (!btnEl || btnEl.classList.contains('hidden')) return;
+    const confirmed = await askConfirmation("Delete input core", "Kya aap is input core ko delete karna chahte hain?");
+    if (confirmed) performDeleteInputRow(btnEl);
   });
-  document.getElementById('outputTableBody').addEventListener('input', saveFormData);
-  document.getElementById('outputTableBody').addEventListener('change', saveFormData);
+  document.getElementById('outputTableBody').addEventListener('input', scheduleSaveFormData);
+  document.getElementById('outputTableBody').addEventListener('change', scheduleSaveFormData);
 
   // enable after window selected
 document.querySelector('[name="windowoption"]').addEventListener('change', async ()=>{
@@ -891,7 +1013,7 @@ document.querySelector('[name="windowoption"]').addEventListener('change', async
       pendingLocationContinue = null;
       hideLocationPrompt();
       winSel.disabled = false;                 // keep unlocked
-      setBtnDisabled(true, "तोड़ते ही तुरंत क्लिक करें");
+      setBtnDisabled(true, "Input core todte hi turant click karen");
       document.getElementById('tagStatus').textContent = "";
       setLastUpdate("--");
       return;
@@ -915,13 +1037,13 @@ document.querySelector('[name="windowoption"]').addEventListener('change', async
 
     // ✅ lock window dropdown + enable button
     winSel.disabled = true;
-    setBtnDisabled(false, "तोड़ते ही तुरंत क्लिक करें");
+    setBtnDisabled(false, "Input core todte hi turant click karen");
     document.getElementById('tagStatus').textContent = "";
 
   }catch(err){
     // if API failed, keep dropdown unlocked + button disabled
     document.querySelector('[name="windowoption"]').disabled = false;
-    setBtnDisabled(true, "तोड़ते ही तुरंत क्लिक करें");
+    setBtnDisabled(true, "Input core todte hi turant click karen");
     if (err && err.isLocationError) {
       document.getElementById('tagStatus').textContent = "";
       showLocationPrompt(err.message);
