@@ -173,6 +173,9 @@
             <div class="modal-header">
                 <h2 id="modalTitle">User Details</h2>
                 <div class="modal-actions">
+                    <button id="btnOpenJcModal" class="btn-small btn-jc" style="display:none;">
+                        <i class="fas fa-diagram-project"></i> JC
+                    </button>
                     <button id="btnDownloadCSV" class="btn-small">
                         <i class="fas fa-download"></i> CSV
                     </button>
@@ -199,6 +202,21 @@
         </div>
     </div>
     <div id="toast" class="toast"></div>
+    <div id="jcNotepadModal" class="jc-fullscreen-modal">
+        <div class="jc-fullscreen-shell">
+            <div class="jc-fullscreen-head">
+                <div>
+                    <h2 id="jcModalTitle">JC Notepad</h2>
+                    <div id="jcModalSubtitle" class="jc-fullscreen-subtitle"></div>
+                </div>
+                <button id="btnCloseJcModal" class="btn-close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="jcNotepadMount" class="jc-fullscreen-body"></div>
+        </div>
+    </div>
+    <script src="jc-notepad.js" defer></script>
     <script src="script.js" defer></script>
 </body>
 </html>

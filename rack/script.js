@@ -34,6 +34,7 @@ const state = {
     totalStats: { users: 0, offline: 0, tickets: 0 },
     currentOltName: '',
     currentPonNumber: '',
+    currentWindowName: '',
     allWindowsData: {},
     activeWindows: []
 };
@@ -57,6 +58,7 @@ const elements = {
     modalTimestamp: document.getElementById('modalTimestamp'),
     btnDownloadCSV: document.getElementById('btnDownloadCSV'),
     btnModalScreenshot: document.getElementById('btnModalScreenshot'),
+    btnOpenJcModal: document.getElementById('btnOpenJcModal'),
     btnCloseModal: document.getElementById('btnCloseModal'),
     btnQuickRefresh: document.getElementById('btnQuickRefresh'),
     btnScreenshot: document.getElementById('btnScreenshot'),
@@ -497,6 +499,10 @@ const uiRenderer = {
             const parsed = utils.parseOLTKey(oltKey);
             state.currentOltName = parsed.oltName;
             state.currentPonNumber = ponNumber;
+            state.currentWindowName = parsed.windowName;
+        }
+        if (elements.btnOpenJcModal) {
+            elements.btnOpenJcModal.style.display = ponNumber ? 'inline-flex' : 'none';
         }
         if (!users.length) {
             elements.modalBody.innerHTML = `<div class="no-data">
@@ -764,6 +770,10 @@ const eventHandlers = {
         state.selectedUsers = [];
         state.currentOltName = '';
         state.currentPonNumber = '';
+        state.currentWindowName = '';
+        if (elements.btnOpenJcModal) {
+            elements.btnOpenJcModal.style.display = 'none';
+        }
     }
 };
 
@@ -796,6 +806,24 @@ const app = {
         elements.btnQuickRefresh?.addEventListener('click', () => eventHandlers.handleRefresh(false));
         elements.btnDownloadCSV?.addEventListener('click', eventHandlers.handleDownloadCSV);
         elements.btnModalScreenshot?.addEventListener('click', () => screenshotService.captureModal());
+        elements.btnOpenJcModal?.addEventListener('click', () => {
+            if (!window.jcNotepad || !state.currentPonNumber || !state.currentOltName || !state.currentWindowName) return;
+            const oltKey = utils.generateOLTKey(state.currentOltName, state.currentWindowName);
+            const ponData = state.oltData[oltKey]?.pons?.[Number(state.currentPonNumber)];
+            window.jcNotepad.open({
+                client: state.currentWindowName,
+                windowName: state.currentWindowName,
+                oltName: state.currentOltName,
+                ponNumber: String(state.currentPonNumber),
+                ponSummary: {
+                    total_users: ponData?.users?.length || 0,
+                    offline_users: ponData?.offline?.length || 0,
+                    open_tickets: ponData?.tickets?.length || 0,
+                    drops: ponData?.drops || 0
+                },
+                ponUsers: Array.isArray(ponData?.users) ? ponData.users : []
+            });
+        });
         elements.btnCloseModal?.addEventListener('click', eventHandlers.handleCloseModal);
         elements.btnScreenshot?.addEventListener('click', () => screenshotService.captureDashboard());
         elements.userModal?.addEventListener('click', e => {
@@ -835,6 +863,7 @@ const app = {
         });
         document.addEventListener('keydown', e => {
             if (e.key === 'Escape' && elements.userModal.style.display === 'flex') eventHandlers.handleCloseModal();
+            if (e.key === 'Escape' && window.jcNotepad?.isOpen?.()) window.jcNotepad.close();
             if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
                 e.preventDefault();
                 eventHandlers.handleRefresh(false);
