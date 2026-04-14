@@ -27,9 +27,15 @@
         pendingJcCreation: null,
         pendingWireCreation: null,
         pendingCoreCreation: null,
+        editingJcId: "",
+        jcModalMode: "create",
         isLoading: false,
         location: null,
-        rows: []
+        allRows: [],
+        rows: [],
+        searchTerm: "",
+        ponOptions: [],
+        ponStats: {}
     };
 
     const elements = {};
@@ -99,9 +105,9 @@
             ponNumber: "",
             side: "",
             wireType: "12 Core",
-            otdrDistance: "",
             wireDrum: "",
             liveCores: 0,
+            remark: "",
             coreDetails: []
         };
     }
@@ -114,6 +120,8 @@
             previousJc: ROOT_PREVIOUS_JC,
             lat: null,
             lng: null,
+            otdrDistance: "",
+            remark: "",
             window: "",
             timestamp: "",
             inputWires: [],
@@ -139,6 +147,7 @@
                 <div class="controls">
                     <button id="jcAddBoxBtn" type="button">Add JC</button>
                     <button id="jcDeleteBoxBtn" type="button">Delete JC</button>
+                    <input id="jcSearchInput" type="search" placeholder="Search JC, OTDR, After JC, Area...">
                 </div>
                 <div class="row" id="jcRow"></div>
                 <div class="jc-note-inner-modal" id="jcJcModal">
@@ -166,6 +175,12 @@
                                 <select id="jcPreviousJcField" required>
                                     <option value="">Select Previous JC</option>
                                 </select>
+                            </div>
+                            <div class="field">
+                                <input id="jcOtdrField" type="text" placeholder="OTDR Distance">
+                            </div>
+                            <div class="field">
+                                <input id="jcRemarkField" type="text" placeholder="Remark">
                             </div>
                             <div class="field" id="jcLocationModeWrap">
                                 <select id="jcLocationMode">
@@ -211,9 +226,6 @@
                                     <option value="98 Core">98 Core</option>
                                 </select>
                             </div>
-                            <div class="field" id="jcOtdrDistanceWrap">
-                                <input id="jcOtdrDistance" type="number" min="0" step="1" placeholder="OTDR Distance (m)">
-                            </div>
                             <div class="field full">
                                 <input id="jcWireDrum" type="text" placeholder="Wire Drum No / Name">
                             </div>
@@ -258,13 +270,15 @@
                                 </select>
                             </div>
                             <div class="field">
-                                <input id="jcCoreOltpon" type="text" placeholder="OLT PON" required>
+                                <select id="jcCoreOltpon" required>
+                                    <option value="" disabled selected>Select OLT PON</option>
+                                </select>
                             </div>
                             <div class="field">
                                 <input id="jcCorePower" type="text" placeholder="Power">
                             </div>
                             <div class="field full">
-                                <input id="jcCoreRemark" type="text" placeholder="Remark">
+                                <input id="jcCoreRemark" type="text" placeholder="Area">
                             </div>
                         </div>
                         <div class="modal-actions">
@@ -293,12 +307,16 @@
 
         state.root = elements.mount.querySelector(".jc-note-root");
         elements.row = state.root.querySelector("#jcRow");
+        elements.searchInput = state.root.querySelector("#jcSearchInput");
         
         // JC Modal
         elements.jcModal = state.root.querySelector("#jcJcModal");
+        elements.jcModalSub = state.root.querySelector("#jcModalInnerSub");
         elements.jcNameField = state.root.querySelector("#jcNameField");
         elements.jcModalWindowName = state.root.querySelector("#jcModalWindowName");
         elements.jcPreviousJcField = state.root.querySelector("#jcPreviousJcField");
+        elements.jcOtdrField = state.root.querySelector("#jcOtdrField");
+        elements.jcRemarkField = state.root.querySelector("#jcRemarkField");
         elements.locationMode = state.root.querySelector("#jcLocationMode");
         elements.manualLatWrap = state.root.querySelector("#jcManualLatWrap");
         elements.manualLngWrap = state.root.querySelector("#jcManualLngWrap");
@@ -314,8 +332,6 @@
         elements.wireModalSub = state.root.querySelector("#jcWireModalSub");
         elements.jcWireJuid = state.root.querySelector("#jcWireJuid");
         elements.wireTypeSelect = state.root.querySelector("#jcWireType");
-        elements.otdrDistanceWrap = state.root.querySelector("#jcOtdrDistanceWrap");
-        elements.otdrDistance = state.root.querySelector("#jcOtdrDistance");
         elements.wireDrum = state.root.querySelector("#jcWireDrum");
         elements.liveCoresCountSelect = state.root.querySelector("#jcLiveCoresCount");
         elements.liveCoreError = state.root.querySelector("#jcLiveCoreError");
@@ -360,7 +376,7 @@
     }
 
     function getActiveClient() {
-        return state.context && state.context.client ? state.context.client : DEFAULT_CLIENT;
+        return DEFAULT_CLIENT;
     }
 
     function showError(error) {
@@ -376,8 +392,134 @@
 
     function getJcDisplayName(data) {
         const name = String((data && data.jcName) || "JC").trim() || "JC";
-        const windowName = String((data && data.window) || "").trim().toUpperCase();
-        return windowName ? `${name} (${windowName})` : name;
+        const otdrDistance = String((data && data.otdrDistance) || "").trim();
+        return otdrDistance ? `${name} (${otdrDistance})` : name;
+    }
+
+    function normalizePonValue(value) {
+        return String(value || "").trim().toUpperCase();
+    }
+
+    function createPonOptionsHtml(selectedValue) {
+        const normalizedSelected = normalizePonValue(selectedValue);
+        const options = state.ponOptions.slice();
+        if (normalizedSelected && !options.includes(normalizedSelected)) {
+            options.unshift(normalizedSelected);
+        }
+        return createSelectOptionsHtml(options, "Select OLT PON", normalizedSelected);
+    }
+
+    function getPonStatsForValue(ponValue) {
+        const key = normalizePonValue(ponValue);
+        return key ? state.ponStats[key] || null : null;
+    }
+
+    function getPonHealthMeta(ponValue) {
+        const stats = getPonStatsForValue(ponValue);
+        if (!stats || !stats.activeUsers) {
+            return { level: "gray", label: "No Data", percentage: null, onlineUsers: 0, activeUsers: 0 };
+        }
+        const percentage = Math.round((stats.onlineUsers / stats.activeUsers) * 100);
+        const label = `${percentage}% ${stats.activeUsers}/${stats.onlineUsers}`;
+        if (percentage > 90) {
+            return { level: "green", label, percentage, onlineUsers: stats.onlineUsers, activeUsers: stats.activeUsers };
+        }
+        if (percentage >= 20) {
+            return { level: "orange", label, percentage, onlineUsers: stats.onlineUsers, activeUsers: stats.activeUsers };
+        }
+        return { level: "red", label, percentage, onlineUsers: stats.onlineUsers, activeUsers: stats.activeUsers };
+    }
+
+    function getJcHealthMeta(boxData) {
+        const ponSet = new Set();
+        const wires = [...(boxData.inputWires || []), ...(boxData.outputWires || [])];
+        wires.forEach((wire) => {
+            (wire.coreDetails || []).forEach((core) => {
+                const ponValue = normalizePonValue(core.oltpon);
+                if (ponValue) ponSet.add(ponValue);
+            });
+        });
+
+        let activeUsers = 0;
+        let onlineUsers = 0;
+        Array.from(ponSet).forEach((pon) => {
+            const stats = getPonStatsForValue(pon);
+            if (!stats) return;
+            activeUsers += Number(stats.activeUsers || 0);
+            onlineUsers += Number(stats.onlineUsers || 0);
+        });
+
+        if (!activeUsers) {
+            return { level: "gray", label: "No Data", percentage: null, onlineUsers: 0, activeUsers: 0 };
+        }
+
+        const percentage = Math.round((onlineUsers / activeUsers) * 100);
+        const label = `${percentage}% ${activeUsers}/${onlineUsers}`;
+        if (percentage > 90) {
+            return { level: "green", label, percentage, onlineUsers, activeUsers };
+        }
+        if (percentage >= 20) {
+            return { level: "orange", label, percentage, onlineUsers, activeUsers };
+        }
+        return { level: "red", label, percentage, onlineUsers, activeUsers };
+    }
+
+    function getJcAlertLevel(boxData) {
+        const ponSet = new Set();
+        const wires = [...(boxData.inputWires || []), ...(boxData.outputWires || [])];
+        wires.forEach((wire) => {
+            (wire.coreDetails || []).forEach((core) => {
+                const ponValue = normalizePonValue(core.oltpon);
+                if (ponValue) ponSet.add(ponValue);
+            });
+        });
+        const ponLevels = Array.from(ponSet)
+            .map((pon) => getPonHealthMeta(pon).level)
+            .filter((level) => level !== "gray");
+        if (!ponLevels.length) return "";
+        if (ponLevels.every((level) => level === "red")) return "danger";
+        if (ponLevels.some((level) => level === "red")) return "warning";
+        return "";
+    }
+
+    async function fetchWindowPonStats(windowName) {
+        const normalizedWindow = String(windowName || "").trim().toUpperCase();
+        if (!normalizedWindow) {
+            state.ponOptions = [];
+            state.ponStats = {};
+            return;
+        }
+        const users = [];
+        let page = 1;
+        let totalPages = 1;
+        while (page <= totalPages) {
+            const response = await requestJson(`${apiUrlFor(normalizedWindow, "userinfo")}?page=${page}&page_size=500`);
+            totalPages = Number(response && response.pagination && response.pagination.total_pages) || 0;
+            if (Array.isArray(response && response.users)) {
+                users.push(...response.users);
+            }
+            if (!totalPages) break;
+            page += 1;
+        }
+
+        const ponStats = {};
+        users.forEach((item) => {
+            const userdb = item && item.userdb ? item.userdb : {};
+            const netsense = item && item.netsense ? item.netsense : {};
+            const serviceStatus = String(userdb.service_status || "").trim().toLowerCase();
+            const ponValue = normalizePonValue(netsense.pon_number);
+            if (serviceStatus !== "active" || !ponValue) return;
+            if (!ponStats[ponValue]) {
+                ponStats[ponValue] = { pon: ponValue, activeUsers: 0, onlineUsers: 0 };
+            }
+            ponStats[ponValue].activeUsers += 1;
+            if (String(netsense.status || "").trim().toUpperCase() === "UP") {
+                ponStats[ponValue].onlineUsers += 1;
+            }
+        });
+
+        state.ponStats = ponStats;
+        state.ponOptions = Object.keys(ponStats).sort((left, right) => left.localeCompare(right));
     }
 
     function flattenJcNodes(nodes, result = []) {
@@ -393,13 +535,64 @@
     function buildPreviousJcOptions(windowName) {
         const normalizedWindow = String(windowName || "").trim().toUpperCase();
         const options = [{ value: ROOT_PREVIOUS_JC, label: ROOT_PREVIOUS_JC }];
-        flattenJcNodes(state.rows)
+        flattenJcNodes(state.allRows && state.allRows.length ? state.allRows : state.rows)
             .filter((row) => String(row.window || "").trim().toUpperCase() === normalizedWindow)
             .sort((left, right) => (left.jcName || "").localeCompare(right.jcName || ""))
             .forEach((row) => {
                 options.push({ value: row.jcName, label: row.jcName });
             });
         return options;
+    }
+
+    function normalizeSearchValue(value) {
+        return String(value || "").trim().toLowerCase();
+    }
+
+    function getWireSearchText(wire) {
+        return [
+            wire && wire.wireType,
+            wire && wire.wireDrum,
+            wire && wire.remark,
+            wire && wire.otdrDistance,
+            wire && wire.liveCores
+        ].join(" ");
+    }
+
+    function getCoreSearchText(core) {
+        return [
+            core && core.coreColor,
+            core && core.coreColorAndNumber,
+            core && core.tube,
+            core && core.oltpon,
+            core && core.power,
+            core && core.remark
+        ].join(" ");
+    }
+
+    function getNodeSearchText(node) {
+        const wireText = [...(node.inputWires || []), ...(node.outputWires || [])]
+            .map((wire) => [getWireSearchText(wire), ...(wire.coreDetails || []).map(getCoreSearchText)].join(" "))
+            .join(" ");
+        return normalizeSearchValue([
+            node && node.jcName,
+            node && node.previousJc,
+            node && node.otdrDistance,
+            node && node.remark,
+            node && node.window,
+            node && node.timestamp,
+            wireText
+        ].join(" "));
+    }
+
+    function filterTreeNodes(nodes, term) {
+        if (!term) return nodes || [];
+        return (nodes || []).reduce((result, node) => {
+            const childMatches = filterTreeNodes(node.children || [], term);
+            if (getNodeSearchText(node).includes(term) || childMatches.length) {
+                result.push(Object.assign({}, node, { children: childMatches }));
+            }
+            return result;
+        }, []);
     }
 
     function syncPreviousJcOptions(selectedValue) {
@@ -481,8 +674,8 @@
                     jcName: node && node.jcname ? String(node.jcname) : "",
                     side: wireSide,
                     wireType: child && child.wiretype ? String(child.wiretype) : "12 Core",
-                    otdrDistance: child && child.otdrdistance !== undefined && child.otdrdistance !== null ? String(child.otdrdistance) : "",
                     wireDrum: child && child.drum ? String(child.drum) : "",
+                    remark: child && child.remark ? String(child.remark) : "",
                     liveCores: liveCoreCount,
                     coreDetails: coreDetails
                 };
@@ -506,9 +699,10 @@
             previousJc: node && node.previousjc ? String(node.previousjc) : ROOT_PREVIOUS_JC,
             lat: normalizeCoordinate(node ? node.lat : null),
             lng: normalizeCoordinate(node ? node.lng : null),
+            otdrDistance: node && node.otdr ? String(node.otdr) : "",
+            remark: node && node.remark ? String(node.remark) : "",
             window: node && node.window ? String(node.window) : "",
             timestamp: node && node.timestamp ? String(node.timestamp) : "",
-            otdrDistance: "",
             inputWires: inputWires,
             outputWires: outputWires,
             children: jcChildren
@@ -544,21 +738,10 @@
         return roots;
     }
 
-    function syncWireFieldsForSide(side) {
-        const isOutput = side === "output";
-        if (elements.otdrDistanceWrap) elements.otdrDistanceWrap.classList.toggle("hidden", isOutput);
-        if (elements.otdrDistance) {
-            if (isOutput) {
-                elements.otdrDistance.value = "";
-            }
-            elements.otdrDistance.disabled = isOutput;
-        }
-    }
-
     function createOfficeNode() {
         const office = document.createElement("div");
         office.className = "olt";
-        office.textContent = "OLT/RACK";
+        office.textContent = `${ROOT_PREVIOUS_JC}${state.context && state.context.windowName ? ` (${state.context.windowName})` : ""}`;
         return office;
     }
 
@@ -600,23 +783,13 @@
     }
 
     function getWindowFilterValue() {
-        if (!elements.landingWindow) return "ALL";
-        const val = String(elements.landingWindow.value || "").trim().toUpperCase();
-        return val || "ALL";
+        if (!state.context) return "";
+        return String(state.context.windowName || "").trim().toUpperCase();
     }
 
     function getWindowQueryValue(windowName) {
         const normalized = String(windowName || "").trim().toUpperCase();
-        return !normalized || normalized === "ALL" ? ALL_WINDOWS.join(",") : normalized;
-    }
-
-    function applyLandingWindowFilter() {
-        return open({
-            client: DEFAULT_CLIENT,
-            windowName: getWindowFilterValue(),
-            oltName: "",
-            ponNumber: ""
-        });
+        return normalized;
     }
 
     function askConfirm(title, message) {
@@ -707,6 +880,10 @@
                     <strong>${coreData.oltpon || "-"}</strong>
                 </div>
                 <div class="core-info-item">
+                    <span class="core-info-label">PON Status</span>
+                    <strong>${getPonHealthMeta(coreData.oltpon).label}</strong>
+                </div>
+                <div class="core-info-item">
                     <span class="core-info-label">Power</span>
                     <strong>${coreData.power || "-"}</strong>
                 </div>
@@ -779,7 +956,7 @@
         elements.liveCoresCountSelect.innerHTML = "";
         const placeholder = document.createElement("option");
         placeholder.value = "";
-        placeholder.textContent = "Live Cores Count";
+        placeholder.textContent = "Select live cores";
         placeholder.disabled = true;
         elements.liveCoresCountSelect.appendChild(placeholder);
         for (let i = 0; i <= maxCores; i++) {
@@ -788,13 +965,12 @@
             opt.textContent = i;
             elements.liveCoresCountSelect.appendChild(opt);
         }
-        elements.liveCoresCountSelect.value = String(currentValue);
+        elements.liveCoresCountSelect.value = currentValue > 0 ? String(currentValue) : "";
         elements.liveCoreError.textContent = "";
     }
 
     function getCurrentCoreDataFromForm() {
         return Array.from(elements.coreList.querySelectorAll(".core-card")).map((card) => {
-            const selects = card.querySelectorAll("select");
             let meta = {};
             try {
                 meta = JSON.parse(card.dataset.coreMeta || "{}");
@@ -803,9 +979,9 @@
             }
             return {
                 cuid: meta.cuid || "",
-                coreColor: selects[0] ? selects[0].value : "",
-                tube: selects[1] ? selects[1].value : (meta.tube || ""),
-                oltpon: meta.oltpon || "",
+                coreColor: card.querySelector(".core-color") ? card.querySelector(".core-color").value : "",
+                tube: card.querySelector(".core-tube") ? card.querySelector(".core-tube").value : (meta.tube || ""),
+                oltpon: card.querySelector(".core-pon") ? card.querySelector(".core-pon").value : (meta.oltpon || ""),
                 power: card.querySelector(".core-power") ? card.querySelector(".core-power").value : "",
                 remark: card.querySelector(".core-remark") ? card.querySelector(".core-remark").value : ""
             };
@@ -813,7 +989,6 @@
     }
 
     function getCoreCardData(card) {
-        const selects = card.querySelectorAll("select");
         let meta = {};
         try {
             meta = JSON.parse(card.dataset.coreMeta || "{}");
@@ -822,9 +997,9 @@
         }
         return {
             cuid: meta.cuid || "",
-            coreColorAndNumber: selects[0] ? String(selects[0].value || "").trim() : "",
-            tube: selects[1] ? String(selects[1].value || "").trim() : (meta.tube || ""),
-            oltpon: meta.oltpon || "",
+            coreColorAndNumber: card.querySelector(".core-color") ? String(card.querySelector(".core-color").value || "").trim() : "",
+            tube: card.querySelector(".core-tube") ? String(card.querySelector(".core-tube").value || "").trim() : (meta.tube || ""),
+            oltpon: card.querySelector(".core-pon") ? String(card.querySelector(".core-pon").value || "").trim() : (meta.oltpon || ""),
             power: card.querySelector(".core-power") ? String(card.querySelector(".core-power").value || "").trim() : "",
             remark: card.querySelector(".core-remark") ? String(card.querySelector(".core-remark").value || "").trim() : ""
         };
@@ -903,6 +1078,10 @@
             await showNotice("Save Core", "Select tube.");
             return false;
         }
+        if (!coreData.oltpon) {
+            await showNotice("Save Core", "Select OLT PON.");
+            return false;
+        }
 
         const otherSelections = collectExistingCoreSelections(card);
         const duplicate = otherSelections.some((item) => {
@@ -934,9 +1113,9 @@
             const nextLiveCoreCount = Number(elements.liveCoresCountSelect.value) || 0;
             await updateWire(state.selectedFiber.dataset.wireUuid, {
                 drum: state.selectedFiber.dataset.wireDrum || "",
-                otdrdistance: state.selectedFiber.dataset.otdrDistance || "",
                 wiretype: state.selectedFiber.dataset.wireType || "12 Core",
-                livecores: nextLiveCoreCount
+                livecores: nextLiveCoreCount,
+                remark: state.selectedFiber.dataset.remark || ""
             });
             await createCore({
                 wuid: state.selectedFiber.dataset.wireUuid,
@@ -968,6 +1147,7 @@
             const currentCore = (coreData && coreData[i - 1]) || {};
             const hasSavedCore = Boolean(currentCore.cuid);
             const hasCoreValue = Boolean(currentCore.coreColor || currentCore.coreColorAndNumber);
+            const healthMeta = getPonHealthMeta(currentCore.oltpon);
             const card = document.createElement("div");
             card.className = "core-card";
             card.dataset.coreMeta = JSON.stringify({
@@ -977,13 +1157,17 @@
             });
             card.innerHTML = `
                 <div class="title-row">
-                    <h4>Live Core ${i}</h4>
+                    <div class="core-title-left">
+                        <span class="core-led ${healthMeta.level}" title="${healthMeta.label}"></span>
+                        <h4>Live Core ${i}</h4>
+                        <span class="core-led-label">${healthMeta.label}</span>
+                    </div>
                     <div class="panel-controls">
                         <button type="button" class="delete-core">${hasSavedCore ? "Delete" : "Clear"}</button>
                         <button type="button" class="edit-core">${hasSavedCore ? "Edit" : "Save"}</button>
                     </div>
                 </div>
-                <div class="core-grid" style="grid-template-columns:${needsTube ? "repeat(4,minmax(0,1fr))" : "repeat(3,minmax(0,1fr))"};">
+                <div class="core-grid" style="grid-template-columns:${needsTube ? "repeat(5,minmax(0,1fr))" : "repeat(4,minmax(0,1fr))"};">
                     <div class="field">
                         <select class="core-color" ${hasSavedCore ? "disabled" : ""}>
                             <option value="" disabled selected>Core Color and Number</option>
@@ -992,20 +1176,27 @@
                     </div>
                     ${needsTube ? `<div class="field"><select class="core-tube" ${hasSavedCore ? "disabled" : ""}><option value="" disabled selected>Tube</option>${colorOptionsHtml}</select></div>` : ""}
                     <div class="field">
+                        <select class="core-pon" ${hasSavedCore ? "disabled" : ""}>
+                            ${createPonOptionsHtml(currentCore.oltpon || "")}
+                        </select>
+                    </div>
+                    <div class="field">
                         <input class="core-power" type="text" placeholder="Power" ${hasSavedCore ? "disabled" : ""}>
                     </div>
                     <div class="field">
-                        <input class="core-remark" type="text" placeholder="Remark" ${hasSavedCore ? "disabled" : ""}>
+                        <input class="core-remark" type="text" placeholder="Area" ${hasSavedCore ? "disabled" : ""}>
                     </div>
                 </div>
             `;
             const colorField = card.querySelector(".core-color");
             const tubeField = card.querySelector(".core-tube");
+            const ponField = card.querySelector(".core-pon");
             const powerField = card.querySelector(".core-power");
             const remarkField = card.querySelector(".core-remark");
             refreshCoreCardOptions(card);
             if (currentCore.coreColor) colorField.value = currentCore.coreColor;
             if (tubeField && currentCore.tube) tubeField.value = currentCore.tube;
+            if (ponField && currentCore.oltpon) ponField.value = normalizePonValue(currentCore.oltpon);
             if (powerField) powerField.value = currentCore.power || "";
             if (remarkField) remarkField.value = currentCore.remark || "";
             const coreStyle = getCoreVisualStyle(currentCore.coreColor);
@@ -1036,9 +1227,9 @@
                             const nextLiveCoreCount = Math.max((Number(elements.liveCoresCountSelect.value) || 0) - 1, 0);
                             await updateWire(state.selectedFiber.dataset.wireUuid, {
                                 drum: state.selectedFiber.dataset.wireDrum || "",
-                                otdrdistance: state.selectedFiber.dataset.otdrDistance || "",
                                 wiretype: state.selectedFiber.dataset.wireType || "12 Core",
-                                livecores: nextLiveCoreCount
+                                livecores: nextLiveCoreCount,
+                                remark: state.selectedFiber.dataset.remark || ""
                             });
                             await requestJson(apiUrlFor(getActiveClient(), `core/${cuid}`), { method: "DELETE" });
                             await refreshAndReopenWireModal(state.selectedFiber ? state.selectedFiber.dataset.wireUuid : "", state.selectedFiber ? state.selectedFiber.dataset.side : "", state.selectedFiber ? state.selectedFiber.dataset.juid : "");
@@ -1106,6 +1297,7 @@
         line.dataset.wireType = data.wireType || "12 Core";
         line.dataset.otdrDistance = data.otdrDistance || "";
         line.dataset.wireDrum = data.wireDrum || "";
+        line.dataset.remark = data.remark || "";
         line.dataset.liveCores = String(Number(data.liveCores) || 0);
         line.dataset.coreDetails = JSON.stringify(data.coreDetails || []);
         updateFiberLabel(line);
@@ -1129,6 +1321,7 @@
             wireType: line.dataset.wireType || fallback.wireType,
             otdrDistance: line.dataset.otdrDistance || "",
             wireDrum: line.dataset.wireDrum || "",
+            remark: line.dataset.remark || "",
             liveCores: Number(line.dataset.liveCores || fallback.liveCores),
             coreDetails: Array.isArray(coreDetails) ? coreDetails : fallback.coreDetails
         };
@@ -1138,12 +1331,12 @@
         const safeData = data || getDefaultWireData();
         elements.jcWireJuid.value = juid || "";
         elements.wireTypeSelect.value = safeData.wireType || "12 Core";
-        elements.otdrDistance.value = safeData.otdrDistance || "";
         elements.wireDrum.value = safeData.wireDrum || "";
-        syncWireFieldsForSide(side);
         syncLiveCoreLimit();
-        elements.liveCoresCountSelect.value = String(Math.min(Math.max(Number(safeData.liveCores || 0), 0), getWireTypeCoreCount()));
-        buildCoreFields(Number(elements.liveCoresCountSelect.value), safeData.coreDetails || []);
+        const normalizedLiveCores = Math.min(Math.max(Number(safeData.liveCores || 0), 0), getWireTypeCoreCount());
+        const liveCoreValue = safeData.wireUuid ? String(normalizedLiveCores) : (normalizedLiveCores > 0 ? String(normalizedLiveCores) : "");
+        elements.liveCoresCountSelect.value = liveCoreValue;
+        buildCoreFields(Number(liveCoreValue) || 0, safeData.coreDetails || []);
         
         elements.wireModalTitle.textContent = side === "input" ? "Input Wire Details" : "Output Wire Details";
         elements.wireModalSub.textContent = data && data.wireUuid ? "Edit existing wire" : "Create new wire";
@@ -1156,9 +1349,9 @@
             juid: elements.jcWireJuid.value || "",
             side: state.selectedFiber ? (state.selectedFiber.dataset.side || "") : (state.pendingWireCreation ? state.pendingWireCreation.side : ""),
             wireType: elements.wireTypeSelect.value || "12 Core",
-            otdrDistance: elements.otdrDistance.value.trim(),
             wireDrum: elements.wireDrum.value.trim(),
             liveCores: Number(elements.liveCoresCountSelect.value) || 0,
+            remark: state.selectedFiber ? (state.selectedFiber.dataset.remark || "") : "",
             coreDetails: getCurrentCoreDataFromForm()
         };
     }
@@ -1192,7 +1385,8 @@
     function fillCoreModal(data, index, wuid, juid) {
         elements.coreColor.value = data.coreColorAndNumber || data.coreColor || "";
         if (elements.coreTube) elements.coreTube.value = data.tube || "";
-        elements.coreOltpon.value = data.oltpon || "";
+        elements.coreOltpon.innerHTML = createPonOptionsHtml(data.oltpon || "");
+        elements.coreOltpon.value = normalizePonValue(data.oltpon || "");
         elements.corePower.value = data.power || "";
         elements.coreRemark.value = data.remark || "";
         
@@ -1230,6 +1424,10 @@
         const needsTube = state.selectedFiber ? (parseInt(state.selectedFiber.dataset.wireType, 10) > 12) : false;
         if (needsTube && !data.tube) {
             alert("Select tube");
+            return false;
+        }
+        if (!data.oltpon) {
+            alert("Select OLT PON");
             return false;
         }
         if (!data.wuid || !data.juid) {
@@ -1285,12 +1483,15 @@
         const hasLocation = boxData.lat !== null && boxData.lng !== null;
         const mapLink = hasLocation ? `https://www.google.com/maps?q=${boxData.lat},${boxData.lng}` : "";
         const previousLabel = String(boxData.previousJc || ROOT_PREVIOUS_JC).trim() || ROOT_PREVIOUS_JC;
+        const jcHealthMeta = getJcHealthMeta(boxData);
         const wrapper = document.createElement("div");
         wrapper.className = "jc-wrapper";
         wrapper.innerHTML = `
             ${hasLocation ? `<a class="jc-badge" href="${mapLink}" target="_blank" rel="noopener noreferrer">${getJcDisplayName(boxData)}</a>` : `<div class="jc-badge">${getJcDisplayName(boxData)}</div>`}
             <div class="jc-link"></div>
+            <div class="jc-health-label"><span class="core-led ${jcHealthMeta.level}"></span><span>${jcHealthMeta.label}</span></div>
             <div class="jc-after-label">After ${previousLabel}</div>
+            <button type="button" class="jc-edit-toggle">Edit JC</button>
         `;
         const link = wrapper.querySelector(".jc-link");
         const wire = document.createElement("div");
@@ -1303,6 +1504,7 @@
         container.dataset.jcName = boxData.jcName || "";
         container.dataset.previousJc = boxData.previousJc || ROOT_PREVIOUS_JC;
         container.dataset.otdrDistance = boxData.otdrDistance || "";
+        container.dataset.remark = boxData.remark || "";
         container.dataset.lat = boxData.lat || "";
         container.dataset.lng = boxData.lng || "";
         container.dataset.window = boxData.window || "";
@@ -1322,8 +1524,12 @@
             </div>
         `;
         const fiberContainers = container.querySelectorAll(".fiber-container");
-        (boxData.inputWires || []).forEach((wireData) => fiberContainers[0].appendChild(createFiberLine(Object.assign({}, wireData, { side: "input", juid: boxData.juid, jcName: boxData.jcName, otdrDistance: wireData.otdrDistance || boxData.otdrDistance }))));
-        (boxData.outputWires || []).forEach((wireData) => fiberContainers[1].appendChild(createFiberLine(Object.assign({}, wireData, { side: "output", juid: boxData.juid, jcName: boxData.jcName, otdrDistance: wireData.otdrDistance || boxData.otdrDistance }))));
+        (boxData.inputWires || []).forEach((wireData) => fiberContainers[0].appendChild(createFiberLine(Object.assign({}, wireData, { side: "input", juid: boxData.juid, jcName: boxData.jcName, otdrDistance: boxData.otdrDistance }))));
+        (boxData.outputWires || []).forEach((wireData) => fiberContainers[1].appendChild(createFiberLine(Object.assign({}, wireData, { side: "output", juid: boxData.juid, jcName: boxData.jcName, otdrDistance: boxData.otdrDistance }))));
+        const jcAlertLevel = getJcAlertLevel(boxData);
+        if (jcAlertLevel) {
+            container.classList.add(`jc-alert-${jcAlertLevel}`);
+        }
         
         container.addEventListener("click", (event) => {
             event.stopPropagation();
@@ -1354,6 +1560,13 @@
                 openWireModal(null, juid, side);
             };
         });
+        const editButton = wrapper.querySelector(".jc-edit-toggle");
+        if (editButton) {
+            editButton.addEventListener("click", (event) => {
+                event.stopPropagation();
+                openEditJcModal(container);
+            });
+        }
         
         setBoxEditMode(container, true);
         link.appendChild(wire);
@@ -1370,10 +1583,28 @@
                 previousjc: payload.previousjc,
                 lat: payload.lat,
                 lng: payload.lng,
+                otdr: payload.otdr,
+                remark: payload.remark,
                 window: payload.window
             })
         });
         return response.JUID;
+    }
+
+    async function updateJc(juid, payload) {
+        await requestJson(apiUrlFor(getActiveClient(), `jc/${juid}`), {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                jcname: payload.jcname,
+                previousjc: payload.previousjc,
+                lat: payload.lat,
+                lng: payload.lng,
+                otdr: payload.otdr,
+                remark: payload.remark,
+                window: payload.window
+            })
+        });
     }
 
     async function createWire(payload) {
@@ -1383,9 +1614,10 @@
             body: JSON.stringify({
                 JUID: payload.juid,
                 drum: payload.drum,
-                otdrdistance: payload.otdrdistance,
+                otdrdistance: "",
                 wiretype: payload.wiretype,
-                livecores: payload.livecores
+                livecores: payload.livecores,
+                remark: payload.remark || ""
             })
         });
         return response.WUID;
@@ -1397,9 +1629,10 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 drum: payload.drum,
-                otdrdistance: payload.otdrdistance,
+                otdrdistance: "",
                 wiretype: payload.wiretype,
-                livecores: payload.livecores
+                livecores: payload.livecores,
+                remark: payload.remark || ""
             })
         });
     }
@@ -1509,11 +1742,18 @@
         if (!state.context) return;
         setBusy(true);
         try {
+            try {
+                await fetchWindowPonStats(state.context.windowName);
+            } catch (error) {
+                state.ponOptions = [];
+                state.ponStats = {};
+            }
             let url = apiUrlFor(getActiveClient(), "jctree");
             url += `?windows=${encodeURIComponent(getWindowQueryValue(state.context.windowName))}`;
             const response = await requestJson(url);
             const tree = Array.isArray(response.tree) ? response.tree : [];
-            state.rows = tree.map(normalizeTreeNode);
+            state.allRows = tree.map(normalizeTreeNode);
+            state.rows = state.allRows.slice();
             renderRows();
         } catch (error) {
             showError(error);
@@ -1526,8 +1766,9 @@
         state.selectedBox = null;
         state.selectedFiber = null;
         elements.row.innerHTML = "";
+        const visibleRows = filterTreeNodes(state.rows, normalizeSearchValue(state.searchTerm));
 
-        if (!state.rows.length) {
+        if (!visibleRows.length) {
             elements.row.innerHTML = "<div style='padding:20px'>No data found</div>";
             return;
         }
@@ -1545,7 +1786,7 @@
 
         const rootChildren = document.createElement("div");
         rootChildren.className = "jc-children jc-children-root";
-        state.rows.forEach((root, index) => {
+        visibleRows.forEach((root, index) => {
             rootChildren.appendChild(renderTree(root, 0));
         });
         officeBranch.appendChild(rootChildren);
@@ -1594,11 +1835,27 @@
         return branch;
     }
 
-    async function saveNewJc() {
+    function getJcModalData() {
+        const location = getModalLocation();
+        return {
+            juid: state.editingJcId || "",
+            jcname: elements.jcNameField.value.trim(),
+            window: elements.jcModalWindowName.value,
+            previousjc: elements.jcPreviousJcField ? elements.jcPreviousJcField.value : "",
+            lat: location.lat,
+            lng: location.lng,
+            otdr: elements.jcOtdrField ? elements.jcOtdrField.value.trim() : "",
+            remark: elements.jcRemarkField ? elements.jcRemarkField.value.trim() : ""
+        };
+    }
+
+    async function saveJc() {
         const jcName = elements.jcNameField.value.trim();
         const window = elements.jcModalWindowName.value;
         const previousJc = elements.jcPreviousJcField ? elements.jcPreviousJcField.value : "";
         const location = getModalLocation();
+        const jcData = getJcModalData();
+        const isEditMode = state.jcModalMode === "edit" && jcData.juid;
         
         if (!jcName) {
             alert("Enter JC name");
@@ -1623,13 +1880,11 @@
         
         try {
             setBusy(true);
-            const juid = await createJc({
-                jcname: jcName,
-                previousjc: previousJc,
-                lat: location.lat,
-                lng: location.lng,
-                window: window
-            });
+            if (isEditMode) {
+                await updateJc(jcData.juid, jcData);
+            } else {
+                await createJc(jcData);
+            }
             await loadData();
             closeJcModal();
             return true;
@@ -1643,9 +1898,6 @@
 
     async function saveNewWire() {
         const wireData = getWireModalData();
-        if (wireData.side === "output") {
-            wireData.otdrDistance = "";
-        }
         if (!validateWireModalData(wireData)) return false;
         
         try {
@@ -1656,17 +1908,17 @@
             if (wireId) {
                 await updateWire(wireId, {
                     drum: wireData.wireDrum || "",
-                    otdrdistance: wireData.otdrDistance || "",
                     wiretype: wireData.wireType || "12 Core",
-                    livecores: liveCores
+                    livecores: liveCores,
+                    remark: wireData.remark || ""
                 });
             } else {
                 wireId = await createWire({
                     juid: wireData.juid,
                     drum: wireData.wireDrum || "",
-                    otdrdistance: wireData.otdrDistance || "",
                     wiretype: wireData.wireType || "12 Core",
-                    livecores: liveCores
+                    livecores: liveCores,
+                    remark: wireData.remark || ""
                 });
             }
             
@@ -1695,9 +1947,9 @@
             if (activeWireUuid) {
                 await updateWire(activeWireUuid, {
                     drum: state.selectedFiber ? state.selectedFiber.dataset.wireDrum || "" : "",
-                    otdrdistance: state.selectedFiber ? state.selectedFiber.dataset.otdrDistance || "" : "",
                     wiretype: state.selectedFiber ? state.selectedFiber.dataset.wireType || "12 Core" : "12 Core",
-                    livecores: nextLiveCoreCount
+                    livecores: nextLiveCoreCount,
+                    remark: state.selectedFiber ? state.selectedFiber.dataset.remark || "" : ""
                 });
             }
             if (coreData.cuid) {
@@ -1778,8 +2030,12 @@
     }
 
     function openJcModal() {
+        state.jcModalMode = "create";
+        state.editingJcId = "";
         elements.jcNameField.value = "";
         elements.jcModalWindowName.value = getWindowFilterValue() || "";
+        if (elements.jcOtdrField) elements.jcOtdrField.value = "";
+        if (elements.jcRemarkField) elements.jcRemarkField.value = "";
         if (elements.jcPreviousJcField) elements.jcPreviousJcField.innerHTML = '<option value="">Select Previous JC</option>';
         if (elements.locationMode) {
             elements.locationMode.value = state.location ? "auto" : "manual";
@@ -1788,11 +2044,60 @@
         if (elements.manualLng) elements.manualLng.value = "";
         syncPreviousJcOptions();
         syncLocationMode();
+        elements.jcModalSub.textContent = "Create new JC";
+        elements.saveJcBtn.textContent = "Create JC";
+        elements.jcModal.classList.add("show");
+    }
+
+    function openEditJcModal(container) {
+        if (!container) return;
+        state.jcModalMode = "edit";
+        state.editingJcId = container.dataset.juid || "";
+        elements.jcNameField.value = container.dataset.jcName || "";
+        elements.jcModalWindowName.value = container.dataset.window || getWindowFilterValue() || "";
+        if (elements.jcOtdrField) elements.jcOtdrField.value = container.dataset.otdrDistance || "";
+        if (elements.jcRemarkField) elements.jcRemarkField.value = container.dataset.remark || "";
+        if (elements.jcPreviousJcField) syncPreviousJcOptions(container.dataset.previousJc || ROOT_PREVIOUS_JC);
+        if (elements.locationMode) elements.locationMode.value = "manual";
+        if (elements.manualLat) elements.manualLat.value = container.dataset.lat || "";
+        if (elements.manualLng) elements.manualLng.value = container.dataset.lng || "";
+        syncLocationMode();
+        elements.jcModalSub.textContent = "Edit selected JC details";
+        elements.saveJcBtn.textContent = "Update JC";
         elements.jcModal.classList.add("show");
     }
 
     function closeJcModal() {
         elements.jcModal.classList.remove("show");
+        state.jcModalMode = "create";
+        state.editingJcId = "";
+    }
+
+    function openWindowPicker() {
+        if (elements.windowModal) {
+            elements.windowModal.classList.add("show");
+        }
+    }
+
+    function closeWindowPicker(force = false) {
+        if (elements.windowModal && (force || (state.context && state.context.windowName))) {
+            elements.windowModal.classList.remove("show");
+        }
+    }
+
+    async function applyWindowSelection(windowName) {
+        const normalizedWindow = String(windowName || "").trim().toUpperCase();
+        if (!ALL_WINDOWS.includes(normalizedWindow)) return;
+        if (elements.windowPickerTrigger) {
+            elements.windowPickerTrigger.textContent = normalizedWindow;
+        }
+        closeWindowPicker(true);
+        await open({
+            client: normalizedWindow,
+            windowName: normalizedWindow,
+            oltName: "",
+            ponNumber: ""
+        });
     }
 
     function requestCurrentLocation() {
@@ -1820,10 +2125,15 @@
         if (elements.jcModalWindowName) {
             elements.jcModalWindowName.addEventListener("change", () => syncPreviousJcOptions());
         }
-        if (elements.landingWindow) {
-            elements.landingWindow.addEventListener("change", applyLandingWindowFilter);
+        if (elements.windowPickerTrigger) {
+            elements.windowPickerTrigger.addEventListener("click", openWindowPicker);
         }
-        elements.saveJcBtn.addEventListener("click", saveNewJc);
+        if (elements.windowOptions) {
+            elements.windowOptions.forEach((button) => {
+                button.addEventListener("click", () => applyWindowSelection(button.dataset.window));
+            });
+        }
+        elements.saveJcBtn.addEventListener("click", saveJc);
         elements.closeModalBtn.addEventListener("click", closeJcModal);
         elements.cancelModalBtn.addEventListener("click", closeJcModal);
         elements.jcModal.addEventListener("click", (event) => {
@@ -1858,9 +2168,9 @@
                             if (wireUuid) {
                                 await updateWire(wireUuid, {
                                     drum: state.selectedFiber ? state.selectedFiber.dataset.wireDrum || "" : "",
-                                    otdrdistance: state.selectedFiber ? state.selectedFiber.dataset.otdrDistance || "" : "",
                                     wiretype: state.selectedFiber ? state.selectedFiber.dataset.wireType || "12 Core" : "12 Core",
-                                    livecores: nextLiveCoreCount
+                                    livecores: nextLiveCoreCount,
+                                    remark: state.selectedFiber ? state.selectedFiber.dataset.remark || "" : ""
                                 });
                             }
                             await deleteCore(state.pendingCoreCreation.cuid);
@@ -1897,6 +2207,13 @@
             }
             buildCoreFields(Number(elements.liveCoresCountSelect.value), coreData);
         });
+
+        if (elements.searchInput) {
+            elements.searchInput.addEventListener("input", () => {
+                state.searchTerm = elements.searchInput.value || "";
+                renderRows();
+            });
+        }
         
         elements.wireTypeSelect.addEventListener("change", () => {
             const coreData = getCurrentCoreDataFromForm();
@@ -1928,23 +2245,22 @@
         elements.mount = document.getElementById("jcNotepadMount");
         elements.title = document.getElementById("jcModalTitle") || document.querySelector(".jc-page-head h1");
         elements.subtitle = document.getElementById("jcModalSubtitle") || document.querySelector(".jc-page-subtitle");
-        elements.landingWindow = document.getElementById("jcLandingWindow");
+        elements.windowPickerTrigger = document.getElementById("jcWindowPickerTrigger");
+        elements.windowModal = document.getElementById("jcWindowModal");
+        elements.windowOptions = Array.from(document.querySelectorAll(".jc-window-option"));
         if (!elements.mount) return;
         createShell();
         bindEvents();
         syncLiveCoreLimit();
         requestCurrentLocation();
-        if (elements.landingWindow) {
-            elements.landingWindow.value = "ALL";
-        }
-        applyLandingWindowFilter();
+        openWindowPicker();
     }
 
     async function open(context) {
         const wn = String(context.windowName || "").trim().toUpperCase();
         state.context = {
-            client: String(context.client || "").trim(),
-            windowName: wn || "ALL",
+            client: String(context.client || wn || DEFAULT_CLIENT).trim(),
+            windowName: wn || "",
             oltName: String(context.oltName || "").trim(),
             ponNumber: String(context.ponNumber || "").trim()
         };
@@ -1952,10 +2268,14 @@
             elements.title.textContent = "JC Fiber Tree View";
         }
         if (elements.subtitle) {
-            elements.subtitle.textContent = state.context.windowName && state.context.windowName !== "ALL" ? `${state.context.windowName} JCs` : "All Current JCs";
+            elements.subtitle.textContent = state.context.windowName ? `${state.context.windowName} JCs` : "Select a window to load JCs";
         }
-        if (elements.landingWindow) {
-            elements.landingWindow.value = state.context.windowName || "ALL";
+        if (elements.windowPickerTrigger) {
+            elements.windowPickerTrigger.textContent = state.context.windowName || "Select Window";
+        }
+        state.searchTerm = "";
+        if (elements.searchInput) {
+            elements.searchInput.value = "";
         }
         try {
             await loadData();
@@ -1975,15 +2295,18 @@
         state.pendingJcCreation = null;
         state.pendingWireCreation = null;
         state.pendingCoreCreation = null;
+        state.editingJcId = "";
+        state.jcModalMode = "create";
         state.isLoading = false;
         state.location = null;
+        state.allRows = [];
         state.rows = [];
+        state.searchTerm = "";
+        state.ponOptions = [];
+        state.ponStats = {};
     }
 
     document.addEventListener("DOMContentLoaded", init);
-    window.addEventListener("DOMContentLoaded", () => {
-        applyLandingWindowFilter();
-    });
     window.jcNotepad = {
         open,
         close,
