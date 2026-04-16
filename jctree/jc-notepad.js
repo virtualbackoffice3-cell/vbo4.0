@@ -862,6 +862,14 @@
         });
     }
 
+    function hasSavedWireSelection() {
+        return Boolean(state.selectedFiber && state.selectedFiber.dataset.wireUuid);
+    }
+
+    async function showSaveWireFirstNotice() {
+        await showNotice("Save Wire", "Please save wire to add cores!");
+    }
+
     function showCoreDetails(coreData) {
         return new Promise((resolve) => {
             elements.confirmTitle.textContent = "Core Details";
@@ -2207,6 +2215,17 @@
             }
             buildCoreFields(Number(elements.liveCoresCountSelect.value), coreData);
         });
+        elements.liveCoresCountSelect.addEventListener("pointerdown", async (event) => {
+            if (hasSavedWireSelection()) return;
+            event.preventDefault();
+            event.stopPropagation();
+            await showSaveWireFirstNotice();
+        });
+        elements.liveCoresCountSelect.addEventListener("focus", async (event) => {
+            if (hasSavedWireSelection()) return;
+            event.target.blur();
+            await showSaveWireFirstNotice();
+        }, true);
 
         if (elements.searchInput) {
             elements.searchInput.addEventListener("input", () => {
