@@ -8,16 +8,22 @@
         "2,Orange",
         "3,Green",
         "4,Brown",
-        "5,Slate",
+        "5,Grey",
         "6,White",
         "7,Red",
         "8,Black",
         "9,Yellow",
         "10,Purple",
         "11,Pink",
-        "12,Light Blue"
+        "12,Aqua"
+    ];
+    const jointOptions = [
+        "Core to core",
+        "Core interchange",
+        "Splitter"
     ];
     const colorOptionsHtml = coreOptions.map((option) => `<option value="${option}">${option}</option>`).join("");
+    const tubeOptionsHtml = coreOptions.map((option) => `<option value="${option}">${option} tube</option>`).join("");
 
     const state = {
         context: null,
@@ -31,11 +37,14 @@
         jcModalMode: "create",
         isLoading: false,
         location: null,
+        visibleRows: [],
         allRows: [],
         rows: [],
         searchTerm: "",
         ponOptions: [],
-        ponStats: {}
+        ponStats: {},
+        jcMap: null,
+        jcMapMarkers: []
     };
 
     const elements = {};
@@ -106,6 +115,7 @@
             side: "",
             wireType: "12 Core",
             wireDrum: "",
+            inout: "",
             liveCores: 0,
             remark: "",
             coreDetails: []
@@ -135,6 +145,7 @@
             wuid: "",
             juid: "",
             coreColorAndNumber: "",
+            joint: "",
             oltpon: "",
             power: "",
             remark: ""
@@ -147,6 +158,7 @@
                 <div class="controls">
                     <button id="jcAddBoxBtn" type="button">Add JC</button>
                     <button id="jcDeleteBoxBtn" type="button">Delete JC</button>
+                    <button id="jcShowMapBtn" type="button" title="Show visible JCs on map"><span class="map-btn-icon"></span><span>Map</span></button>
                     <input id="jcSearchInput" type="search" placeholder="Search JC, OTDR, After JC, Area...">
                 </div>
                 <div class="row" id="jcRow"></div>
@@ -220,10 +232,11 @@
                                     <option value="1 Core">1 Core</option>
                                     <option value="2 Core">2 Core</option>
                                     <option value="4 Core">4 Core</option>
+                                    <option value="6 Core">6 Core</option>
                                     <option value="12 Core">12 Core</option>
                                     <option value="24 Core">24 Core</option>
                                     <option value="48 Core">48 Core</option>
-                                    <option value="98 Core">98 Core</option>
+                                    <option value="96 Core">96 Core</option>
                                 </select>
                             </div>
                             <div class="field full">
@@ -265,13 +278,19 @@
                             </div>
                             <div class="field full" id="jcCoreTubeWrap">
                                 <select id="jcCoreTube">
-                                    <option value="" disabled selected>Tube</option>
-                                    ${colorOptionsHtml}
+                                    <option value="" disabled selected>Tube color</option>
+                                    ${tubeOptionsHtml}
                                 </select>
                             </div>
-                            <div class="field">
+                            <div class="field" id="jcCoreOltponWrap">
                                 <select id="jcCoreOltpon" required>
                                     <option value="" disabled selected>Select OLT PON</option>
+                                </select>
+                            </div>
+                            <div class="field hidden" id="jcCoreJointWrap">
+                                <select id="jcCoreJoint">
+                                    <option value="" disabled selected>Select Joint Name</option>
+                                    ${jointOptions.map((option) => `<option value="${option}">${option}</option>`).join("")}
                                 </select>
                             </div>
                             <div class="field">
@@ -302,12 +321,37 @@
                         </div>
                     </div>
                 </div>
+                <div class="jc-note-inner-modal" id="jcMapModal">
+                    <div class="modal-card jc-map-card">
+                        <div class="modal-head">
+                            <div>
+                                <h2>JC Map View</h2>
+                                <div class="modal-sub" id="jcMapModalSub">Visible JCs on map</div>
+                            </div>
+                            <button class="close-btn" id="jcCloseMapModalBtn">Close</button>
+                        </div>
+                        <div id="jcLeafletMap" class="jc-map-view"></div>
+                        <div class="jc-map-jc-modal" id="jcMapJcModal">
+                            <div class="jc-map-jc-card">
+                                <div class="jc-map-jc-head">
+                                    <div>
+                                        <h2 id="jcMapJcTitle">JC Details</h2>
+                                        <div class="modal-sub" id="jcMapJcSub">Interactive JC view</div>
+                                    </div>
+                                    <button class="close-btn" id="jcCloseMapJcBtn">Close</button>
+                                </div>
+                                <div id="jcMapJcMount" class="jc-map-jc-mount"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         `;
 
         state.root = elements.mount.querySelector(".jc-note-root");
         elements.row = state.root.querySelector("#jcRow");
         elements.searchInput = state.root.querySelector("#jcSearchInput");
+        elements.showMapBtn = state.root.querySelector("#jcShowMapBtn");
         
         // JC Modal
         elements.jcModal = state.root.querySelector("#jcJcModal");
@@ -348,7 +392,10 @@
         elements.coreColor = state.root.querySelector("#jcCoreColor");
         elements.coreTubeWrap = state.root.querySelector("#jcCoreTubeWrap");
         elements.coreTube = state.root.querySelector("#jcCoreTube");
+        elements.coreOltponWrap = state.root.querySelector("#jcCoreOltponWrap");
         elements.coreOltpon = state.root.querySelector("#jcCoreOltpon");
+        elements.coreJointWrap = state.root.querySelector("#jcCoreJointWrap");
+        elements.coreJoint = state.root.querySelector("#jcCoreJoint");
         elements.corePower = state.root.querySelector("#jcCorePower");
         elements.coreRemark = state.root.querySelector("#jcCoreRemark");
         elements.saveCoreBtn = state.root.querySelector("#jcSaveCoreBtn");
@@ -362,6 +409,15 @@
         elements.confirmMessage = state.root.querySelector("#jcConfirmMessage");
         elements.confirmCancelBtn = state.root.querySelector("#jcConfirmCancelBtn");
         elements.confirmOkBtn = state.root.querySelector("#jcConfirmOkBtn");
+        elements.mapModal = state.root.querySelector("#jcMapModal");
+        elements.mapModalSub = state.root.querySelector("#jcMapModalSub");
+        elements.closeMapModalBtn = state.root.querySelector("#jcCloseMapModalBtn");
+        elements.leafletMap = state.root.querySelector("#jcLeafletMap");
+        elements.mapJcModal = state.root.querySelector("#jcMapJcModal");
+        elements.mapJcTitle = state.root.querySelector("#jcMapJcTitle");
+        elements.mapJcSub = state.root.querySelector("#jcMapJcSub");
+        elements.closeMapJcBtn = state.root.querySelector("#jcCloseMapJcBtn");
+        elements.mapJcMount = state.root.querySelector("#jcMapJcMount");
         
         elements.addBoxBtn = state.root.querySelector("#jcAddBoxBtn");
         elements.deleteBoxBtn = state.root.querySelector("#jcDeleteBoxBtn");
@@ -396,6 +452,17 @@
         return otdrDistance ? `${name} (${otdrDistance})` : name;
     }
 
+    function createJcBadgeHtml(data) {
+        const name = String((data && data.jcName) || "JC").trim() || "JC";
+        const otdrDistance = String((data && data.otdrDistance) || "").trim();
+        return otdrDistance ? `${name}<br>(${otdrDistance})` : name;
+    }
+
+    function createAfterLabelHtml(previousLabel) {
+        const label = String(previousLabel || "").trim();
+        return label ? `After<br>${label}` : "After";
+    }
+
     function normalizePonValue(value) {
         return String(value || "").trim().toUpperCase();
     }
@@ -407,6 +474,74 @@
             options.unshift(normalizedSelected);
         }
         return createSelectOptionsHtml(options, "Select OLT PON", normalizedSelected);
+    }
+
+    function createJointOptionsHtml(selectedValue) {
+        const normalizedSelected = String(selectedValue || "").trim();
+        const options = jointOptions.slice();
+        if (normalizedSelected && !options.includes(normalizedSelected)) {
+            options.unshift(normalizedSelected);
+        }
+        return createSelectOptionsHtml(options, "Select Joint Name", normalizedSelected);
+    }
+
+    function createTubeOptionsHtml(selectedValue) {
+        const normalizedSelected = normalizeCoreOptionValue(selectedValue);
+        const placeholderOption = `<option value="" disabled ${normalizedSelected ? "" : "selected"}>Tube color</option>`;
+        const options = coreOptions.slice();
+        if (normalizedSelected && !options.includes(normalizedSelected)) {
+            options.unshift(normalizedSelected);
+        }
+        const optionHtml = options.map((option) => `<option value="${option}" ${option === normalizedSelected ? "selected" : ""}>${option} tube</option>`).join("");
+        return `${placeholderOption}${optionHtml}`;
+    }
+
+    function getCoreSortValue(value) {
+        const text = String(value || "").trim();
+        const match = text.match(/^(\d+)/);
+        return {
+            number: match ? Number(match[1]) : Number.POSITIVE_INFINITY,
+            text: text.toLowerCase()
+        };
+    }
+
+    function sortCoreDetails(coreData) {
+        if (!Array.isArray(coreData) || !coreData.length) return Array.isArray(coreData) ? coreData : [];
+        return coreData.slice().sort((left, right) => {
+            const leftTubeValue = getCoreSortValue(left && left.tube);
+            const rightTubeValue = getCoreSortValue(right && right.tube);
+            if (leftTubeValue.number !== rightTubeValue.number) {
+                return leftTubeValue.number - rightTubeValue.number;
+            }
+            if (leftTubeValue.text !== rightTubeValue.text) {
+                return leftTubeValue.text.localeCompare(rightTubeValue.text);
+            }
+            const leftValue = getCoreSortValue(left && (left.coreColor || left.coreColorAndNumber));
+            const rightValue = getCoreSortValue(right && (right.coreColor || right.coreColorAndNumber));
+            if (leftValue.number !== rightValue.number) {
+                return leftValue.number - rightValue.number;
+            }
+            return leftValue.text.localeCompare(rightValue.text);
+        });
+    }
+
+    function createTubeGroup(title, tubeStyle) {
+        const group = document.createElement("div");
+        group.className = "tube-group";
+        group.style.borderColor = tubeStyle.background;
+        group.style.boxShadow = `0 0 0 3px ${tubeStyle.background}, 0 14px 28px rgba(34,76,102,.10), 0 0 20px ${tubeStyle.background}`;
+        group.innerHTML = `
+            <div class="tube-group-head">
+                <span class="tube-group-swatch"></span>
+                <span class="tube-group-title"></span>
+            </div>
+            <div class="tube-group-body"></div>
+        `;
+        const swatch = group.querySelector(".tube-group-swatch");
+        const titleNode = group.querySelector(".tube-group-title");
+        if (swatch) swatch.style.background = tubeStyle.background;
+        if (titleNode) titleNode.textContent = title;
+        return group;
     }
 
     function getPonStatsForValue(ponValue) {
@@ -432,7 +567,7 @@
 
     function getJcHealthMeta(boxData) {
         const ponSet = new Set();
-        const wires = [...(boxData.inputWires || []), ...(boxData.outputWires || [])];
+        const wires = [...(boxData.inputWires || [])];
         wires.forEach((wire) => {
             (wire.coreDetails || []).forEach((core) => {
                 const ponValue = normalizePonValue(core.oltpon);
@@ -440,45 +575,35 @@
             });
         });
 
-        let activeUsers = 0;
-        let onlineUsers = 0;
+        let totalPon = 0;
+        let livePon = 0;
         Array.from(ponSet).forEach((pon) => {
             const stats = getPonStatsForValue(pon);
             if (!stats) return;
-            activeUsers += Number(stats.activeUsers || 0);
-            onlineUsers += Number(stats.onlineUsers || 0);
+            totalPon += 1;
+            if (Number(stats.onlineUsers || 0) > 0) {
+                livePon += 1;
+            }
         });
 
-        if (!activeUsers) {
-            return { level: "gray", label: "No Data", percentage: null, onlineUsers: 0, activeUsers: 0 };
+        if (!totalPon) {
+            return { level: "gray", label: "Pon 0/0", totalPon: 0, livePon: 0 };
         }
 
-        const percentage = Math.round((onlineUsers / activeUsers) * 100);
-        const label = `${percentage}% ${activeUsers}/${onlineUsers}`;
-        if (percentage > 90) {
-            return { level: "green", label, percentage, onlineUsers, activeUsers };
+        const label = `Pon ${totalPon}/${livePon}`;
+        if (livePon === totalPon) {
+            return { level: "green", label, totalPon, livePon };
         }
-        if (percentage >= 20) {
-            return { level: "orange", label, percentage, onlineUsers, activeUsers };
+        if (livePon === 0) {
+            return { level: "red", label, totalPon, livePon };
         }
-        return { level: "red", label, percentage, onlineUsers, activeUsers };
+        return { level: "orange", label, totalPon, livePon };
     }
 
     function getJcAlertLevel(boxData) {
-        const ponSet = new Set();
-        const wires = [...(boxData.inputWires || []), ...(boxData.outputWires || [])];
-        wires.forEach((wire) => {
-            (wire.coreDetails || []).forEach((core) => {
-                const ponValue = normalizePonValue(core.oltpon);
-                if (ponValue) ponSet.add(ponValue);
-            });
-        });
-        const ponLevels = Array.from(ponSet)
-            .map((pon) => getPonHealthMeta(pon).level)
-            .filter((level) => level !== "gray");
-        if (!ponLevels.length) return "";
-        if (ponLevels.every((level) => level === "red")) return "danger";
-        if (ponLevels.some((level) => level === "red")) return "warning";
+        const jcHealthMeta = getJcHealthMeta(boxData);
+        if (jcHealthMeta.level === "red") return "danger";
+        if (jcHealthMeta.level === "orange") return "warning";
         return "";
     }
 
@@ -544,6 +669,134 @@
         return options;
     }
 
+    function getVisibleMapNodes() {
+        return flattenJcNodes(state.visibleRows || [])
+            .filter((node) => node && node.lat !== null && node.lng !== null)
+            .map((node) => Object.assign({}, node, {
+                jcName: String(node.jcName || "").trim(),
+                previousJc: String(node.previousJc || "").trim(),
+                otdrDistance: String(node.otdrDistance || "").trim(),
+                healthMeta: getJcHealthMeta(node),
+                lat: Number(node.lat),
+                lng: Number(node.lng)
+            }))
+            .filter((node) => Number.isFinite(node.lat) && Number.isFinite(node.lng));
+    }
+
+    function createMapMarkerHtml(node) {
+        const healthMeta = node && node.healthMeta ? node.healthMeta : { level: "gray", label: "Pon 0/0" };
+        const titleHtml = node && node.otdrDistance
+            ? `${String(node.jcName || "JC")}<br><span class="map-marker-otdr">(${String(node.otdrDistance)})</span>`
+            : String(node && node.jcName || "JC");
+        const previousHtml = node && node.previousJc ? `After ${String(node.previousJc)}` : "";
+        return `
+            <div class="map-jc-marker">
+                <div class="map-jc-badge">${titleHtml}</div>
+                <div class="map-jc-box">
+                    <div class="map-jc-side left"></div>
+                    <div class="map-jc-side right"></div>
+                </div>
+                <div class="map-jc-health"><span class="core-led ${healthMeta.level}"></span><span>${healthMeta.label}</span></div>
+                ${previousHtml ? `<div class="map-jc-after">${previousHtml}</div>` : ""}
+            </div>
+        `;
+    }
+
+    function ensureLeafletMap() {
+        if (state.jcMap || !elements.leafletMap || typeof window.L === "undefined") return state.jcMap;
+        state.jcMap = window.L.map(elements.leafletMap, { zoomControl: true });
+        window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 19,
+            attribution: "&copy; OpenStreetMap contributors"
+        }).addTo(state.jcMap);
+        return state.jcMap;
+    }
+
+    function closeMapModal() {
+        if (elements.mapModal) elements.mapModal.classList.remove("show");
+        closeMapJcModal();
+    }
+
+    function closeMapJcModal() {
+        if (elements.mapJcModal) elements.mapJcModal.classList.remove("show");
+        if (elements.mapJcMount) elements.mapJcMount.innerHTML = "";
+    }
+
+    function openMapJcModal(node) {
+        if (!elements.mapJcModal || !elements.mapJcMount) return;
+        elements.mapJcMount.innerHTML = "";
+        const host = document.createElement("div");
+        host.className = "jc-note-root jc-map-popup-root";
+        const box = createBox(node);
+        host.appendChild(box);
+        elements.mapJcMount.appendChild(host);
+        if (elements.mapJcTitle) elements.mapJcTitle.textContent = node && node.jcName ? node.jcName : "JC Details";
+        if (elements.mapJcSub) elements.mapJcSub.textContent = node && node.otdrDistance ? `OTDR ${node.otdrDistance}` : "Interactive JC view";
+        elements.mapJcModal.classList.add("show");
+        window.setTimeout(() => {
+            const container = host.querySelector(".container");
+            const wrapper = host.querySelector(".jc-wrapper");
+            const left = container ? container.querySelector(".left") : null;
+            const right = container ? container.querySelector(".right") : null;
+            const leftPanel = container ? container.querySelector(".panel-left") : null;
+            const rightPanel = container ? container.querySelector(".panel-right") : null;
+            if (container && wrapper) {
+                container.classList.add("active");
+                wrapper.classList.add("active-box");
+                if (left) left.classList.add("open");
+                if (right) right.classList.add("open");
+                if (leftPanel) leftPanel.classList.add("show");
+                if (rightPanel) rightPanel.classList.add("show");
+            }
+        }, 0);
+    }
+
+    function openMapModal() {
+        const nodes = getVisibleMapNodes();
+        if (!nodes.length) {
+            showNotice("Map View", "Visible JCs me location data available nahi hai.");
+            return;
+        }
+        if (typeof window.L === "undefined") {
+            showNotice("Map View", "Leaflet map library load nahi hui.");
+            return;
+        }
+        const map = ensureLeafletMap();
+        if (!map) return;
+
+        state.jcMapMarkers.forEach((marker) => marker.remove());
+        state.jcMapMarkers = nodes.map((node) => {
+            const marker = window.L.marker([node.lat, node.lng], {
+                icon: window.L.divIcon({
+                    className: "jc-map-div-icon",
+                    html: createMapMarkerHtml(node),
+                    iconSize: [118, 92],
+                    iconAnchor: [59, 70],
+                    popupAnchor: [0, -64]
+                })
+            }).addTo(map);
+            marker.on("click", () => {
+                openMapJcModal(node);
+            });
+            return marker;
+        });
+
+        const bounds = window.L.latLngBounds(nodes.map((node) => [node.lat, node.lng]));
+        if (elements.mapModalSub) {
+            elements.mapModalSub.textContent = `${nodes.length} visible JC${nodes.length === 1 ? "" : "s"} plotted on OpenStreetMap`;
+        }
+        if (elements.mapModal) elements.mapModal.classList.add("show");
+        window.setTimeout(() => {
+            map.invalidateSize();
+            if (nodes.length === 1) {
+                map.setView([nodes[0].lat, nodes[0].lng], 16);
+                state.jcMapMarkers[0].openPopup();
+            } else {
+                map.fitBounds(bounds.pad(0.18));
+            }
+        }, 0);
+    }
+
     function normalizeSearchValue(value) {
         return String(value || "").trim().toLowerCase();
     }
@@ -563,6 +816,7 @@
             core && core.coreColor,
             core && core.coreColorAndNumber,
             core && core.tube,
+            core && core.joint,
             core && core.oltpon,
             core && core.power,
             core && core.remark
@@ -619,6 +873,7 @@
             orange: { background: "#f97316", color: "#ffffff" },
             green: { background: "#16a34a", color: "#ffffff" },
             brown: { background: "#8b5e3c", color: "#ffffff" },
+            grey: { background: "#64748b", color: "#ffffff" },
             slate: { background: "#64748b", color: "#ffffff" },
             white: { background: "#f8fafc", color: "#1f2937" },
             red: { background: "#dc2626", color: "#ffffff" },
@@ -626,9 +881,18 @@
             yellow: { background: "#facc15", color: "#1f2937" },
             purple: { background: "#7c3aed", color: "#ffffff" },
             pink: { background: "#ec4899", color: "#ffffff" },
+            aqua: { background: "#7dd3fc", color: "#0f172a" },
             "light blue": { background: "#7dd3fc", color: "#0f172a" }
         };
         return palette[label] || { background: "#dbeafe", color: "#1e3a8a" };
+    }
+
+    function normalizeCoreOptionValue(value) {
+        const text = String(value || "").trim();
+        if (!text) return "";
+        if (text.endsWith(",Slate")) return `${text.slice(0, text.lastIndexOf(",") + 1)}Grey`;
+        if (text.endsWith(",Light Blue")) return `${text.slice(0, text.lastIndexOf(",") + 1)}Aqua`;
+        return text;
     }
 
     function isRootJc(previousJc) {
@@ -651,7 +915,7 @@
             const childType = String(child && child.type || "").trim().toLowerCase();
             if (childType === "wire" || child && (child.WUID || child.wiretype || child.drum)) {
                 const wireId = String(child && (child.WUID || child.wuid || child.id) || "");
-                const wireSide = getStoredWireSide(wireId) || "input";
+                const wireSide = String(child && child.inout || "").trim().toLowerCase() || getStoredWireSide(wireId) || "input";
                 const cores = Array.isArray(child && child.children) ? child.children : Array.isArray(child && child.cores) ? child.cores : [];
                 const coreDetails = cores
                     .filter((core) => {
@@ -660,8 +924,9 @@
                     })
                     .map((core) => ({
                         cuid: String(core && (core.CUID || core.cuid || core.id) || ""),
-                        coreColor: core && (core.corecolorandnumber || core.coreColorAndNumber || core.coreColor) ? String(core.corecolorandnumber || core.coreColorAndNumber || core.coreColor) : "",
-                        tube: core && core.tube ? String(core.tube) : "",
+                        coreColor: normalizeCoreOptionValue(core && (core.corecolorandnumber || core.coreColorAndNumber || core.coreColor) ? String(core.corecolorandnumber || core.coreColorAndNumber || core.coreColor) : ""),
+                        joint: core && core.joint ? String(core.joint) : "",
+                        tube: normalizeCoreOptionValue(core && core.tube ? String(core.tube) : ""),
                         oltpon: core && core.oltpon ? String(core.oltpon) : "",
                         power: core && core.power ? String(core.power) : "",
                         remark: core && core.remark ? String(core.remark) : ""
@@ -675,6 +940,7 @@
                     side: wireSide,
                     wireType: child && child.wiretype ? String(child.wiretype) : "12 Core",
                     wireDrum: child && child.drum ? String(child.drum) : "",
+                    inout: wireSide,
                     remark: child && child.remark ? String(child.remark) : "",
                     liveCores: liveCoreCount,
                     coreDetails: coreDetails
@@ -736,6 +1002,30 @@
         });
 
         return roots;
+    }
+
+    function getOtdrDistanceSortValue(node) {
+        const value = String(node && node.otdrDistance || "").trim();
+        const match = value.match(/-?\d+(\.\d+)?/);
+        return match ? Number(match[0]) : Number.POSITIVE_INFINITY;
+    }
+
+    function sortTreeNodesByOtdr(nodes) {
+        if (!Array.isArray(nodes) || !nodes.length) return nodes;
+
+        nodes.forEach((node) => {
+            if (Array.isArray(node && node.children) && node.children.length) {
+                sortTreeNodesByOtdr(node.children);
+            }
+        });
+
+        nodes.sort((left, right) => {
+            const distanceDiff = getOtdrDistanceSortValue(left) - getOtdrDistanceSortValue(right);
+            if (distanceDiff !== 0) return distanceDiff;
+            return String(left && left.jcName || "").localeCompare(String(right && right.jcName || ""));
+        });
+
+        return nodes;
     }
 
     function createOfficeNode() {
@@ -883,6 +1173,12 @@
                     <span class="core-info-label">Tube</span>
                     <strong>${coreData.tube || "-"}</strong>
                 </div>
+                ${state.selectedFiber && state.selectedFiber.dataset.side === "output" ? `
+                <div class="core-info-item">
+                    <span class="core-info-label">Joint</span>
+                    <strong>${coreData.joint || "-"}</strong>
+                </div>
+                ` : `
                 <div class="core-info-item">
                     <span class="core-info-label">OLT PON</span>
                     <strong>${coreData.oltpon || "-"}</strong>
@@ -891,6 +1187,7 @@
                     <span class="core-info-label">PON Status</span>
                     <strong>${getPonHealthMeta(coreData.oltpon).label}</strong>
                 </div>
+                `}
                 <div class="core-info-item">
                     <span class="core-info-label">Power</span>
                     <strong>${coreData.power || "-"}</strong>
@@ -989,6 +1286,7 @@
                 cuid: meta.cuid || "",
                 coreColor: card.querySelector(".core-color") ? card.querySelector(".core-color").value : "",
                 tube: card.querySelector(".core-tube") ? card.querySelector(".core-tube").value : (meta.tube || ""),
+                joint: card.querySelector(".core-joint") ? card.querySelector(".core-joint").value : (meta.joint || ""),
                 oltpon: card.querySelector(".core-pon") ? card.querySelector(".core-pon").value : (meta.oltpon || ""),
                 power: card.querySelector(".core-power") ? card.querySelector(".core-power").value : "",
                 remark: card.querySelector(".core-remark") ? card.querySelector(".core-remark").value : ""
@@ -1007,6 +1305,7 @@
             cuid: meta.cuid || "",
             coreColorAndNumber: card.querySelector(".core-color") ? String(card.querySelector(".core-color").value || "").trim() : "",
             tube: card.querySelector(".core-tube") ? String(card.querySelector(".core-tube").value || "").trim() : (meta.tube || ""),
+            joint: card.querySelector(".core-joint") ? String(card.querySelector(".core-joint").value || "").trim() : (meta.joint || ""),
             oltpon: card.querySelector(".core-pon") ? String(card.querySelector(".core-pon").value || "").trim() : (meta.oltpon || ""),
             power: card.querySelector(".core-power") ? String(card.querySelector(".core-power").value || "").trim() : "",
             remark: card.querySelector(".core-remark") ? String(card.querySelector(".core-remark").value || "").trim() : ""
@@ -1064,9 +1363,9 @@
         }
 
         if (tubeField) {
-            tubeField.innerHTML = createSelectOptionsHtml(coreOptions, "Tube", currentData.tube);
+            tubeField.innerHTML = createTubeOptionsHtml(currentData.tube);
             if (currentData.tube) {
-                tubeField.value = currentData.tube;
+                tubeField.value = normalizeCoreOptionValue(currentData.tube);
             }
         }
     }
@@ -1077,6 +1376,7 @@
 
     async function validateInlineCoreSelection(card) {
         const needsTube = getWireTypeCoreCount() > 12;
+        const isOutputSide = state.selectedFiber ? (state.selectedFiber.dataset.side === "output") : false;
         const coreData = getCoreCardData(card);
         if (!coreData.coreColorAndNumber) {
             await showNotice("Save Core", "Select core color and number.");
@@ -1086,7 +1386,12 @@
             await showNotice("Save Core", "Select tube.");
             return false;
         }
-        if (!coreData.oltpon) {
+        if (isOutputSide) {
+            if (!coreData.joint) {
+                await showNotice("Save Core", "Select Joint Name.");
+                return false;
+            }
+        } else if (!coreData.oltpon) {
             await showNotice("Save Core", "Select OLT PON.");
             return false;
         }
@@ -1121,6 +1426,7 @@
             const nextLiveCoreCount = Number(elements.liveCoresCountSelect.value) || 0;
             await updateWire(state.selectedFiber.dataset.wireUuid, {
                 drum: state.selectedFiber.dataset.wireDrum || "",
+                inout: state.selectedFiber.dataset.inout || state.selectedFiber.dataset.side || "input",
                 wiretype: state.selectedFiber.dataset.wireType || "12 Core",
                 livecores: nextLiveCoreCount,
                 remark: state.selectedFiber.dataset.remark || ""
@@ -1129,6 +1435,7 @@
                 wuid: state.selectedFiber.dataset.wireUuid,
                 juid: state.selectedFiber.dataset.juid,
                 corecolorandnumber: coreData.coreColorAndNumber,
+                joint: coreData.joint || "",
                 tube: coreData.tube,
                 oltpon: coreData.oltpon,
                 power: coreData.power,
@@ -1151,24 +1458,28 @@
     function buildCoreFields(count, coreData) {
         elements.coreList.innerHTML = "";
         const needsTube = getWireTypeCoreCount() > 12;
+        const isOutputSide = state.selectedFiber ? (state.selectedFiber.dataset.side === "output") : (state.pendingWireCreation ? state.pendingWireCreation.side === "output" : false);
+        const sortedCoreData = sortCoreDetails(coreData);
+        const tubeGroups = new Map();
         for (let i = 1; i <= count; i++) {
-            const currentCore = (coreData && coreData[i - 1]) || {};
+            const currentCore = (sortedCoreData && sortedCoreData[i - 1]) || {};
             const hasSavedCore = Boolean(currentCore.cuid);
-            const hasCoreValue = Boolean(currentCore.coreColor || currentCore.coreColorAndNumber);
             const healthMeta = getPonHealthMeta(currentCore.oltpon);
+            const tubeStyle = getCoreVisualStyle(currentCore.tube);
             const card = document.createElement("div");
             card.className = "core-card";
             card.dataset.coreMeta = JSON.stringify({
                 cuid: currentCore.cuid || "",
                 tube: currentCore.tube || "",
+                joint: currentCore.joint || "",
                 oltpon: currentCore.oltpon || ""
             });
             card.innerHTML = `
                 <div class="title-row">
                     <div class="core-title-left">
-                        <span class="core-led ${healthMeta.level}" title="${healthMeta.label}"></span>
+                        ${isOutputSide ? "" : `<span class="core-led ${healthMeta.level}" title="${healthMeta.label}"></span>`}
                         <h4>Live Core ${i}</h4>
-                        <span class="core-led-label">${healthMeta.label}</span>
+                        ${isOutputSide ? "" : `<span class="core-led-label">${healthMeta.label}</span>`}
                     </div>
                     <div class="panel-controls">
                         <button type="button" class="delete-core">${hasSavedCore ? "Delete" : "Clear"}</button>
@@ -1182,35 +1493,35 @@
                             ${colorOptionsHtml}
                         </select>
                     </div>
-                    ${needsTube ? `<div class="field"><select class="core-tube" ${hasSavedCore ? "disabled" : ""}><option value="" disabled selected>Tube</option>${colorOptionsHtml}</select></div>` : ""}
-                    <div class="field">
-                        <select class="core-pon" ${hasSavedCore ? "disabled" : ""}>
-                            ${createPonOptionsHtml(currentCore.oltpon || "")}
-                        </select>
-                    </div>
+                    ${needsTube ? `<div class="field"><select class="core-tube" ${hasSavedCore ? "disabled" : ""}>${createTubeOptionsHtml(currentCore.tube || "")}</select></div>` : ""}
+                    ${isOutputSide ? `<div class="field"><select class="core-joint" ${hasSavedCore ? "disabled" : ""}>${createJointOptionsHtml(currentCore.joint || "")}</select></div>` : `<div class="field"><select class="core-pon" ${hasSavedCore ? "disabled" : ""}>${createPonOptionsHtml(currentCore.oltpon || "")}</select></div>`}
                     <div class="field">
                         <input class="core-power" type="text" placeholder="Power" ${hasSavedCore ? "disabled" : ""}>
                     </div>
                     <div class="field">
-                        <input class="core-remark" type="text" placeholder="Area" ${hasSavedCore ? "disabled" : ""}>
+                        <input class="core-remark" type="text" placeholder="${isOutputSide ? "Remarks if any" : "Area"}" ${hasSavedCore ? "disabled" : ""}>
                     </div>
                 </div>
             `;
             const colorField = card.querySelector(".core-color");
             const tubeField = card.querySelector(".core-tube");
+            const jointField = card.querySelector(".core-joint");
             const ponField = card.querySelector(".core-pon");
             const powerField = card.querySelector(".core-power");
             const remarkField = card.querySelector(".core-remark");
             refreshCoreCardOptions(card);
             if (currentCore.coreColor) colorField.value = currentCore.coreColor;
             if (tubeField && currentCore.tube) tubeField.value = currentCore.tube;
+            if (jointField && currentCore.joint) jointField.value = currentCore.joint;
             if (ponField && currentCore.oltpon) ponField.value = normalizePonValue(currentCore.oltpon);
             if (powerField) powerField.value = currentCore.power || "";
             if (remarkField) remarkField.value = currentCore.remark || "";
             const coreStyle = getCoreVisualStyle(currentCore.coreColor);
             card.style.background = coreStyle.background;
             card.style.color = coreStyle.color;
-            card.style.borderColor = "rgba(15, 23, 42, 0.12)";
+            card.style.borderColor = "rgba(255,255,255,0.24)";
+            card.style.borderWidth = "1px";
+            card.style.boxShadow = "0 8px 18px rgba(34,76,102,.06)";
             card.querySelectorAll("h4, input, select").forEach((node) => {
                 node.style.color = coreStyle.color;
             });
@@ -1235,6 +1546,7 @@
                             const nextLiveCoreCount = Math.max((Number(elements.liveCoresCountSelect.value) || 0) - 1, 0);
                             await updateWire(state.selectedFiber.dataset.wireUuid, {
                                 drum: state.selectedFiber.dataset.wireDrum || "",
+                                inout: state.selectedFiber.dataset.inout || state.selectedFiber.dataset.side || "input",
                                 wiretype: state.selectedFiber.dataset.wireType || "12 Core",
                                 livecores: nextLiveCoreCount,
                                 remark: state.selectedFiber.dataset.remark || ""
@@ -1249,7 +1561,7 @@
                     }
                 } else {
                     const nextData = getCurrentCoreDataFromForm();
-                    nextData[i - 1] = { cuid: "", coreColor: "", tube: "", oltpon: "", power: "", remark: "" };
+                    nextData[i - 1] = { cuid: "", coreColor: "", joint: "", tube: "", oltpon: "", power: "", remark: "" };
                     buildCoreFields(Number(elements.liveCoresCountSelect.value), nextData);
                 }
             });
@@ -1264,11 +1576,18 @@
                     await saveInlineCore(card);
                     return;
                 }
-                openCoreModal(currentCore, i);
+                openCoreModal(Object.assign({}, currentCore, { joint: currentCore.joint || "" }), i);
             });
             if (!hasSavedCore) {
                 colorField?.addEventListener("change", () => refreshAllCoreCardOptions());
                 tubeField?.addEventListener("change", () => refreshAllCoreCardOptions());
+                jointField?.addEventListener("change", () => {
+                    const nextData = getCurrentCoreDataFromForm();
+                    if (nextData[i - 1]) {
+                        nextData[i - 1].joint = jointField.value;
+                    }
+                    buildCoreFields(Number(elements.liveCoresCountSelect.value), nextData);
+                });
             }
             card.addEventListener("click", (event) => {
                 if (event.target.closest("button, input, select, .field")) return;
@@ -1276,7 +1595,19 @@
                 showCoreDetails(currentCore);
             });
             
-            elements.coreList.appendChild(card);
+            if (needsTube) {
+                const tubeValue = normalizeCoreOptionValue(currentCore.tube || "");
+                const tubeKey = tubeValue || "__no_tube__";
+                let tubeGroup = tubeGroups.get(tubeKey);
+                if (!tubeGroup) {
+                    tubeGroup = createTubeGroup(tubeValue ? `${tubeValue} tube` : "Tube not selected", tubeValue ? tubeStyle : { background: "#cfe0eb" });
+                    tubeGroups.set(tubeKey, tubeGroup);
+                    elements.coreList.appendChild(tubeGroup);
+                }
+                tubeGroup.querySelector(".tube-group-body")?.appendChild(card);
+            } else {
+                elements.coreList.appendChild(card);
+            }
         }
         refreshAllCoreCardOptions();
     }
@@ -1289,7 +1620,7 @@
         const otdrDistance = line.dataset.otdrDistance || "";
         const label = line.querySelector(".fiber-label");
         if (label) {
-            const parts = [type, `Live ${live}`];
+            const parts = [type, side === "input" ? `Live Pon ${live}` : `Live Core ${live}`];
             if (side === "input" && otdrDistance) parts.push(`OTDR ${otdrDistance}`);
             label.textContent = parts.join(" | ");
         }
@@ -1305,6 +1636,7 @@
         line.dataset.wireType = data.wireType || "12 Core";
         line.dataset.otdrDistance = data.otdrDistance || "";
         line.dataset.wireDrum = data.wireDrum || "";
+        line.dataset.inout = data.inout || data.side || line.dataset.inout || "";
         line.dataset.remark = data.remark || "";
         line.dataset.liveCores = String(Number(data.liveCores) || 0);
         line.dataset.coreDetails = JSON.stringify(data.coreDetails || []);
@@ -1329,6 +1661,7 @@
             wireType: line.dataset.wireType || fallback.wireType,
             otdrDistance: line.dataset.otdrDistance || "",
             wireDrum: line.dataset.wireDrum || "",
+            inout: line.dataset.inout || line.dataset.side || "",
             remark: line.dataset.remark || "",
             liveCores: Number(line.dataset.liveCores || fallback.liveCores),
             coreDetails: Array.isArray(coreDetails) ? coreDetails : fallback.coreDetails
@@ -1356,6 +1689,7 @@
             wireUuid: state.selectedFiber ? (state.selectedFiber.dataset.wireUuid || "") : "",
             juid: elements.jcWireJuid.value || "",
             side: state.selectedFiber ? (state.selectedFiber.dataset.side || "") : (state.pendingWireCreation ? state.pendingWireCreation.side : ""),
+            inout: state.selectedFiber ? (state.selectedFiber.dataset.inout || state.selectedFiber.dataset.side || "") : (state.pendingWireCreation ? state.pendingWireCreation.side : ""),
             wireType: elements.wireTypeSelect.value || "12 Core",
             wireDrum: elements.wireDrum.value.trim(),
             liveCores: Number(elements.liveCoresCountSelect.value) || 0,
@@ -1391,15 +1725,26 @@
     }
 
     function fillCoreModal(data, index, wuid, juid) {
-        elements.coreColor.value = data.coreColorAndNumber || data.coreColor || "";
-        if (elements.coreTube) elements.coreTube.value = data.tube || "";
+        const isOutputSide = state.selectedFiber ? (state.selectedFiber.dataset.side === "output") : false;
+        elements.coreColor.value = normalizeCoreOptionValue(data.coreColorAndNumber || data.coreColor || "");
+        if (elements.coreTube) {
+            elements.coreTube.innerHTML = createTubeOptionsHtml(data.tube || "");
+            elements.coreTube.value = normalizeCoreOptionValue(data.tube || "");
+        }
         elements.coreOltpon.innerHTML = createPonOptionsHtml(data.oltpon || "");
         elements.coreOltpon.value = normalizePonValue(data.oltpon || "");
+        if (elements.coreJoint) {
+            elements.coreJoint.innerHTML = createJointOptionsHtml(data.joint || "");
+            elements.coreJoint.value = String(data.joint || "").trim();
+        }
         elements.corePower.value = data.power || "";
         elements.coreRemark.value = data.remark || "";
+        elements.coreRemark.placeholder = isOutputSide ? "Remarks if any" : "Area";
         
         const needsTube = state.selectedFiber ? (parseInt(state.selectedFiber.dataset.wireType, 10) > 12) : false;
         elements.coreTubeWrap.classList.toggle("hidden", !needsTube);
+        if (elements.coreOltponWrap) elements.coreOltponWrap.classList.toggle("hidden", isOutputSide);
+        if (elements.coreJointWrap) elements.coreJointWrap.classList.toggle("hidden", !isOutputSide);
         
         elements.coreModalTitle.textContent = `Core ${index}`;
         elements.coreModalSub.textContent = data.cuid ? "Edit existing core" : "Create new core";
@@ -1417,6 +1762,7 @@
             wuid: state.pendingCoreCreation ? state.pendingCoreCreation.wuid : "",
             juid: state.pendingCoreCreation ? state.pendingCoreCreation.juid : "",
             coreColorAndNumber: elements.coreColor.value,
+            joint: elements.coreJoint ? elements.coreJoint.value : "",
             tube: elements.coreTube ? elements.coreTube.value : "",
             oltpon: elements.coreOltpon.value,
             power: elements.corePower.value,
@@ -1425,6 +1771,7 @@
     }
 
     function validateCoreModalData(data) {
+        const isOutputSide = state.selectedFiber ? (state.selectedFiber.dataset.side === "output") : false;
         if (!data.coreColorAndNumber) {
             alert("Select core color and number");
             return false;
@@ -1434,7 +1781,12 @@
             alert("Select tube");
             return false;
         }
-        if (!data.oltpon) {
+        if (isOutputSide) {
+            if (!data.joint) {
+                alert("Select Joint Name");
+                return false;
+            }
+        } else if (!data.oltpon) {
             alert("Select OLT PON");
             return false;
         }
@@ -1495,10 +1847,10 @@
         const wrapper = document.createElement("div");
         wrapper.className = "jc-wrapper";
         wrapper.innerHTML = `
-            ${hasLocation ? `<a class="jc-badge" href="${mapLink}" target="_blank" rel="noopener noreferrer">${getJcDisplayName(boxData)}</a>` : `<div class="jc-badge">${getJcDisplayName(boxData)}</div>`}
+            ${hasLocation ? `<a class="jc-badge" href="${mapLink}" target="_blank" rel="noopener noreferrer">${createJcBadgeHtml(boxData)}</a>` : `<div class="jc-badge">${createJcBadgeHtml(boxData)}</div>`}
             <div class="jc-link"></div>
             <div class="jc-health-label"><span class="core-led ${jcHealthMeta.level}"></span><span>${jcHealthMeta.label}</span></div>
-            <div class="jc-after-label">After ${previousLabel}</div>
+            <div class="jc-after-label">${createAfterLabelHtml(previousLabel)}</div>
             <button type="button" class="jc-edit-toggle">Edit JC</button>
         `;
         const link = wrapper.querySelector(".jc-link");
@@ -1623,6 +1975,7 @@
                 JUID: payload.juid,
                 drum: payload.drum,
                 otdrdistance: "",
+                inout: payload.inout || payload.side || "input",
                 wiretype: payload.wiretype,
                 livecores: payload.livecores,
                 remark: payload.remark || ""
@@ -1638,6 +1991,7 @@
             body: JSON.stringify({
                 drum: payload.drum,
                 otdrdistance: "",
+                inout: payload.inout || payload.side || "input",
                 wiretype: payload.wiretype,
                 livecores: payload.livecores,
                 remark: payload.remark || ""
@@ -1665,6 +2019,7 @@
                 WUID: payload.wuid,
                 JUID: payload.juid,
                 corecolorandnumber: payload.corecolorandnumber,
+                joint: payload.joint || "",
                 tube: payload.tube || "",
                 oltpon: payload.oltpon,
                 power: payload.power,
@@ -1680,6 +2035,7 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 corecolorandnumber: payload.corecolorandnumber,
+                joint: payload.joint || "",
                 tube: payload.tube || "",
                 oltpon: payload.oltpon,
                 power: payload.power,
@@ -1720,6 +2076,7 @@
             if (existingCore && existingCore.cuid) {
                 await updateCore(existingCore.cuid, {
                     corecolorandnumber: core.coreColor,
+                    joint: core.joint || "",
                     tube: core.tube || "",
                     oltpon: core.oltpon || "",
                     power: core.power || "",
@@ -1731,6 +2088,7 @@
                     wuid: wireId,
                     juid: wireData.juid,
                     corecolorandnumber: core.coreColor,
+                    joint: core.joint || "",
                     tube: core.tube || "",
                     oltpon: core.oltpon || "",
                     power: core.power || "",
@@ -1761,6 +2119,7 @@
             const response = await requestJson(url);
             const tree = Array.isArray(response.tree) ? response.tree : [];
             state.allRows = tree.map(normalizeTreeNode);
+            sortTreeNodesByOtdr(state.allRows);
             state.rows = state.allRows.slice();
             renderRows();
         } catch (error) {
@@ -1775,6 +2134,7 @@
         state.selectedFiber = null;
         elements.row.innerHTML = "";
         const visibleRows = filterTreeNodes(state.rows, normalizeSearchValue(state.searchTerm));
+        state.visibleRows = visibleRows;
 
         if (!visibleRows.length) {
             elements.row.innerHTML = "<div style='padding:20px'>No data found</div>";
@@ -1916,6 +2276,7 @@
             if (wireId) {
                 await updateWire(wireId, {
                     drum: wireData.wireDrum || "",
+                    inout: wireData.inout || wireData.side || "input",
                     wiretype: wireData.wireType || "12 Core",
                     livecores: liveCores,
                     remark: wireData.remark || ""
@@ -1924,6 +2285,7 @@
                 wireId = await createWire({
                     juid: wireData.juid,
                     drum: wireData.wireDrum || "",
+                    inout: wireData.inout || wireData.side || "input",
                     wiretype: wireData.wireType || "12 Core",
                     livecores: liveCores,
                     remark: wireData.remark || ""
@@ -1955,6 +2317,7 @@
             if (activeWireUuid) {
                 await updateWire(activeWireUuid, {
                     drum: state.selectedFiber ? state.selectedFiber.dataset.wireDrum || "" : "",
+                    inout: state.selectedFiber ? (state.selectedFiber.dataset.inout || state.selectedFiber.dataset.side || "input") : "input",
                     wiretype: state.selectedFiber ? state.selectedFiber.dataset.wireType || "12 Core" : "12 Core",
                     livecores: nextLiveCoreCount,
                     remark: state.selectedFiber ? state.selectedFiber.dataset.remark || "" : ""
@@ -1963,6 +2326,7 @@
             if (coreData.cuid) {
                 await updateCore(coreData.cuid, {
                     corecolorandnumber: coreData.coreColorAndNumber,
+                    joint: coreData.joint,
                     tube: coreData.tube,
                     oltpon: coreData.oltpon,
                     power: coreData.power,
@@ -1973,6 +2337,7 @@
                     wuid: coreData.wuid,
                     juid: coreData.juid,
                     corecolorandnumber: coreData.coreColorAndNumber,
+                    joint: coreData.joint,
                     tube: coreData.tube,
                     oltpon: coreData.oltpon,
                     power: coreData.power,
@@ -2176,6 +2541,7 @@
                             if (wireUuid) {
                                 await updateWire(wireUuid, {
                                     drum: state.selectedFiber ? state.selectedFiber.dataset.wireDrum || "" : "",
+                                    inout: state.selectedFiber ? (state.selectedFiber.dataset.inout || state.selectedFiber.dataset.side || "input") : "input",
                                     wiretype: state.selectedFiber ? state.selectedFiber.dataset.wireType || "12 Core" : "12 Core",
                                     livecores: nextLiveCoreCount,
                                     remark: state.selectedFiber ? state.selectedFiber.dataset.remark || "" : ""
@@ -2231,6 +2597,25 @@
             elements.searchInput.addEventListener("input", () => {
                 state.searchTerm = elements.searchInput.value || "";
                 renderRows();
+            });
+        }
+        if (elements.showMapBtn) {
+            elements.showMapBtn.addEventListener("click", openMapModal);
+        }
+        if (elements.closeMapModalBtn) {
+            elements.closeMapModalBtn.addEventListener("click", closeMapModal);
+        }
+        if (elements.closeMapJcBtn) {
+            elements.closeMapJcBtn.addEventListener("click", closeMapJcModal);
+        }
+        if (elements.mapModal) {
+            elements.mapModal.addEventListener("click", (event) => {
+                if (event.target === elements.mapModal) closeMapModal();
+            });
+        }
+        if (elements.mapJcModal) {
+            elements.mapJcModal.addEventListener("click", (event) => {
+                if (event.target === elements.mapJcModal) closeMapJcModal();
             });
         }
         
