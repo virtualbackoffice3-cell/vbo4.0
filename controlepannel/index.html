@@ -1,1 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VBO Control Panel</title>
+    <meta name="api-base" content="https://app2.vbo.co.in">
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+    <main class="page-shell">
+        <section class="hero-card">
+            <div class="hero-copy">
+                <p class="eyebrow">VBO Config Control</p>
+                <h1>Window Settings Panel</h1>
+            </div>
+            <div class="hero-actions">
+                <label class="field-label" for="windowSelect">Window</label>
+                <select id="windowSelect" class="select-input">
+                    <option value="AMANWIZ">AMANWIZ</option>
+                    <option value="MEDANTA">MEDANTA</option>
+                    <option value="SEVAI">SEVAI</option>
+                </select>
+                <div class="button-row">
+                    <button id="resetButton" type="button" class="action-button action-button-muted">Reset Default</button>
+                    <button id="saveButton" type="button" class="action-button action-button-primary">Save Changes</button>
+                </div>
+            </div>
+        </section>
 
+        <section class="status-strip">
+            <div id="statusMessage" class="status-message status-idle">Select a window and load values.</div>
+        </section>
+
+        <section class="overview-grid">
+            <article class="summary-card">
+                <p class="panel-kicker">Live Snapshot</p>
+                <h2 id="summaryWindowName">AMANWIZ</h2>
+                <dl class="summary-list">
+                    <div class="summary-item">
+                        <dt>DelDesk User</dt>
+                        <dd id="summaryUsername">-</dd>
+                    </div>
+                    <div class="summary-item">
+                        <dt>WhatsApp Group</dt>
+                        <dd id="summaryGroupName">-</dd>
+                    </div>
+                    <div class="summary-item">
+                        <dt>Power Range</dt>
+                        <dd id="summaryPowerRange">-</dd>
+                    </div>
+                    <div class="summary-item">
+                        <dt>Repeat Hours</dt>
+                        <dd id="summaryRepeatHours">-</dd>
+                    </div>
+                    <div class="summary-item">
+                        <dt>Client Title</dt>
+                        <dd id="summaryClientTitle">-</dd>
+                    </div>
+                    <div class="summary-item">
+                        <dt>Work Window</dt>
+                        <dd id="summaryWorkWindow">-</dd>
+                    </div>
+                </dl>
+            </article>
+        </section>
+
+        <section class="form-grid">
+            <article class="panel-card">
+                <header class="panel-header">
+                    <p class="panel-kicker">DelDesk</p>
+                    <h2>Credentials</h2>
+                </header>
+                <div class="field-stack">
+                    <label class="field-label field-label-row" for="delDeskUsername">
+                        <span>Username</span>
+                        <span id="current-delDeskUsername" class="current-pill">Current: -</span>
+                    </label>
+                    <input id="delDeskUsername" class="text-input" type="text" autocomplete="off">
+                </div>
+                <div class="field-stack">
+                    <label class="field-label field-label-row" for="delDeskPassword">
+                        <span>Password</span>
+                        <span id="current-delDeskPassword" class="current-pill">Current: -</span>
+                    </label>
+                    <input id="delDeskPassword" class="text-input" type="text" autocomplete="off">
+                </div>
+            </article>
+
+            <article class="panel-card">
+                <header class="panel-header">
+                    <p class="panel-kicker">Complaints</p>
+                    <h2>Routing</h2>
+                </header>
+                <div class="field-stack">
+                    <label class="field-label field-label-row" for="groupName">
+                        <span>GroupName</span>
+                        <span id="current-groupName" class="current-pill">Current: -</span>
+                    </label>
+                    <select id="groupName" class="select-input">
+                        <option value="AmanwizComplaints">AmanwizComplaints</option>
+                        <option value="MedantaComplaints">MedantaComplaints</option>
+                        <option value="SevaiComplaints">SevaiComplaints</option>
+                    </select>
+                </div>
+                <div class="field-pair">
+                    <div class="field-stack">
+                        <label class="field-label field-label-row" for="powerMin">
+                            <span>PowerMin</span>
+                            <span id="current-powerMin" class="current-pill">Current: -</span>
+                        </label>
+                        <input id="powerMin" class="text-input" type="number" step="any">
+                    </div>
+                    <div class="field-stack">
+                        <label class="field-label field-label-row" for="powerMax">
+                            <span>PowerMax</span>
+                            <span id="current-powerMax" class="current-pill">Current: -</span>
+                        </label>
+                        <input id="powerMax" class="text-input" type="number" step="any">
+                    </div>
+                </div>
+                <div class="field-stack">
+                    <label class="field-label field-label-row" for="repeatHours">
+                        <span>RepeatHours</span>
+                        <span id="current-repeatHours" class="current-pill">Current: -</span>
+                    </label>
+                    <input id="repeatHours" class="text-input" type="number" step="1">
+                </div>
+            </article>
+
+            <article class="panel-card">
+                <header class="panel-header">
+                    <p class="panel-kicker">Notification Box</p>
+                    <h2>Messages</h2>
+                </header>
+                <div class="field-stack">
+                    <label class="field-label field-label-row" for="clientTitle">
+                        <span>ClientTitle</span>
+                        <span id="current-clientTitle" class="current-pill">Current: -</span>
+                    </label>
+                    <input id="clientTitle" class="text-input" type="text" autocomplete="off">
+                </div>
+                <div class="field-stack">
+                    <label class="field-label field-label-row" for="emptyMessage">
+                        <span>EmptyMessage</span>
+                        <span id="current-emptyMessage" class="current-pill">Current: -</span>
+                    </label>
+                    <input id="emptyMessage" class="text-input" type="text" autocomplete="off">
+                </div>
+                <div class="field-pair">
+                    <div class="field-stack">
+                        <label class="field-label field-label-row" for="workStartHour">
+                            <span>WorkStartHour</span>
+                            <span id="current-workStartHour" class="current-pill">Current: -</span>
+                        </label>
+                        <input id="workStartHour" class="text-input" type="number" step="1" min="0" max="23">
+                    </div>
+                    <div class="field-stack">
+                        <label class="field-label field-label-row" for="workEndHour">
+                            <span>WorkEndHour</span>
+                            <span id="current-workEndHour" class="current-pill">Current: -</span>
+                        </label>
+                        <input id="workEndHour" class="text-input" type="number" step="1" min="0" max="23">
+                    </div>
+                </div>
+            </article>
+        </section>
+
+        <div class="sticky-savebar">
+            <div class="sticky-copy">
+                <strong id="stickyWindowName">AMANWIZ</strong>
+                <span>Current values loaded and ready to save.</span>
+            </div>
+            <div class="sticky-actions">
+                <button id="resetButtonSticky" type="button" class="action-button action-button-muted">Reset Default</button>
+                <button id="saveButtonSticky" type="button" class="action-button action-button-primary">Save Changes</button>
+            </div>
+        </div>
+    </main>
+
+    <script src="./app.js"></script>
+</body>
+</html>
