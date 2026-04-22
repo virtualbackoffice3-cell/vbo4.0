@@ -43,6 +43,8 @@
         searchTerm: "",
         ponOptions: [],
         ponStats: {},
+        userStatusMap: {},
+        ponUserMap: {},
         jcMap: null,
         jcMapMarkers: []
     };
@@ -146,7 +148,9 @@
             juid: "",
             coreColorAndNumber: "",
             joint: "",
+            ponMode: "full",
             oltpon: "",
+            partialpon: "",
             power: "",
             remark: ""
         };
@@ -158,6 +162,7 @@
                 <div class="controls">
                     <button id="jcAddBoxBtn" type="button">Add JC</button>
                     <button id="jcDeleteBoxBtn" type="button">Delete JC</button>
+                    <button id="jcDownloadCsvBtn" type="button">Download CSV</button>
                     <button id="jcShowMapBtn" type="button" title="Show visible JCs on map"><span class="map-btn-icon"></span><span>Map</span></button>
                     <input id="jcSearchInput" type="search" placeholder="Search JC, OTDR, After JC, Area...">
                 </div>
@@ -307,6 +312,34 @@
                         </div>
                     </div>
                 </div>
+                <div class="jc-note-inner-modal" id="jcPartialPonModal">
+                    <div class="modal-card jc-partialpon-card">
+                        <div class="modal-head">
+                            <div>
+                                <h2 id="jcPartialPonTitle">Partial PON Detector</h2>
+                                <div class="modal-sub" id="jcPartialPonSub">Track users for selected core</div>
+                            </div>
+                            <button class="close-btn" id="jcClosePartialPonBtn">Close</button>
+                        </div>
+                        <div class="partialpon-time" id="jcPartialPonTimestamp">Timestamp: -</div>
+                        <div class="partialpon-status" id="jcPartialPonStatus">Select partial PON and start detection.</div>
+                        <div class="partialpon-actions">
+                            <button class="save-btn" id="jcPartialPonActionBtn">Fetch users</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="jc-note-inner-modal" id="jcUsersModal">
+                    <div class="modal-card jc-users-card">
+                        <div class="modal-head">
+                            <div>
+                                <h2 id="jcUsersModalTitle">Users</h2>
+                                <div class="modal-sub" id="jcUsersModalSub"></div>
+                            </div>
+                            <button class="close-btn" id="jcCloseUsersModalBtn">Close</button>
+                        </div>
+                        <div class="jc-users-list" id="jcUsersList"></div>
+                    </div>
+                </div>
                 <div class="jc-note-inner-modal" id="jcConfirmModal">
                     <div class="modal-card jc-confirm-card">
                         <div class="modal-head">
@@ -352,6 +385,7 @@
         elements.row = state.root.querySelector("#jcRow");
         elements.searchInput = state.root.querySelector("#jcSearchInput");
         elements.showMapBtn = state.root.querySelector("#jcShowMapBtn");
+        elements.downloadCsvBtn = state.root.querySelector("#jcDownloadCsvBtn");
         
         // JC Modal
         elements.jcModal = state.root.querySelector("#jcJcModal");
@@ -402,6 +436,18 @@
         elements.deleteCoreBtn = state.root.querySelector("#jcDeleteCoreBtn");
         elements.closeCoreModalBtn = state.root.querySelector("#jcCloseCoreModalBtn");
         elements.cancelCoreModalBtn = state.root.querySelector("#jcCancelCoreModalBtn");
+        elements.partialPonModal = state.root.querySelector("#jcPartialPonModal");
+        elements.partialPonTitle = state.root.querySelector("#jcPartialPonTitle");
+        elements.partialPonSub = state.root.querySelector("#jcPartialPonSub");
+        elements.partialPonTimestamp = state.root.querySelector("#jcPartialPonTimestamp");
+        elements.partialPonStatus = state.root.querySelector("#jcPartialPonStatus");
+        elements.partialPonActionBtn = state.root.querySelector("#jcPartialPonActionBtn");
+        elements.closePartialPonBtn = state.root.querySelector("#jcClosePartialPonBtn");
+        elements.usersModal = state.root.querySelector("#jcUsersModal");
+        elements.usersModalTitle = state.root.querySelector("#jcUsersModalTitle");
+        elements.usersModalSub = state.root.querySelector("#jcUsersModalSub");
+        elements.usersList = state.root.querySelector("#jcUsersList");
+        elements.closeUsersModalBtn = state.root.querySelector("#jcCloseUsersModalBtn");
         
         // Confirm Modal
         elements.confirmModal = state.root.querySelector("#jcConfirmModal");
@@ -467,13 +513,78 @@
         return String(value || "").trim().toUpperCase();
     }
 
-    function createPonOptionsHtml(selectedValue) {
+    function normalizeMacValue(value) {
+        return String(value || "").replace(/[^a-z0-9]/gi, "").toLowerCase();
+    }
+
+    function escapeHtml(value) {
+        return String(value || "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+    }
+
+    function normalizePonMode(value) {
+        return String(value || "full").trim().toLowerCase() === "partial" ? "partial" : "full";
+    }
+
+    function buildPonOptionValue(ponValue, ponMode) {
+        return `${normalizePonMode(ponMode)}::${normalizePonValue(ponValue)}`;
+    }
+
+    function parsePonSelection(value, fallbackMode) {
+        const rawValue = String(value || "").trim();
+        if (!rawValue) {
+            return { ponMode: normalizePonMode(fallbackMode), oltpon: "" };
+        }
+        const parts = rawValue.split("::");
+        if (parts.length === 2) {
+            return {
+                ponMode: normalizePonMode(parts[0]),
+                oltpon: normalizePonValue(parts[1])
+            };
+        }
+        return {
+            ponMode: normalizePonMode(fallbackMode),
+            oltpon: normalizePonValue(rawValue)
+        };
+    }
+
+    function getPonOptionLabel(ponValue, ponMode) {
+        const prefix = normalizePonMode(ponMode) === "partial" ? "Partial pon" : "Full pon";
+        return `${prefix} ${normalizePonValue(ponValue)}`;
+    }
+
+    function formatPowerValue(value) {
+        const text = String(value ?? "").trim();
+        return text || "-";
+    }
+
+    function escapeCsvValue(value) {
+        const text = String(value ?? "");
+        if (/[",\n]/.test(text)) {
+            return `"${text.replace(/"/g, '""')}"`;
+        }
+        return text;
+    }
+
+    function createPonOptionsHtml(selectedValue, selectedPonMode) {
         const normalizedSelected = normalizePonValue(selectedValue);
+        const normalizedPonMode = normalizePonMode(selectedPonMode);
         const options = state.ponOptions.slice();
         if (normalizedSelected && !options.includes(normalizedSelected)) {
             options.unshift(normalizedSelected);
         }
-        return createSelectOptionsHtml(options, "Select OLT PON", normalizedSelected);
+        const selectedOptionValue = normalizedSelected ? buildPonOptionValue(normalizedSelected, normalizedPonMode) : "";
+        const placeholderOption = `<option value="" disabled ${selectedOptionValue ? "" : "selected"}>Select OLT PON</option>`;
+        const optionHtml = options.map((option) => {
+            const fullValue = buildPonOptionValue(option, "full");
+            const partialValue = buildPonOptionValue(option, "partial");
+            return `<option value="${fullValue}" ${fullValue === selectedOptionValue ? "selected" : ""}>${getPonOptionLabel(option, "full")}</option><option value="${partialValue}" ${partialValue === selectedOptionValue ? "selected" : ""}>${getPonOptionLabel(option, "partial")}</option>`;
+        }).join("");
+        return `${placeholderOption}${optionHtml}`;
     }
 
     function createJointOptionsHtml(selectedValue) {
@@ -565,21 +676,72 @@
         return { level: "red", label, percentage, onlineUsers: stats.onlineUsers, activeUsers: stats.activeUsers };
     }
 
+    function getPartialPonStats(coreData) {
+        const partialUsers = String(coreData && coreData.partialpon || "")
+            .split(",")
+            .map((item) => normalizeMacValue(item))
+            .filter(Boolean);
+        if (!partialUsers.length) {
+            return { level: "gray", label: "No Data", percentage: null, onlineUsers: 0, activeUsers: 0 };
+        }
+
+        let activeUsers = 0;
+        let onlineUsers = 0;
+        partialUsers.forEach((macAddress) => {
+            const userInfo = state.userStatusMap[macAddress];
+            if (!userInfo) return;
+            if (String(userInfo.service_status || "").trim().toLowerCase() !== "active") return;
+            activeUsers += 1;
+            if (String(userInfo.status || "").trim().toUpperCase() === "UP") {
+                onlineUsers += 1;
+            }
+        });
+
+        if (!activeUsers) {
+            return { level: "gray", label: "No Data", percentage: null, onlineUsers: 0, activeUsers: 0 };
+        }
+
+        const percentage = Math.round((onlineUsers / activeUsers) * 100);
+        const label = `${percentage}% ${activeUsers}/${onlineUsers}`;
+        if (percentage > 90) {
+            return { level: "green", label, percentage, onlineUsers, activeUsers };
+        }
+        if (percentage >= 20) {
+            return { level: "orange", label, percentage, onlineUsers, activeUsers };
+        }
+        return { level: "red", label, percentage, onlineUsers, activeUsers };
+    }
+
+    function getCoreHealthMeta(coreData) {
+        if (normalizePonMode(coreData && coreData.ponMode) === "partial") {
+            return getPartialPonStats(coreData);
+        }
+        return getPonHealthMeta(coreData && coreData.oltpon);
+    }
+
+    function getCoreHealthKey(coreData) {
+        if (normalizePonMode(coreData && coreData.ponMode) === "partial") {
+            return `partial:${String(coreData && coreData.cuid || "")}:${String(coreData && coreData.partialpon || "")}`;
+        }
+        return `full:${normalizePonValue(coreData && coreData.oltpon)}`;
+    }
+
     function getJcHealthMeta(boxData) {
         const ponSet = new Set();
         const wires = [...(boxData.inputWires || [])];
         wires.forEach((wire) => {
             (wire.coreDetails || []).forEach((core) => {
-                const ponValue = normalizePonValue(core.oltpon);
-                if (ponValue) ponSet.add(ponValue);
+                const healthKey = getCoreHealthKey(core);
+                if (healthKey) ponSet.add(healthKey);
             });
         });
 
         let totalPon = 0;
         let livePon = 0;
-        Array.from(ponSet).forEach((pon) => {
-            const stats = getPonStatsForValue(pon);
-            if (!stats) return;
+        Array.from(ponSet).forEach((healthKey) => {
+            const coreData = wires.flatMap((wire) => wire.coreDetails || []).find((core) => getCoreHealthKey(core) === healthKey);
+            const stats = getCoreHealthMeta(coreData || {});
+            if (!stats || !stats.activeUsers) return;
             totalPon += 1;
             if (Number(stats.onlineUsers || 0) > 0) {
                 livePon += 1;
@@ -628,15 +790,45 @@
         }
 
         const ponStats = {};
+        const ponUserMap = {};
+        const userStatusMap = {};
         users.forEach((item) => {
             const userdb = item && item.userdb ? item.userdb : {};
             const netsense = item && item.netsense ? item.netsense : {};
             const serviceStatus = String(userdb.service_status || "").trim().toLowerCase();
             const ponValue = normalizePonValue(netsense.pon_number);
+            const normalizedMac = normalizeMacValue(userdb.normalized_mac_address || userdb.mac_address || netsense.normalized_mac_address || netsense.mac_address);
+            if (normalizedMac) {
+                userStatusMap[normalizedMac] = {
+                    user_id: userdb.user_id || "",
+                    name: userdb.name || "",
+                    mobile: userdb.primary_phone || "",
+                    address: userdb.address || "",
+                    service_status: userdb.service_status || "",
+                    status: netsense.status || "",
+                    pon_number: netsense.pon_number || "",
+                    window_name: netsense.window_name || "",
+                    mac_address: userdb.mac_address || netsense.mac_address || "",
+                    power: netsense.rxPower ?? netsense.txPower ?? ""
+                };
+            }
             if (serviceStatus !== "active" || !ponValue) return;
             if (!ponStats[ponValue]) {
                 ponStats[ponValue] = { pon: ponValue, activeUsers: 0, onlineUsers: 0 };
             }
+            if (!ponUserMap[ponValue]) {
+                ponUserMap[ponValue] = [];
+            }
+            ponUserMap[ponValue].push({
+                user_id: userdb.user_id || "",
+                name: userdb.name || "",
+                mobile: userdb.primary_phone || "",
+                address: userdb.address || "",
+                power: netsense.rxPower ?? netsense.txPower ?? "",
+                status: netsense.status || "",
+                mac_address: userdb.mac_address || netsense.mac_address || "",
+                normalized_mac_address: normalizedMac
+            });
             ponStats[ponValue].activeUsers += 1;
             if (String(netsense.status || "").trim().toUpperCase() === "UP") {
                 ponStats[ponValue].onlineUsers += 1;
@@ -644,6 +836,8 @@
         });
 
         state.ponStats = ponStats;
+        state.userStatusMap = userStatusMap;
+        state.ponUserMap = ponUserMap;
         state.ponOptions = Object.keys(ponStats).sort((left, right) => left.localeCompare(right));
     }
 
@@ -818,6 +1012,8 @@
             core && core.tube,
             core && core.joint,
             core && core.oltpon,
+            core && core.ponMode,
+            core && core.partialpon,
             core && core.power,
             core && core.remark
         ].join(" ");
@@ -869,22 +1065,22 @@
     function getCoreVisualStyle(coreColorValue) {
         const label = String(coreColorValue || "").split(",").pop().trim().toLowerCase();
         const palette = {
-            blue: { background: "#2563eb", color: "#ffffff" },
-            orange: { background: "#f97316", color: "#ffffff" },
-            green: { background: "#16a34a", color: "#ffffff" },
-            brown: { background: "#8b5e3c", color: "#ffffff" },
-            grey: { background: "#64748b", color: "#ffffff" },
-            slate: { background: "#64748b", color: "#ffffff" },
-            white: { background: "#f8fafc", color: "#1f2937" },
-            red: { background: "#dc2626", color: "#ffffff" },
-            black: { background: "#111827", color: "#ffffff" },
-            yellow: { background: "#facc15", color: "#1f2937" },
-            purple: { background: "#7c3aed", color: "#ffffff" },
-            pink: { background: "#ec4899", color: "#ffffff" },
-            aqua: { background: "#7dd3fc", color: "#0f172a" },
-            "light blue": { background: "#7dd3fc", color: "#0f172a" }
+            blue: { background: "#2563eb", color: "#ffffff", border: "rgba(255,255,255,0.24)", fieldBackground: "rgba(255,255,255,0.16)", fieldBorder: "rgba(255,255,255,0.35)", buttonBackground: "#111827", buttonColor: "#ffffff" },
+            orange: { background: "#f97316", color: "#ffffff", border: "rgba(255,255,255,0.24)", fieldBackground: "rgba(255,255,255,0.16)", fieldBorder: "rgba(255,255,255,0.35)", buttonBackground: "#111827", buttonColor: "#ffffff" },
+            green: { background: "#16a34a", color: "#ffffff", border: "rgba(255,255,255,0.24)", fieldBackground: "rgba(255,255,255,0.16)", fieldBorder: "rgba(255,255,255,0.35)", buttonBackground: "#111827", buttonColor: "#ffffff" },
+            brown: { background: "#8b5e3c", color: "#ffffff", border: "rgba(255,255,255,0.24)", fieldBackground: "rgba(255,255,255,0.16)", fieldBorder: "rgba(255,255,255,0.35)", buttonBackground: "#111827", buttonColor: "#ffffff" },
+            grey: { background: "#64748b", color: "#ffffff", border: "rgba(255,255,255,0.24)", fieldBackground: "rgba(255,255,255,0.16)", fieldBorder: "rgba(255,255,255,0.35)", buttonBackground: "#111827", buttonColor: "#ffffff" },
+            slate: { background: "#64748b", color: "#ffffff", border: "rgba(255,255,255,0.24)", fieldBackground: "rgba(255,255,255,0.16)", fieldBorder: "rgba(255,255,255,0.35)", buttonBackground: "#111827", buttonColor: "#ffffff" },
+            white: { background: "#ffffff", color: "#0f172a", border: "#cbd5e1", fieldBackground: "#f8fafc", fieldBorder: "#94a3b8", buttonBackground: "#e2e8f0", buttonColor: "#0f172a" },
+            red: { background: "#dc2626", color: "#ffffff", border: "rgba(255,255,255,0.24)", fieldBackground: "rgba(255,255,255,0.16)", fieldBorder: "rgba(255,255,255,0.35)", buttonBackground: "#111827", buttonColor: "#ffffff" },
+            black: { background: "#111827", color: "#ffffff", border: "rgba(255,255,255,0.24)", fieldBackground: "rgba(255,255,255,0.16)", fieldBorder: "rgba(255,255,255,0.35)", buttonBackground: "#e5e7eb", buttonColor: "#111827" },
+            yellow: { background: "#facc15", color: "#1f2937", border: "#eab308", fieldBackground: "rgba(255,255,255,0.46)", fieldBorder: "rgba(120,53,15,0.22)", buttonBackground: "#111827", buttonColor: "#ffffff" },
+            purple: { background: "#7c3aed", color: "#ffffff", border: "rgba(255,255,255,0.24)", fieldBackground: "rgba(255,255,255,0.16)", fieldBorder: "rgba(255,255,255,0.35)", buttonBackground: "#111827", buttonColor: "#ffffff" },
+            pink: { background: "#ec4899", color: "#ffffff", border: "rgba(255,255,255,0.24)", fieldBackground: "rgba(255,255,255,0.16)", fieldBorder: "rgba(255,255,255,0.35)", buttonBackground: "#111827", buttonColor: "#ffffff" },
+            aqua: { background: "#7dd3fc", color: "#0f172a", border: "#38bdf8", fieldBackground: "rgba(255,255,255,0.52)", fieldBorder: "rgba(14,116,144,0.22)", buttonBackground: "#0f172a", buttonColor: "#ffffff" },
+            "light blue": { background: "#7dd3fc", color: "#0f172a", border: "#38bdf8", fieldBackground: "rgba(255,255,255,0.52)", fieldBorder: "rgba(14,116,144,0.22)", buttonBackground: "#0f172a", buttonColor: "#ffffff" }
         };
-        return palette[label] || { background: "#dbeafe", color: "#1e3a8a" };
+        return palette[label] || { background: "#dbeafe", color: "#1e3a8a", border: "#93c5fd", fieldBackground: "rgba(255,255,255,0.42)", fieldBorder: "rgba(30,58,138,0.2)", buttonBackground: "#111827", buttonColor: "#ffffff" };
     }
 
     function normalizeCoreOptionValue(value) {
@@ -927,7 +1123,9 @@
                         coreColor: normalizeCoreOptionValue(core && (core.corecolorandnumber || core.coreColorAndNumber || core.coreColor) ? String(core.corecolorandnumber || core.coreColorAndNumber || core.coreColor) : ""),
                         joint: core && core.joint ? String(core.joint) : "",
                         tube: normalizeCoreOptionValue(core && core.tube ? String(core.tube) : ""),
+                        ponMode: normalizePonMode(core && (core.pon_mode || core.ponMode)),
                         oltpon: core && core.oltpon ? String(core.oltpon) : "",
+                        partialpon: core && core.partialpon ? String(core.partialpon) : "",
                         power: core && core.power ? String(core.power) : "",
                         remark: core && core.remark ? String(core.remark) : ""
                     }));
@@ -1152,6 +1350,193 @@
         });
     }
 
+    function askModalConfirm(title, message, okLabel) {
+        return new Promise((resolve) => {
+            elements.confirmTitle.textContent = title;
+            elements.confirmMessage.classList.remove("core-info-grid");
+            elements.confirmMessage.textContent = message;
+            elements.confirmModal.classList.add("show");
+            elements.confirmCancelBtn.style.display = "";
+            elements.confirmOkBtn.textContent = okLabel || "OK";
+
+            const handleCancel = () => {
+                cleanup();
+                resolve(false);
+            };
+
+            const handleOk = () => {
+                cleanup();
+                resolve(true);
+            };
+
+            const handleBackdrop = (event) => {
+                if (event.target === elements.confirmModal) {
+                    handleCancel();
+                }
+            };
+
+            function cleanup() {
+                elements.confirmModal.classList.remove("show");
+                elements.confirmOkBtn.textContent = "Delete";
+                elements.confirmCancelBtn.removeEventListener("click", handleCancel);
+                elements.confirmOkBtn.removeEventListener("click", handleOk);
+                elements.confirmModal.removeEventListener("click", handleBackdrop);
+            }
+
+            elements.confirmCancelBtn.addEventListener("click", handleCancel);
+            elements.confirmOkBtn.addEventListener("click", handleOk);
+            elements.confirmModal.addEventListener("click", handleBackdrop);
+        });
+    }
+
+    function getUsersForCore(coreData) {
+        if (normalizePonMode(coreData && coreData.ponMode) === "partial") {
+            return String(coreData && coreData.partialpon || "")
+                .split(",")
+                .map((item) => normalizeMacValue(item))
+                .filter(Boolean)
+                .map((macAddress) => state.userStatusMap[macAddress])
+                .filter(Boolean)
+                .map((user) => ({
+                    name: user.name || "",
+                    user_id: user.user_id || "",
+                    mobile: user.mobile || "",
+                    address: user.address || "",
+                    power: user.power ?? "",
+                    status: user.status || ""
+                }));
+        }
+        return (state.ponUserMap[normalizePonValue(coreData && coreData.oltpon)] || []).slice();
+    }
+
+    function showCoreUsers(coreData) {
+        const users = getUsersForCore(coreData);
+        if (elements.usersModalTitle) {
+            elements.usersModalTitle.textContent = coreData && coreData.oltpon ? getPonOptionLabel(coreData.oltpon, coreData.ponMode || "full") : "Users";
+        }
+        if (elements.usersModalSub) {
+            elements.usersModalSub.textContent = `${users.length} user${users.length === 1 ? "" : "s"} loaded`;
+        }
+        if (elements.usersList) {
+            if (!users.length) {
+                elements.usersList.innerHTML = `<div class="jc-users-empty">No users found.</div>`;
+            } else {
+                elements.usersList.innerHTML = users.map((user) => `
+                    <div class="jc-user-card">
+                        <div class="jc-user-row"><span>User Name</span><strong>${escapeHtml(user.name || "-")}</strong></div>
+                        <div class="jc-user-row"><span>User ID</span><strong>${escapeHtml(user.user_id || "-")}</strong></div>
+                        <div class="jc-user-row"><span>Mobile</span><strong>${escapeHtml(user.mobile || "-")}</strong></div>
+                        <div class="jc-user-row"><span>Address</span><strong>${escapeHtml(user.address || "-")}</strong></div>
+                        <div class="jc-user-row"><span>Power</span><strong>${escapeHtml(formatPowerValue(user.power))}</strong></div>
+                    </div>
+                `).join("");
+            }
+        }
+        elements.usersModal?.classList.add("show");
+    }
+
+    function closeUsersModal() {
+        if (elements.usersModal) elements.usersModal.classList.remove("show");
+        if (elements.usersList) elements.usersList.innerHTML = "";
+    }
+
+    function collectCsvRows(nodes, rows = []) {
+        (nodes || []).forEach((node) => {
+            const jcBase = {
+                window: node.window || "",
+                jc_name: node.jcName || "",
+                previous_jc: node.previousJc || "",
+                otdr_distance: node.otdrDistance || "",
+                jc_remark: node.remark || "",
+                jc_timestamp: node.timestamp || ""
+            };
+            [...(node.inputWires || []), ...(node.outputWires || [])].forEach((wire) => {
+                if (!(wire.coreDetails || []).length) {
+                    rows.push({
+                        ...jcBase,
+                        wire_side: wire.side || "",
+                        wire_type: wire.wireType || "",
+                        wire_drum: wire.wireDrum || "",
+                        wire_live_cores: wire.liveCores || "",
+                        wire_remark: wire.remark || "",
+                        core_color: "",
+                        core_tube: "",
+                        core_joint: "",
+                        pon_mode: "",
+                        oltpon: "",
+                        partialpon: "",
+                        core_power: "",
+                        core_remark: ""
+                    });
+                    return;
+                }
+                (wire.coreDetails || []).forEach((core) => {
+                    rows.push({
+                        ...jcBase,
+                        wire_side: wire.side || "",
+                        wire_type: wire.wireType || "",
+                        wire_drum: wire.wireDrum || "",
+                        wire_live_cores: wire.liveCores || "",
+                        wire_remark: wire.remark || "",
+                        core_color: core.coreColor || "",
+                        core_tube: core.tube || "",
+                        core_joint: core.joint || "",
+                        pon_mode: core.ponMode || "",
+                        oltpon: core.oltpon || "",
+                        partialpon: core.partialpon || "",
+                        core_power: core.power || "",
+                        core_remark: core.remark || ""
+                    });
+                });
+            });
+            collectCsvRows(node.children || [], rows);
+        });
+        return rows;
+    }
+
+    function downloadCsvExport() {
+        const rows = collectCsvRows(state.visibleRows || []);
+        if (!rows.length) {
+            showNotice("CSV Export", "No data available to download.");
+            return;
+        }
+        const headers = [
+            "window",
+            "jc_name",
+            "previous_jc",
+            "otdr_distance",
+            "jc_remark",
+            "jc_timestamp",
+            "wire_side",
+            "wire_type",
+            "wire_drum",
+            "wire_live_cores",
+            "wire_remark",
+            "core_color",
+            "core_tube",
+            "core_joint",
+            "pon_mode",
+            "oltpon",
+            "partialpon",
+            "core_power",
+            "core_remark"
+        ];
+        const lines = [
+            headers.join(","),
+            ...rows.map((row) => headers.map((header) => escapeCsvValue(row[header])).join(","))
+        ];
+        const blob = new Blob([`\uFEFF${lines.join("\n")}`], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        const windowName = String(state.context && state.context.windowName || "ALL").trim().toUpperCase();
+        link.href = url;
+        link.download = `jc-tree-${windowName.toLowerCase()}-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    }
+
     function hasSavedWireSelection() {
         return Boolean(state.selectedFiber && state.selectedFiber.dataset.wireUuid);
     }
@@ -1180,13 +1565,23 @@
                 </div>
                 ` : `
                 <div class="core-info-item">
+                    <span class="core-info-label">PON Mode</span>
+                    <strong>${normalizePonMode(coreData.ponMode) === "partial" ? "Partial pon" : "Full pon"}</strong>
+                </div>
+                <div class="core-info-item">
                     <span class="core-info-label">OLT PON</span>
-                    <strong>${coreData.oltpon || "-"}</strong>
+                    <strong>${coreData.oltpon ? getPonOptionLabel(coreData.oltpon, coreData.ponMode || "full") : "-"}</strong>
                 </div>
                 <div class="core-info-item">
                     <span class="core-info-label">PON Status</span>
-                    <strong>${getPonHealthMeta(coreData.oltpon).label}</strong>
+                    <strong>${getCoreHealthMeta(coreData).label}</strong>
                 </div>
+                ${normalizePonMode(coreData.ponMode) === "partial" ? `
+                <div class="core-info-item core-info-item-full">
+                    <span class="core-info-label">Partial Users</span>
+                    <strong>${coreData.partialpon ? escapeHtml(coreData.partialpon) : "-"}</strong>
+                </div>
+                ` : ""}
                 `}
                 <div class="core-info-item">
                     <span class="core-info-label">Power</span>
@@ -1287,7 +1682,9 @@
                 coreColor: card.querySelector(".core-color") ? card.querySelector(".core-color").value : "",
                 tube: card.querySelector(".core-tube") ? card.querySelector(".core-tube").value : (meta.tube || ""),
                 joint: card.querySelector(".core-joint") ? card.querySelector(".core-joint").value : (meta.joint || ""),
-                oltpon: card.querySelector(".core-pon") ? card.querySelector(".core-pon").value : (meta.oltpon || ""),
+                ponMode: card.querySelector(".core-pon") ? parsePonSelection(card.querySelector(".core-pon").value, meta.ponMode || "full").ponMode : (meta.ponMode || "full"),
+                oltpon: card.querySelector(".core-pon") ? parsePonSelection(card.querySelector(".core-pon").value, meta.ponMode || "full").oltpon : (meta.oltpon || ""),
+                partialpon: meta.partialpon || "",
                 power: card.querySelector(".core-power") ? card.querySelector(".core-power").value : "",
                 remark: card.querySelector(".core-remark") ? card.querySelector(".core-remark").value : ""
             };
@@ -1306,7 +1703,9 @@
             coreColorAndNumber: card.querySelector(".core-color") ? String(card.querySelector(".core-color").value || "").trim() : "",
             tube: card.querySelector(".core-tube") ? String(card.querySelector(".core-tube").value || "").trim() : (meta.tube || ""),
             joint: card.querySelector(".core-joint") ? String(card.querySelector(".core-joint").value || "").trim() : (meta.joint || ""),
-            oltpon: card.querySelector(".core-pon") ? String(card.querySelector(".core-pon").value || "").trim() : (meta.oltpon || ""),
+            ponMode: card.querySelector(".core-pon") ? parsePonSelection(card.querySelector(".core-pon").value, meta.ponMode || "full").ponMode : (meta.ponMode || "full"),
+            oltpon: card.querySelector(".core-pon") ? parsePonSelection(card.querySelector(".core-pon").value, meta.ponMode || "full").oltpon : (meta.oltpon || ""),
+            partialpon: meta.partialpon || "",
             power: card.querySelector(".core-power") ? String(card.querySelector(".core-power").value || "").trim() : "",
             remark: card.querySelector(".core-remark") ? String(card.querySelector(".core-remark").value || "").trim() : ""
         };
@@ -1354,6 +1753,7 @@
         const currentData = getCoreCardData(card);
         const colorField = card.querySelector(".core-color");
         const tubeField = card.querySelector(".core-tube");
+        const ponField = card.querySelector(".core-pon");
         if (!colorField) return;
 
         const allowedColors = getAllowedCoreOptions(card, tubeField ? tubeField.value : "");
@@ -1366,6 +1766,13 @@
             tubeField.innerHTML = createTubeOptionsHtml(currentData.tube);
             if (currentData.tube) {
                 tubeField.value = normalizeCoreOptionValue(currentData.tube);
+            }
+        }
+
+        if (ponField) {
+            ponField.innerHTML = createPonOptionsHtml(currentData.oltpon, currentData.ponMode);
+            if (currentData.oltpon) {
+                ponField.value = buildPonOptionValue(currentData.oltpon, currentData.ponMode);
             }
         }
     }
@@ -1431,16 +1838,27 @@
                 livecores: nextLiveCoreCount,
                 remark: state.selectedFiber.dataset.remark || ""
             });
-            await createCore({
+            const createdCuid = await createCore({
                 wuid: state.selectedFiber.dataset.wireUuid,
                 juid: state.selectedFiber.dataset.juid,
                 corecolorandnumber: coreData.coreColorAndNumber,
                 joint: coreData.joint || "",
                 tube: coreData.tube,
+                pon_mode: coreData.ponMode || "full",
                 oltpon: coreData.oltpon,
+                partialpon: coreData.partialpon || "",
                 power: coreData.power,
                 remark: coreData.remark
             });
+            if (normalizePonMode(coreData.ponMode) === "partial") {
+                setBusy(false);
+                await runPartialPonWorkflow({
+                    cuid: createdCuid,
+                    oltpon: coreData.oltpon,
+                    windowName: getActiveWindowName()
+                });
+                setBusy(true);
+            }
             await refreshAndReopenWireModal(
                 state.selectedFiber.dataset.wireUuid || "",
                 state.selectedFiber.dataset.side || "",
@@ -1464,7 +1882,7 @@
         for (let i = 1; i <= count; i++) {
             const currentCore = (sortedCoreData && sortedCoreData[i - 1]) || {};
             const hasSavedCore = Boolean(currentCore.cuid);
-            const healthMeta = getPonHealthMeta(currentCore.oltpon);
+            const healthMeta = getCoreHealthMeta(currentCore);
             const tubeStyle = getCoreVisualStyle(currentCore.tube);
             const card = document.createElement("div");
             card.className = "core-card";
@@ -1472,14 +1890,16 @@
                 cuid: currentCore.cuid || "",
                 tube: currentCore.tube || "",
                 joint: currentCore.joint || "",
-                oltpon: currentCore.oltpon || ""
+                ponMode: currentCore.ponMode || "full",
+                oltpon: currentCore.oltpon || "",
+                partialpon: currentCore.partialpon || ""
             });
             card.innerHTML = `
                 <div class="title-row">
                     <div class="core-title-left">
                         ${isOutputSide ? "" : `<span class="core-led ${healthMeta.level}" title="${healthMeta.label}"></span>`}
                         <h4>Live Core ${i}</h4>
-                        ${isOutputSide ? "" : `<span class="core-led-label">${healthMeta.label}</span>`}
+                        ${isOutputSide ? "" : `<button type="button" class="core-led-label core-users-trigger">${healthMeta.label}</button>`}
                     </div>
                     <div class="panel-controls">
                         <button type="button" class="delete-core">${hasSavedCore ? "Delete" : "Clear"}</button>
@@ -1494,7 +1914,7 @@
                         </select>
                     </div>
                     ${needsTube ? `<div class="field"><select class="core-tube" ${hasSavedCore ? "disabled" : ""}>${createTubeOptionsHtml(currentCore.tube || "")}</select></div>` : ""}
-                    ${isOutputSide ? `<div class="field"><select class="core-joint" ${hasSavedCore ? "disabled" : ""}>${createJointOptionsHtml(currentCore.joint || "")}</select></div>` : `<div class="field"><select class="core-pon" ${hasSavedCore ? "disabled" : ""}>${createPonOptionsHtml(currentCore.oltpon || "")}</select></div>`}
+                    ${isOutputSide ? `<div class="field"><select class="core-joint" ${hasSavedCore ? "disabled" : ""}>${createJointOptionsHtml(currentCore.joint || "")}</select></div>` : `<div class="field"><select class="core-pon" ${hasSavedCore ? "disabled" : ""}>${createPonOptionsHtml(currentCore.oltpon || "", currentCore.ponMode || "full")}</select></div>`}
                     <div class="field">
                         <input class="core-power" type="text" placeholder="Power" ${hasSavedCore ? "disabled" : ""}>
                     </div>
@@ -1513,27 +1933,37 @@
             if (currentCore.coreColor) colorField.value = currentCore.coreColor;
             if (tubeField && currentCore.tube) tubeField.value = currentCore.tube;
             if (jointField && currentCore.joint) jointField.value = currentCore.joint;
-            if (ponField && currentCore.oltpon) ponField.value = normalizePonValue(currentCore.oltpon);
+            if (ponField && currentCore.oltpon) ponField.value = buildPonOptionValue(currentCore.oltpon, currentCore.ponMode || "full");
             if (powerField) powerField.value = currentCore.power || "";
             if (remarkField) remarkField.value = currentCore.remark || "";
             const coreStyle = getCoreVisualStyle(currentCore.coreColor);
             card.style.background = coreStyle.background;
             card.style.color = coreStyle.color;
-            card.style.borderColor = "rgba(255,255,255,0.24)";
+            card.style.borderColor = coreStyle.border || "rgba(255,255,255,0.24)";
             card.style.borderWidth = "1px";
             card.style.boxShadow = "0 8px 18px rgba(34,76,102,.06)";
             card.querySelectorAll("h4, input, select").forEach((node) => {
                 node.style.color = coreStyle.color;
             });
+            card.querySelectorAll(".core-led-label").forEach((node) => {
+                node.style.color = coreStyle.color;
+            });
             card.querySelectorAll("input, select").forEach((node) => {
-                node.style.borderColor = "rgba(255,255,255,0.35)";
-                node.style.background = "rgba(255,255,255,0.16)";
+                node.style.borderColor = coreStyle.fieldBorder || "rgba(255,255,255,0.35)";
+                node.style.background = coreStyle.fieldBackground || "rgba(255,255,255,0.16)";
             });
             card.querySelectorAll(".delete-core, .edit-core").forEach((button) => {
-                button.style.background = "#111827";
-                button.style.color = "#ffffff";
-                button.style.border = "1px solid rgba(17, 24, 39, 0.9)";
+                button.style.background = coreStyle.buttonBackground || "#111827";
+                button.style.color = coreStyle.buttonColor || "#ffffff";
+                button.style.border = `1px solid ${coreStyle.buttonBackground || "rgba(17, 24, 39, 0.9)"}`;
             });
+            const usersTrigger = card.querySelector(".core-users-trigger");
+            if (usersTrigger) {
+                usersTrigger.addEventListener("click", (event) => {
+                    event.stopPropagation();
+                    showCoreUsers(currentCore);
+                });
+            }
             
             card.querySelector(".delete-core").addEventListener("click", async (event) => {
                 event.stopPropagation();
@@ -1561,7 +1991,7 @@
                     }
                 } else {
                     const nextData = getCurrentCoreDataFromForm();
-                    nextData[i - 1] = { cuid: "", coreColor: "", joint: "", tube: "", oltpon: "", power: "", remark: "" };
+                    nextData[i - 1] = { cuid: "", coreColor: "", joint: "", tube: "", ponMode: "full", oltpon: "", partialpon: "", power: "", remark: "" };
                     buildCoreFields(Number(elements.liveCoresCountSelect.value), nextData);
                 }
             });
@@ -1731,8 +2161,8 @@
             elements.coreTube.innerHTML = createTubeOptionsHtml(data.tube || "");
             elements.coreTube.value = normalizeCoreOptionValue(data.tube || "");
         }
-        elements.coreOltpon.innerHTML = createPonOptionsHtml(data.oltpon || "");
-        elements.coreOltpon.value = normalizePonValue(data.oltpon || "");
+        elements.coreOltpon.innerHTML = createPonOptionsHtml(data.oltpon || "", data.ponMode || "full");
+        elements.coreOltpon.value = data.oltpon ? buildPonOptionValue(data.oltpon || "", data.ponMode || "full") : "";
         if (elements.coreJoint) {
             elements.coreJoint.innerHTML = createJointOptionsHtml(data.joint || "");
             elements.coreJoint.value = String(data.joint || "").trim();
@@ -1753,7 +2183,14 @@
             elements.deleteCoreBtn.style.display = data.cuid ? "" : "none";
         }
         
-        state.pendingCoreCreation = { cuid: data.cuid || null, wuid: wuid, juid: juid, index: index };
+        state.pendingCoreCreation = {
+            cuid: data.cuid || null,
+            wuid: wuid,
+            juid: juid,
+            index: index,
+            ponMode: data.ponMode || "full",
+            partialpon: data.partialpon || ""
+        };
     }
 
     function getCoreModalData() {
@@ -1764,7 +2201,9 @@
             coreColorAndNumber: elements.coreColor.value,
             joint: elements.coreJoint ? elements.coreJoint.value : "",
             tube: elements.coreTube ? elements.coreTube.value : "",
-            oltpon: elements.coreOltpon.value,
+            ponMode: parsePonSelection(elements.coreOltpon.value, state.pendingCoreCreation && state.pendingCoreCreation.ponMode).ponMode,
+            oltpon: parsePonSelection(elements.coreOltpon.value, state.pendingCoreCreation && state.pendingCoreCreation.ponMode).oltpon,
+            partialpon: state.pendingCoreCreation ? (state.pendingCoreCreation.partialpon || "") : "",
             power: elements.corePower.value,
             remark: elements.coreRemark.value
         };
@@ -2021,7 +2460,9 @@
                 corecolorandnumber: payload.corecolorandnumber,
                 joint: payload.joint || "",
                 tube: payload.tube || "",
+                pon_mode: payload.pon_mode || "full",
                 oltpon: payload.oltpon,
+                partialpon: payload.partialpon || "",
                 power: payload.power,
                 remark: payload.remark || ""
             })
@@ -2037,7 +2478,9 @@
                 corecolorandnumber: payload.corecolorandnumber,
                 joint: payload.joint || "",
                 tube: payload.tube || "",
+                pon_mode: payload.pon_mode || "full",
                 oltpon: payload.oltpon,
+                partialpon: payload.partialpon || "",
                 power: payload.power,
                 remark: payload.remark || ""
             })
@@ -2047,6 +2490,209 @@
     async function deleteCore(cuid) {
         await requestJson(apiUrlFor(getActiveClient(), `core/${cuid}`), {
             method: "DELETE"
+        });
+    }
+
+    async function getPartialPonContext(windowName) {
+        return requestJson(`${apiUrlFor(windowName, "partialpon/context")}?window=${encodeURIComponent(windowName)}`);
+    }
+
+    async function fetchPartialPonUsers(payload) {
+        return requestJson(apiUrlFor(payload.window, "partialpon/fetch-users"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+    }
+
+    async function linkPartialPonUsers(payload) {
+        return requestJson(apiUrlFor(payload.window, "partialpon/link-users"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+    }
+
+    function getActiveWindowName() {
+        if (state.selectedFiber) {
+            const container = state.selectedFiber.closest(".container");
+            const windowName = container ? container.dataset.window : "";
+            if (windowName) return String(windowName).trim().toUpperCase();
+        }
+        return String(state.context && state.context.windowName || "").trim().toUpperCase();
+    }
+
+    function updatePartialPonModalState(timestamp, message, buttonText, disabled, helperText) {
+        if (elements.partialPonTimestamp) elements.partialPonTimestamp.textContent = `Timestamp: ${timestamp || "-"}`;
+        if (elements.partialPonStatus) {
+            const safeMessage = escapeHtml(message || "");
+            const safeHelper = escapeHtml(helperText || "");
+            elements.partialPonStatus.innerHTML = `<div class="partialpon-status-main">${safeMessage}</div>${safeHelper ? `<div class="partialpon-status-meta">${safeHelper}</div>` : ""}`;
+            elements.partialPonStatus.classList.toggle("is-waiting", !!disabled);
+        }
+        if (elements.partialPonActionBtn) {
+            elements.partialPonActionBtn.textContent = buttonText || "Fetch users";
+            elements.partialPonActionBtn.disabled = !!disabled;
+        }
+    }
+
+    async function waitForNewPartialPonTimestamp(windowName, previousTimestamp, waitingMessage) {
+        let attempts = 0;
+        while (attempts < 300) {
+            await new Promise((resolve) => window.setTimeout(resolve, 2000));
+            const response = await getPartialPonContext(windowName);
+            const latestTimestamp = String(response && response.latest_timestamp || "").trim();
+            const elapsedSeconds = (attempts + 1) * 2;
+            const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+            const elapsedRemainder = elapsedSeconds % 60;
+            const elapsedLabel = `${String(elapsedMinutes).padStart(2, "0")}:${String(elapsedRemainder).padStart(2, "0")}`;
+            updatePartialPonModalState(
+                latestTimestamp,
+                waitingMessage,
+                waitingMessage,
+                true,
+                `Live sync running. Elapsed ${elapsedLabel}. This can take up to 10 minutes.`
+            );
+            if (latestTimestamp && latestTimestamp !== String(previousTimestamp || "").trim()) {
+                return latestTimestamp;
+            }
+            attempts += 1;
+        }
+        throw new Error("New timestamp not received within 10 minutes.");
+    }
+
+    function runPartialPonWorkflow(config) {
+        return new Promise(async (resolve, reject) => {
+            const windowName = String(config && config.windowName || "").trim().toUpperCase();
+            const oltpon = normalizePonValue(config && config.oltpon);
+            const cuid = String(config && config.cuid || "").trim();
+            if (!windowName || !oltpon || !cuid) {
+                reject(new Error("Partial PON workflow needs saved core, window and OLT PON."));
+                return;
+            }
+
+            let fetchResult = null;
+            let currentTimestamp = "";
+
+            const closeModal = () => {
+                if (elements.partialPonModal) elements.partialPonModal.classList.remove("show");
+                if (elements.partialPonActionBtn) elements.partialPonActionBtn.disabled = false;
+                if (elements.closePartialPonBtn) elements.closePartialPonBtn.disabled = false;
+                elements.partialPonActionBtn?.removeEventListener("click", handleAction);
+                elements.closePartialPonBtn?.removeEventListener("click", handleClose);
+                elements.partialPonModal?.removeEventListener("click", handleBackdrop);
+            };
+
+            const handleClose = async () => {
+                if (elements.partialPonActionBtn && elements.partialPonActionBtn.disabled) {
+                    const shouldClose = await askModalConfirm("Close Partial PON", "Partial PON detection is still running. Close this popup anyway?", "Close");
+                    if (!shouldClose) {
+                        return;
+                    }
+                }
+                closeModal();
+                resolve(null);
+            };
+
+            const handleBackdrop = (event) => {
+                if (event.target === elements.partialPonModal) {
+                    handleClose();
+                }
+            };
+
+            const handleAction = async () => {
+                try {
+                    if (!fetchResult) {
+                        updatePartialPonModalState(
+                            currentTimestamp,
+                            "Fetching please wait",
+                            "Fetching please wait",
+                            true,
+                            "Waiting for a fresh timestamp after core break."
+                        );
+                        const changedTimestamp = await waitForNewPartialPonTimestamp(windowName, currentTimestamp, "Fetching please wait");
+                        fetchResult = await fetchPartialPonUsers({
+                            window: windowName,
+                            oltpon: oltpon,
+                            since_timestamp: currentTimestamp
+                        });
+                        currentTimestamp = String(fetchResult && fetchResult.latest_timestamp || changedTimestamp || "").trim();
+                        updatePartialPonModalState(
+                            currentTimestamp,
+                            `${Number(fetchResult && fetchResult.count || 0)} users captured. Join core and continue.`,
+                            "Link live users on this core",
+                            false
+                        );
+                        return;
+                    }
+
+                    updatePartialPonModalState(
+                        currentTimestamp,
+                        "Linking live users..",
+                        "Linking live users..",
+                        true,
+                        "Waiting for a fresh timestamp after core joint."
+                    );
+                    const changedTimestamp = await waitForNewPartialPonTimestamp(windowName, currentTimestamp, "Linking live users..");
+                    if (!Array.isArray(fetchResult && fetchResult.mac_addresses) || !fetchResult.mac_addresses.length) {
+                        await updateCore(cuid, {
+                            pon_mode: "partial",
+                            oltpon: oltpon,
+                            partialpon: ""
+                        });
+                        currentTimestamp = String(changedTimestamp || "").trim();
+                        closeModal();
+                        await showNotice("Partial PON", "Zero users found. Partial PON saved successfully.");
+                        resolve({
+                            status: "success",
+                            window: windowName,
+                            oltpon: oltpon,
+                            CUID: Number(cuid),
+                            latest_timestamp: currentTimestamp,
+                            partialpon: "",
+                            users: [],
+                            mac_addresses: [],
+                            count: 0
+                        });
+                        return;
+                    }
+                    const linkResult = await linkPartialPonUsers({
+                        CUID: Number(cuid),
+                        window: windowName,
+                        oltpon: oltpon,
+                        since_timestamp: currentTimestamp,
+                        mac_addresses: Array.isArray(fetchResult && fetchResult.mac_addresses) ? fetchResult.mac_addresses : []
+                    });
+                    currentTimestamp = String(linkResult && linkResult.latest_timestamp || changedTimestamp || "").trim();
+                    closeModal();
+                    await showNotice("Partial PON", "User linked successfully.");
+                    resolve(linkResult);
+                } catch (error) {
+                    closeModal();
+                    reject(error);
+                }
+            };
+
+            try {
+                const contextResponse = await getPartialPonContext(windowName);
+                currentTimestamp = String(contextResponse && contextResponse.latest_timestamp || "").trim();
+                if (elements.partialPonTitle) elements.partialPonTitle.textContent = getPonOptionLabel(oltpon, "partial");
+                if (elements.partialPonSub) elements.partialPonSub.textContent = `Window ${windowName} | Core ${cuid}`;
+                updatePartialPonModalState(
+                    currentTimestamp,
+                    "Break selected core and click Fetch users.(Instantly)",
+                    "Fetch users",
+                    false,
+                    "The modal can stay open for long-running sync."
+                );
+                elements.partialPonActionBtn?.addEventListener("click", handleAction);
+                elements.closePartialPonBtn?.addEventListener("click", handleClose);
+                elements.partialPonModal?.addEventListener("click", handleBackdrop);
+                elements.partialPonModal?.classList.add("show");
+            } catch (error) {
+                closeModal();
+                reject(error);
+            }
         });
     }
 
@@ -2078,7 +2724,9 @@
                     corecolorandnumber: core.coreColor,
                     joint: core.joint || "",
                     tube: core.tube || "",
+                    pon_mode: core.ponMode || "full",
                     oltpon: core.oltpon || "",
+                    partialpon: core.partialpon || "",
                     power: core.power || "",
                     remark: core.remark || ""
                 });
@@ -2090,7 +2738,9 @@
                     corecolorandnumber: core.coreColor,
                     joint: core.joint || "",
                     tube: core.tube || "",
+                    pon_mode: core.ponMode || "full",
                     oltpon: core.oltpon || "",
+                    partialpon: core.partialpon || "",
                     power: core.power || "",
                     remark: core.remark || ""
                 });
@@ -2113,6 +2763,7 @@
             } catch (error) {
                 state.ponOptions = [];
                 state.ponStats = {};
+                state.userStatusMap = {};
             }
             let url = apiUrlFor(getActiveClient(), "jctree");
             url += `?windows=${encodeURIComponent(getWindowQueryValue(state.context.windowName))}`;
@@ -2328,21 +2979,43 @@
                     corecolorandnumber: coreData.coreColorAndNumber,
                     joint: coreData.joint,
                     tube: coreData.tube,
+                    pon_mode: coreData.ponMode || "full",
                     oltpon: coreData.oltpon,
+                    partialpon: normalizePonMode(coreData.ponMode) === "partial" ? (coreData.partialpon || "") : "",
                     power: coreData.power,
                     remark: coreData.remark
                 });
+                if (normalizePonMode(coreData.ponMode) === "partial") {
+                    setBusy(false);
+                    await runPartialPonWorkflow({
+                        cuid: coreData.cuid,
+                        oltpon: coreData.oltpon,
+                        windowName: getActiveWindowName()
+                    });
+                    setBusy(true);
+                }
             } else {
-                await createCore({
+                const createdCuid = await createCore({
                     wuid: coreData.wuid,
                     juid: coreData.juid,
                     corecolorandnumber: coreData.coreColorAndNumber,
                     joint: coreData.joint,
                     tube: coreData.tube,
+                    pon_mode: coreData.ponMode || "full",
                     oltpon: coreData.oltpon,
+                    partialpon: normalizePonMode(coreData.ponMode) === "partial" ? (coreData.partialpon || "") : "",
                     power: coreData.power,
                     remark: coreData.remark
                 });
+                if (normalizePonMode(coreData.ponMode) === "partial") {
+                    setBusy(false);
+                    await runPartialPonWorkflow({
+                        cuid: createdCuid,
+                        oltpon: coreData.oltpon,
+                        windowName: getActiveWindowName()
+                    });
+                    setBusy(true);
+                }
             }
             closeCoreModal();
             await refreshAndReopenWireModal(activeWireUuid, activeWireSide, activeJuid);
@@ -2494,6 +3167,9 @@
     function bindEvents() {
         elements.addBoxBtn.addEventListener("click", openJcModal);
         elements.deleteBoxBtn.addEventListener("click", deleteSelectedBox);
+        if (elements.downloadCsvBtn) {
+            elements.downloadCsvBtn.addEventListener("click", downloadCsvExport);
+        }
         if (elements.locationMode) elements.locationMode.addEventListener("change", syncLocationMode);
         if (elements.jcModalWindowName) {
             elements.jcModalWindowName.addEventListener("change", () => syncPreviousJcOptions());
@@ -2527,6 +3203,14 @@
         elements.coreModal.addEventListener("click", (event) => {
             if (event.target === elements.coreModal) closeCoreModal();
         });
+        if (elements.closeUsersModalBtn) {
+            elements.closeUsersModalBtn.addEventListener("click", closeUsersModal);
+        }
+        if (elements.usersModal) {
+            elements.usersModal.addEventListener("click", (event) => {
+                if (event.target === elements.usersModal) closeUsersModal();
+            });
+        }
         if (elements.deleteCoreBtn) {
             elements.deleteCoreBtn.addEventListener("click", async () => {
                 if (state.pendingCoreCreation && state.pendingCoreCreation.cuid) {
