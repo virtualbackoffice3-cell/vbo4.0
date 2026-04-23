@@ -45,6 +45,7 @@
         ponStats: {},
         userStatusMap: {},
         ponUserMap: {},
+        ponPicker: null,
         jcMap: null,
         jcMapMarkers: []
     };
@@ -288,7 +289,8 @@
                                 </select>
                             </div>
                             <div class="field" id="jcCoreOltponWrap">
-                                <select id="jcCoreOltpon" required>
+                                <button type="button" id="jcCoreOltponTrigger" class="pon-picker-trigger">Select OLT PON</button>
+                                <select id="jcCoreOltpon" required class="pon-picker-select hidden">
                                     <option value="" disabled selected>Select OLT PON</option>
                                 </select>
                             </div>
@@ -325,6 +327,10 @@
                         <div class="partialpon-status" id="jcPartialPonStatus">Select partial PON and start detection.</div>
                         <div class="partialpon-actions">
                             <button class="save-btn" id="jcPartialPonActionBtn">Fetch users</button>
+                            <button class="close-btn" id="jcPartialPonManualBtn">Manual user entry</button>
+                        </div>
+                        <div class="partialpon-manual hidden" id="jcPartialPonManualWrap">
+                            <textarea id="jcPartialPonManualInput" placeholder="Paste MAC addresses here"></textarea>
                         </div>
                     </div>
                 </div>
@@ -338,6 +344,26 @@
                             <button class="close-btn" id="jcCloseUsersModalBtn">Close</button>
                         </div>
                         <div class="jc-users-list" id="jcUsersList"></div>
+                    </div>
+                </div>
+                <div class="jc-note-inner-modal" id="jcPonPickerModal">
+                    <div class="modal-card jc-pon-picker-card">
+                        <div class="modal-head">
+                            <div>
+                                <h2 id="jcPonPickerTitle">Select OLT PON</h2>
+                                <div class="modal-sub">Search and expand one category at a time</div>
+                            </div>
+                            <button class="close-btn" id="jcClosePonPickerBtn">Close</button>
+                        </div>
+                        <div class="pon-picker-search-wrap">
+                            <input id="jcPonPickerSearch" type="search" placeholder="Search PON">
+                        </div>
+                        <div class="pon-picker-groups">
+                            <button type="button" class="pon-picker-group-toggle" id="jcPonPickerFullToggle" data-mode="full">Full pon</button>
+                            <div class="pon-picker-group-list hidden" id="jcPonPickerFullList"></div>
+                            <button type="button" class="pon-picker-group-toggle" id="jcPonPickerPartialToggle" data-mode="partial">Partial pon</button>
+                            <div class="pon-picker-group-list hidden" id="jcPonPickerPartialList"></div>
+                        </div>
                     </div>
                 </div>
                 <div class="jc-note-inner-modal" id="jcConfirmModal">
@@ -427,6 +453,7 @@
         elements.coreTubeWrap = state.root.querySelector("#jcCoreTubeWrap");
         elements.coreTube = state.root.querySelector("#jcCoreTube");
         elements.coreOltponWrap = state.root.querySelector("#jcCoreOltponWrap");
+        elements.coreOltponTrigger = state.root.querySelector("#jcCoreOltponTrigger");
         elements.coreOltpon = state.root.querySelector("#jcCoreOltpon");
         elements.coreJointWrap = state.root.querySelector("#jcCoreJointWrap");
         elements.coreJoint = state.root.querySelector("#jcCoreJoint");
@@ -443,11 +470,22 @@
         elements.partialPonStatus = state.root.querySelector("#jcPartialPonStatus");
         elements.partialPonActionBtn = state.root.querySelector("#jcPartialPonActionBtn");
         elements.closePartialPonBtn = state.root.querySelector("#jcClosePartialPonBtn");
+        elements.partialPonManualBtn = state.root.querySelector("#jcPartialPonManualBtn");
+        elements.partialPonManualWrap = state.root.querySelector("#jcPartialPonManualWrap");
+        elements.partialPonManualInput = state.root.querySelector("#jcPartialPonManualInput");
         elements.usersModal = state.root.querySelector("#jcUsersModal");
         elements.usersModalTitle = state.root.querySelector("#jcUsersModalTitle");
         elements.usersModalSub = state.root.querySelector("#jcUsersModalSub");
         elements.usersList = state.root.querySelector("#jcUsersList");
         elements.closeUsersModalBtn = state.root.querySelector("#jcCloseUsersModalBtn");
+        elements.ponPickerModal = state.root.querySelector("#jcPonPickerModal");
+        elements.ponPickerTitle = state.root.querySelector("#jcPonPickerTitle");
+        elements.closePonPickerBtn = state.root.querySelector("#jcClosePonPickerBtn");
+        elements.ponPickerSearch = state.root.querySelector("#jcPonPickerSearch");
+        elements.ponPickerFullToggle = state.root.querySelector("#jcPonPickerFullToggle");
+        elements.ponPickerPartialToggle = state.root.querySelector("#jcPonPickerPartialToggle");
+        elements.ponPickerFullList = state.root.querySelector("#jcPonPickerFullList");
+        elements.ponPickerPartialList = state.root.querySelector("#jcPonPickerPartialList");
         
         // Confirm Modal
         elements.confirmModal = state.root.querySelector("#jcConfirmModal");
@@ -562,6 +600,22 @@
         return text || "-";
     }
 
+    function extractNormalizedMacAddresses(value) {
+        const text = String(value || "");
+        const uniqueValues = [];
+        const seen = new Set();
+        const matches = text.match(/(?:[0-9A-Fa-f]{2}[^0-9A-Fa-f]?){5}[0-9A-Fa-f]{2}/g) || text.split(/[\s,;]+/);
+        matches.forEach((item) => {
+            const normalizedValue = normalizeMacValue(item);
+            if (normalizedValue.length !== 12 || seen.has(normalizedValue)) {
+                return;
+            }
+            seen.add(normalizedValue);
+            uniqueValues.push(normalizedValue);
+        });
+        return uniqueValues;
+    }
+
     function escapeCsvValue(value) {
         const text = String(value ?? "");
         if (/[",\n]/.test(text)) {
@@ -585,6 +639,84 @@
             return `<option value="${fullValue}" ${fullValue === selectedOptionValue ? "selected" : ""}>${getPonOptionLabel(option, "full")}</option><option value="${partialValue}" ${partialValue === selectedOptionValue ? "selected" : ""}>${getPonOptionLabel(option, "partial")}</option>`;
         }).join("");
         return `${placeholderOption}${optionHtml}`;
+    }
+
+    function getPonTriggerLabel(selectedValue, selectedPonMode) {
+        const normalizedSelected = normalizePonValue(selectedValue);
+        if (!normalizedSelected) {
+            return "Select OLT PON";
+        }
+        return getPonOptionLabel(normalizedSelected, selectedPonMode || "full");
+    }
+
+    function syncPonTrigger(selectElement, triggerElement) {
+        if (!selectElement || !triggerElement) return;
+        const selection = parsePonSelection(selectElement.value, selectElement.dataset.ponMode || "full");
+        triggerElement.textContent = getPonTriggerLabel(selection.oltpon, selection.ponMode);
+        triggerElement.dataset.ponMode = selection.ponMode;
+        triggerElement.dataset.ponValue = selection.oltpon;
+    }
+
+    function renderPonPickerGroups() {
+        if (!state.ponPicker || !elements.ponPickerFullList || !elements.ponPickerPartialList) return;
+        const searchTerm = String(state.ponPicker.search || "").trim().toUpperCase();
+        const options = state.ponOptions.filter((option) => !searchTerm || String(option).includes(searchTerm));
+        const selectedValue = state.ponPicker.selectElement ? String(state.ponPicker.selectElement.value || "") : "";
+
+        const renderGroup = (mode, host) => {
+            if (!host) return;
+            const isOpen = state.ponPicker.openMode === mode;
+            host.classList.toggle("hidden", !isOpen);
+            if (!isOpen) {
+                host.innerHTML = "";
+                return;
+            }
+            if (!options.length) {
+                host.innerHTML = `<div class="pon-picker-empty">No PON found.</div>`;
+                return;
+            }
+            host.innerHTML = options.map((option) => {
+                const value = buildPonOptionValue(option, mode);
+                return `<button type="button" class="pon-picker-option ${value === selectedValue ? "active" : ""}" data-value="${value}">${getPonOptionLabel(option, mode)}</button>`;
+            }).join("");
+            host.querySelectorAll(".pon-picker-option").forEach((button) => {
+                button.addEventListener("click", () => {
+                    if (!state.ponPicker || !state.ponPicker.selectElement) return;
+                    state.ponPicker.selectElement.value = button.dataset.value || "";
+                    const triggerElement = state.ponPicker.triggerElement;
+                    syncPonTrigger(state.ponPicker.selectElement, triggerElement);
+                    state.ponPicker.selectElement.dispatchEvent(new Event("change", { bubbles: true }));
+                    closePonPicker();
+                });
+            });
+        };
+
+        elements.ponPickerFullToggle?.classList.toggle("active", state.ponPicker.openMode === "full");
+        elements.ponPickerPartialToggle?.classList.toggle("active", state.ponPicker.openMode === "partial");
+        renderGroup("full", elements.ponPickerFullList);
+        renderGroup("partial", elements.ponPickerPartialList);
+    }
+
+    function openPonPicker(selectElement, triggerElement, title) {
+        if (!selectElement || !triggerElement) return;
+        const selection = parsePonSelection(selectElement.value, triggerElement.dataset.ponMode || selectElement.dataset.ponMode || "full");
+        state.ponPicker = {
+            selectElement,
+            triggerElement,
+            title: title || "Select OLT PON",
+            openMode: selection.oltpon ? selection.ponMode : "",
+            search: ""
+        };
+        if (elements.ponPickerTitle) elements.ponPickerTitle.textContent = title || "Select OLT PON";
+        if (elements.ponPickerSearch) elements.ponPickerSearch.value = "";
+        renderPonPickerGroups();
+        elements.ponPickerModal?.classList.add("show");
+        elements.ponPickerSearch?.focus();
+    }
+
+    function closePonPicker() {
+        elements.ponPickerModal?.classList.remove("show");
+        state.ponPicker = null;
     }
 
     function createJointOptionsHtml(selectedValue) {
@@ -1402,6 +1534,7 @@
                     user_id: user.user_id || "",
                     mobile: user.mobile || "",
                     address: user.address || "",
+                    mac_address: user.mac_address || "",
                     power: user.power ?? "",
                     status: user.status || ""
                 }));
@@ -1422,11 +1555,12 @@
                 elements.usersList.innerHTML = `<div class="jc-users-empty">No users found.</div>`;
             } else {
                 elements.usersList.innerHTML = users.map((user) => `
-                    <div class="jc-user-card">
+                    <div class="jc-user-card ${String(user.status || "").trim().toUpperCase() === "DOWN" ? "is-down" : String(user.status || "").trim().toUpperCase() === "UP" ? "is-up" : ""}">
                         <div class="jc-user-row"><span>User Name</span><strong>${escapeHtml(user.name || "-")}</strong></div>
                         <div class="jc-user-row"><span>User ID</span><strong>${escapeHtml(user.user_id || "-")}</strong></div>
                         <div class="jc-user-row"><span>Mobile</span><strong>${escapeHtml(user.mobile || "-")}</strong></div>
                         <div class="jc-user-row"><span>Address</span><strong>${escapeHtml(user.address || "-")}</strong></div>
+                        <div class="jc-user-row"><span>MAC Address</span><strong>${escapeHtml(user.mac_address || "-")}</strong></div>
                         <div class="jc-user-row"><span>Power</span><strong>${escapeHtml(formatPowerValue(user.power))}</strong></div>
                     </div>
                 `).join("");
@@ -1754,6 +1888,7 @@
         const colorField = card.querySelector(".core-color");
         const tubeField = card.querySelector(".core-tube");
         const ponField = card.querySelector(".core-pon");
+        const ponTrigger = card.querySelector(".core-pon-trigger");
         if (!colorField) return;
 
         const allowedColors = getAllowedCoreOptions(card, tubeField ? tubeField.value : "");
@@ -1774,6 +1909,8 @@
             if (currentData.oltpon) {
                 ponField.value = buildPonOptionValue(currentData.oltpon, currentData.ponMode);
             }
+            ponField.dataset.ponMode = currentData.ponMode || "full";
+            syncPonTrigger(ponField, ponTrigger);
         }
     }
 
@@ -1914,7 +2051,7 @@
                         </select>
                     </div>
                     ${needsTube ? `<div class="field"><select class="core-tube" ${hasSavedCore ? "disabled" : ""}>${createTubeOptionsHtml(currentCore.tube || "")}</select></div>` : ""}
-                    ${isOutputSide ? `<div class="field"><select class="core-joint" ${hasSavedCore ? "disabled" : ""}>${createJointOptionsHtml(currentCore.joint || "")}</select></div>` : `<div class="field"><select class="core-pon" ${hasSavedCore ? "disabled" : ""}>${createPonOptionsHtml(currentCore.oltpon || "", currentCore.ponMode || "full")}</select></div>`}
+                    ${isOutputSide ? `<div class="field"><select class="core-joint" ${hasSavedCore ? "disabled" : ""}>${createJointOptionsHtml(currentCore.joint || "")}</select></div>` : `<div class="field"><button type="button" class="core-pon-trigger pon-picker-trigger" ${hasSavedCore ? "disabled" : ""}>Select OLT PON</button><select class="core-pon hidden" ${hasSavedCore ? "disabled" : ""}>${createPonOptionsHtml(currentCore.oltpon || "", currentCore.ponMode || "full")}</select></div>`}
                     <div class="field">
                         <input class="core-power" type="text" placeholder="Power" ${hasSavedCore ? "disabled" : ""}>
                     </div>
@@ -1927,6 +2064,7 @@
             const tubeField = card.querySelector(".core-tube");
             const jointField = card.querySelector(".core-joint");
             const ponField = card.querySelector(".core-pon");
+            const ponTrigger = card.querySelector(".core-pon-trigger");
             const powerField = card.querySelector(".core-power");
             const remarkField = card.querySelector(".core-remark");
             refreshCoreCardOptions(card);
@@ -1934,6 +2072,7 @@
             if (tubeField && currentCore.tube) tubeField.value = currentCore.tube;
             if (jointField && currentCore.joint) jointField.value = currentCore.joint;
             if (ponField && currentCore.oltpon) ponField.value = buildPonOptionValue(currentCore.oltpon, currentCore.ponMode || "full");
+            if (ponField) ponField.dataset.ponMode = currentCore.ponMode || "full";
             if (powerField) powerField.value = currentCore.power || "";
             if (remarkField) remarkField.value = currentCore.remark || "";
             const coreStyle = getCoreVisualStyle(currentCore.coreColor);
@@ -1962,6 +2101,13 @@
                 usersTrigger.addEventListener("click", (event) => {
                     event.stopPropagation();
                     showCoreUsers(currentCore);
+                });
+            }
+            if (ponTrigger && ponField && !hasSavedCore) {
+                syncPonTrigger(ponField, ponTrigger);
+                ponTrigger.addEventListener("click", (event) => {
+                    event.stopPropagation();
+                    openPonPicker(ponField, ponTrigger, "Select OLT PON");
                 });
             }
             
@@ -2163,6 +2309,8 @@
         }
         elements.coreOltpon.innerHTML = createPonOptionsHtml(data.oltpon || "", data.ponMode || "full");
         elements.coreOltpon.value = data.oltpon ? buildPonOptionValue(data.oltpon || "", data.ponMode || "full") : "";
+        elements.coreOltpon.dataset.ponMode = data.ponMode || "full";
+        syncPonTrigger(elements.coreOltpon, elements.coreOltponTrigger);
         if (elements.coreJoint) {
             elements.coreJoint.innerHTML = createJointOptionsHtml(data.joint || "");
             elements.coreJoint.value = String(data.joint || "").trim();
@@ -2573,12 +2721,25 @@
 
             let fetchResult = null;
             let currentTimestamp = "";
+            let manualEntryMode = false;
+
+            const setManualEntryState = (showButton, showInput) => {
+                if (elements.partialPonManualBtn) {
+                    elements.partialPonManualBtn.classList.toggle("hidden", !showButton);
+                }
+                if (elements.partialPonManualWrap) {
+                    elements.partialPonManualWrap.classList.toggle("hidden", !showInput);
+                }
+            };
 
             const closeModal = () => {
                 if (elements.partialPonModal) elements.partialPonModal.classList.remove("show");
                 if (elements.partialPonActionBtn) elements.partialPonActionBtn.disabled = false;
                 if (elements.closePartialPonBtn) elements.closePartialPonBtn.disabled = false;
+                if (elements.partialPonManualInput) elements.partialPonManualInput.value = "";
+                setManualEntryState(true, false);
                 elements.partialPonActionBtn?.removeEventListener("click", handleAction);
+                elements.partialPonManualBtn?.removeEventListener("click", handleManualEntry);
                 elements.closePartialPonBtn?.removeEventListener("click", handleClose);
                 elements.partialPonModal?.removeEventListener("click", handleBackdrop);
             };
@@ -2600,9 +2761,50 @@
                 }
             };
 
+            const handleManualEntry = () => {
+                manualEntryMode = true;
+                setManualEntryState(false, true);
+                updatePartialPonModalState(
+                    currentTimestamp,
+                    "Paste MAC addresses and save manual users.",
+                    "Save manual users",
+                    false,
+                    "MAC list will be normalized and stored as comma-separated values."
+                );
+                elements.partialPonManualInput?.focus();
+            };
+
             const handleAction = async () => {
                 try {
+                    if (manualEntryMode) {
+                        const macAddresses = extractNormalizedMacAddresses(elements.partialPonManualInput ? elements.partialPonManualInput.value : "");
+                        if (!macAddresses.length) {
+                            await showNotice("Manual user entry", "Paste at least one valid MAC address.");
+                            return;
+                        }
+                        await updateCore(cuid, {
+                            pon_mode: "partial",
+                            oltpon: oltpon,
+                            partialpon: macAddresses.join(",")
+                        });
+                        closeModal();
+                        await showNotice("Partial PON", `${macAddresses.length} manual user${macAddresses.length === 1 ? "" : "s"} saved successfully.`);
+                        resolve({
+                            status: "success",
+                            window: windowName,
+                            oltpon: oltpon,
+                            CUID: Number(cuid),
+                            latest_timestamp: currentTimestamp,
+                            partialpon: macAddresses.join(","),
+                            users: [],
+                            mac_addresses: macAddresses,
+                            count: macAddresses.length
+                        });
+                        return;
+                    }
+
                     if (!fetchResult) {
+                        setManualEntryState(false, false);
                         updatePartialPonModalState(
                             currentTimestamp,
                             "Fetching please wait",
@@ -2678,6 +2880,7 @@
                 currentTimestamp = String(contextResponse && contextResponse.latest_timestamp || "").trim();
                 if (elements.partialPonTitle) elements.partialPonTitle.textContent = getPonOptionLabel(oltpon, "partial");
                 if (elements.partialPonSub) elements.partialPonSub.textContent = `Window ${windowName} | Core ${cuid}`;
+                setManualEntryState(true, false);
                 updatePartialPonModalState(
                     currentTimestamp,
                     "Break selected core and click Fetch users.(Instantly)",
@@ -2686,6 +2889,7 @@
                     "The modal can stay open for long-running sync."
                 );
                 elements.partialPonActionBtn?.addEventListener("click", handleAction);
+                elements.partialPonManualBtn?.addEventListener("click", handleManualEntry);
                 elements.closePartialPonBtn?.addEventListener("click", handleClose);
                 elements.partialPonModal?.addEventListener("click", handleBackdrop);
                 elements.partialPonModal?.classList.add("show");
@@ -3203,12 +3407,44 @@
         elements.coreModal.addEventListener("click", (event) => {
             if (event.target === elements.coreModal) closeCoreModal();
         });
+        if (elements.coreOltponTrigger && elements.coreOltpon) {
+            elements.coreOltponTrigger.addEventListener("click", () => openPonPicker(elements.coreOltpon, elements.coreOltponTrigger, "Select OLT PON"));
+        }
         if (elements.closeUsersModalBtn) {
             elements.closeUsersModalBtn.addEventListener("click", closeUsersModal);
         }
         if (elements.usersModal) {
             elements.usersModal.addEventListener("click", (event) => {
                 if (event.target === elements.usersModal) closeUsersModal();
+            });
+        }
+        if (elements.closePonPickerBtn) {
+            elements.closePonPickerBtn.addEventListener("click", closePonPicker);
+        }
+        if (elements.ponPickerModal) {
+            elements.ponPickerModal.addEventListener("click", (event) => {
+                if (event.target === elements.ponPickerModal) closePonPicker();
+            });
+        }
+        if (elements.ponPickerSearch) {
+            elements.ponPickerSearch.addEventListener("input", () => {
+                if (!state.ponPicker) return;
+                state.ponPicker.search = elements.ponPickerSearch.value || "";
+                renderPonPickerGroups();
+            });
+        }
+        if (elements.ponPickerFullToggle) {
+            elements.ponPickerFullToggle.addEventListener("click", () => {
+                if (!state.ponPicker) return;
+                state.ponPicker.openMode = state.ponPicker.openMode === "full" ? "" : "full";
+                renderPonPickerGroups();
+            });
+        }
+        if (elements.ponPickerPartialToggle) {
+            elements.ponPickerPartialToggle.addEventListener("click", () => {
+                if (!state.ponPicker) return;
+                state.ponPicker.openMode = state.ponPicker.openMode === "partial" ? "" : "partial";
+                renderPonPickerGroups();
             });
         }
         if (elements.deleteCoreBtn) {
