@@ -575,6 +575,10 @@
         return String(value || "").replace(/[^a-z0-9]/gi, "").toLowerCase();
     }
 
+    function getMacMatchKey(value) {
+        return normalizeMacValue(value).slice(0, 11);
+    }
+
     function escapeHtml(value) {
         return String(value || "")
             .replace(/&/g, "&amp;")
@@ -865,7 +869,7 @@
     }
 
     function getUserStatusByMac(macAddress) {
-        const normalizedMac = normalizeMacValue(macAddress);
+        const normalizedMac = getMacMatchKey(macAddress);
         if (!normalizedMac) return null;
         if (state.userStatusMap[normalizedMac]) {
             return state.userStatusMap[normalizedMac];
@@ -966,7 +970,7 @@
             const netsense = item && item.netsense ? item.netsense : {};
             const serviceStatus = String(userdb.service_status || "").trim().toLowerCase();
             const ponValue = normalizePonValue(netsense.pon_number);
-            const normalizedMac = normalizeMacValue(userdb.normalized_mac_address || userdb.mac_address || netsense.normalized_mac_address || netsense.mac_address);
+            const normalizedMac = getMacMatchKey(userdb.normalized_mac_address || userdb.mac_address || netsense.normalized_mac_address || netsense.mac_address);
             if (normalizedMac) {
                 userStatusMap[normalizedMac] = {
                     user_id: userdb.user_id || "",
@@ -988,16 +992,16 @@
             if (!ponUserMap[ponValue]) {
                 ponUserMap[ponValue] = [];
             }
-            ponUserMap[ponValue].push({
-                user_id: userdb.user_id || "",
-                name: userdb.name || "",
-                mobile: userdb.primary_phone || "",
-                address: userdb.address || "",
+                ponUserMap[ponValue].push({
+                    user_id: userdb.user_id || "",
+                    name: userdb.name || "",
+                    mobile: userdb.primary_phone || "",
+                    address: userdb.address || "",
                 power: netsense.rxPower ?? netsense.txPower ?? "",
                 status: netsense.status || "",
                 mac_address: userdb.mac_address || netsense.mac_address || "",
-                normalized_mac_address: normalizedMac
-            });
+                    normalized_mac_address: normalizedMac
+                });
             ponStats[ponValue].activeUsers += 1;
             if (String(netsense.status || "").trim().toUpperCase() === "UP") {
                 ponStats[ponValue].onlineUsers += 1;
