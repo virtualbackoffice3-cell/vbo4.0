@@ -515,7 +515,27 @@
         }
     }
 
-    function getActiveClient() {
+    function getActiveClient(preferredWindow) {
+        const normalizedPreferred = String(preferredWindow || "").trim().toUpperCase();
+        if (ALL_WINDOWS.includes(normalizedPreferred)) {
+            return normalizedPreferred;
+        }
+        const modalWindow = elements.jcModalWindowName ? String(elements.jcModalWindowName.value || "").trim().toUpperCase() : "";
+        if (elements.jcModal && elements.jcModal.classList.contains("show") && ALL_WINDOWS.includes(modalWindow)) {
+            return modalWindow;
+        }
+        const activeWindow = getActiveWindowName();
+        if (ALL_WINDOWS.includes(activeWindow)) {
+            return activeWindow;
+        }
+        const filterWindow = getWindowFilterValue();
+        if (ALL_WINDOWS.includes(filterWindow)) {
+            return filterWindow;
+        }
+        const contextClient = String(state.context && state.context.client || "").trim().toUpperCase();
+        if (ALL_WINDOWS.includes(contextClient)) {
+            return contextClient;
+        }
         return DEFAULT_CLIENT;
     }
 
@@ -820,7 +840,7 @@
         let activeUsers = 0;
         let onlineUsers = 0;
         partialUsers.forEach((macAddress) => {
-            const userInfo = state.userStatusMap[macAddress];
+            const userInfo = getUserStatusByMac(macAddress);
             if (!userInfo) return;
             if (String(userInfo.service_status || "").trim().toLowerCase() !== "active") return;
             activeUsers += 1;
@@ -842,6 +862,23 @@
             return { level: "orange", label, percentage, onlineUsers, activeUsers };
         }
         return { level: "red", label, percentage, onlineUsers, activeUsers };
+    }
+
+    function getUserStatusByMac(macAddress) {
+        const normalizedMac = normalizeMacValue(macAddress);
+        if (!normalizedMac) return null;
+        if (state.userStatusMap[normalizedMac]) {
+            return state.userStatusMap[normalizedMac];
+        }
+
+        const keys = Object.keys(state.userStatusMap || {});
+        for (const key of keys) {
+            if (!key) continue;
+            if (key.includes(normalizedMac) || normalizedMac.includes(key)) {
+                return state.userStatusMap[key];
+            }
+        }
+        return null;
     }
 
     function getCoreHealthMeta(coreData) {
@@ -1527,7 +1564,7 @@
                 .split(",")
                 .map((item) => normalizeMacValue(item))
                 .filter(Boolean)
-                .map((macAddress) => state.userStatusMap[macAddress])
+                .map((macAddress) => getUserStatusByMac(macAddress))
                 .filter(Boolean)
                 .map((user) => ({
                     name: user.name || "",
@@ -2127,7 +2164,7 @@
                                 livecores: nextLiveCoreCount,
                                 remark: state.selectedFiber.dataset.remark || ""
                             });
-                            await requestJson(apiUrlFor(getActiveClient(), `core/${cuid}`), { method: "DELETE" });
+                            await requestJson(apiUrlFor(getActiveClient(getActiveWindowName()), `core/${cuid}`), { method: "DELETE" });
                             await refreshAndReopenWireModal(state.selectedFiber ? state.selectedFiber.dataset.wireUuid : "", state.selectedFiber ? state.selectedFiber.dataset.side : "", state.selectedFiber ? state.selectedFiber.dataset.juid : "");
                         } catch (error) {
                             showError(error);
@@ -2522,7 +2559,7 @@
     }
 
     async function createJc(payload) {
-        const response = await requestJson(apiUrlFor(getActiveClient(), "jc/create"), {
+        const response = await requestJson(apiUrlFor(getActiveClient(payload && payload.window), "jc/create"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2539,7 +2576,7 @@
     }
 
     async function updateJc(juid, payload) {
-        await requestJson(apiUrlFor(getActiveClient(), `jc/${juid}`), {
+        await requestJson(apiUrlFor(getActiveClient(payload && payload.window), `jc/${juid}`), {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2555,7 +2592,7 @@
     }
 
     async function createWire(payload) {
-        const response = await requestJson(apiUrlFor(getActiveClient(), "wire/create"), {
+        const response = await requestJson(apiUrlFor(getActiveClient(getActiveWindowName()), "wire/create"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2572,7 +2609,7 @@
     }
 
     async function updateWire(wuid, payload) {
-        await requestJson(apiUrlFor(getActiveClient(), `wire/${wuid}`), {
+        await requestJson(apiUrlFor(getActiveClient(getActiveWindowName()), `wire/${wuid}`), {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2587,19 +2624,20 @@
     }
 
     async function deleteWire(wuid) {
-        await requestJson(apiUrlFor(getActiveClient(), `wire/${wuid}`), {
+        await requestJson(apiUrlFor(getActiveClient(getActiveWindowName()), `wire/${wuid}`), {
             method: "DELETE"
         });
     }
 
     async function deleteJc(juid) {
-        await requestJson(apiUrlFor(getActiveClient(), `jc/${juid}`), {
+        const selectedWindow = state.selectedBox ? String(state.selectedBox.dataset.window || "").trim().toUpperCase() : "";
+        await requestJson(apiUrlFor(getActiveClient(selectedWindow), `jc/${juid}`), {
             method: "DELETE"
         });
     }
 
     async function createCore(payload) {
-        const response = await requestJson(apiUrlFor(getActiveClient(), "core/create"), {
+        const response = await requestJson(apiUrlFor(getActiveClient(getActiveWindowName()), "core/create"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2618,8 +2656,8 @@
         return response.CUID;
     }
 
-    async function updateCore(cuid, payload) {
-        await requestJson(apiUrlFor(getActiveClient(), `core/${cuid}`), {
+    async function updateCore(cuid, payload, preferredWindow) {
+        await requestJson(apiUrlFor(getActiveClient(preferredWindow || getActiveWindowName()), `core/${cuid}`), {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2636,7 +2674,7 @@
     }
 
     async function deleteCore(cuid) {
-        await requestJson(apiUrlFor(getActiveClient(), `core/${cuid}`), {
+        await requestJson(apiUrlFor(getActiveClient(getActiveWindowName()), `core/${cuid}`), {
             method: "DELETE"
         });
     }
@@ -2786,7 +2824,7 @@
                             pon_mode: "partial",
                             oltpon: oltpon,
                             partialpon: macAddresses.join(",")
-                        });
+                        }, windowName);
                         closeModal();
                         await showNotice("Partial PON", `${macAddresses.length} manual user${macAddresses.length === 1 ? "" : "s"} saved successfully.`);
                         resolve({
@@ -2841,7 +2879,7 @@
                             pon_mode: "partial",
                             oltpon: oltpon,
                             partialpon: ""
-                        });
+                        }, windowName);
                         currentTimestamp = String(changedTimestamp || "").trim();
                         closeModal();
                         await showNotice("Partial PON", "Zero users found. Partial PON saved successfully.");
@@ -2969,7 +3007,7 @@
                 state.ponStats = {};
                 state.userStatusMap = {};
             }
-            let url = apiUrlFor(getActiveClient(), "jctree");
+            let url = apiUrlFor(getActiveClient(state.context && state.context.windowName), "jctree");
             url += `?windows=${encodeURIComponent(getWindowQueryValue(state.context.windowName))}`;
             const response = await requestJson(url);
             const tree = Array.isArray(response.tree) ? response.tree : [];
