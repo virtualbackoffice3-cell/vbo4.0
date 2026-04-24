@@ -576,7 +576,7 @@
     }
 
     function getMacMatchKey(value) {
-        return normalizeMacValue(value).slice(0, 10);
+        return normalizeMacValue(value).slice(0, 11);
     }
 
     function escapeHtml(value) {
