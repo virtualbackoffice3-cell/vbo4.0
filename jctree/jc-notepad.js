@@ -902,6 +902,10 @@
     function getJcHealthMeta(boxData) {
         const ponSet = new Set();
         const wires = [...(boxData.inputWires || [])];
+        let fullTotalPon = 0;
+        let fullLivePon = 0;
+        let partialTotalPon = 0;
+        let partialLivePon = 0;
         wires.forEach((wire) => {
             (wire.coreDetails || []).forEach((core) => {
                 const healthKey = getCoreHealthKey(core);
@@ -915,24 +919,89 @@
             const coreData = wires.flatMap((wire) => wire.coreDetails || []).find((core) => getCoreHealthKey(core) === healthKey);
             const stats = getCoreHealthMeta(coreData || {});
             if (!stats || !stats.activeUsers) return;
+            const isPartial = normalizePonMode(coreData && coreData.ponMode) === "partial";
             totalPon += 1;
             if (Number(stats.onlineUsers || 0) > 0) {
                 livePon += 1;
             }
+            if (isPartial) {
+                partialTotalPon += 1;
+                if (Number(stats.onlineUsers || 0) > 0) partialLivePon += 1;
+            } else {
+                fullTotalPon += 1;
+                if (Number(stats.onlineUsers || 0) > 0) fullLivePon += 1;
+            }
         });
 
         if (!totalPon) {
-            return { level: "gray", label: "Pon 0/0", totalPon: 0, livePon: 0 };
+            return {
+                level: "gray",
+                label: "Pon 0/0",
+                totalPon: 0,
+                livePon: 0,
+                fullPon: { level: "gray", totalPon: 0, livePon: 0 },
+                partialPon: { level: "gray", totalPon: 0, livePon: 0 }
+            };
         }
 
         const label = `Pon ${totalPon}/${livePon}`;
+        const getSegmentLevel = (segmentTotal, segmentLive) => {
+            if (!segmentTotal) return "gray";
+            if (segmentLive === segmentTotal) return "green";
+            if (segmentLive === 0) return "red";
+            return "orange";
+        };
         if (livePon === totalPon) {
-            return { level: "green", label, totalPon, livePon };
+            return {
+                level: "green",
+                label,
+                totalPon,
+                livePon,
+                fullPon: { level: getSegmentLevel(fullTotalPon, fullLivePon), totalPon: fullTotalPon, livePon: fullLivePon },
+                partialPon: { level: getSegmentLevel(partialTotalPon, partialLivePon), totalPon: partialTotalPon, livePon: partialLivePon }
+            };
         }
         if (livePon === 0) {
-            return { level: "red", label, totalPon, livePon };
+            return {
+                level: "red",
+                label,
+                totalPon,
+                livePon,
+                fullPon: { level: getSegmentLevel(fullTotalPon, fullLivePon), totalPon: fullTotalPon, livePon: fullLivePon },
+                partialPon: { level: getSegmentLevel(partialTotalPon, partialLivePon), totalPon: partialTotalPon, livePon: partialLivePon }
+            };
         }
-        return { level: "orange", label, totalPon, livePon };
+        return {
+            level: "orange",
+            label,
+            totalPon,
+            livePon,
+            fullPon: { level: getSegmentLevel(fullTotalPon, fullLivePon), totalPon: fullTotalPon, livePon: fullLivePon },
+            partialPon: { level: getSegmentLevel(partialTotalPon, partialLivePon), totalPon: partialTotalPon, livePon: partialLivePon }
+        };
+    }
+
+    function createJcHealthLabelHtml(jcHealthMeta) {
+        const fullPon = jcHealthMeta && jcHealthMeta.fullPon ? jcHealthMeta.fullPon : { level: "gray", totalPon: 0, livePon: 0 };
+        const partialPon = jcHealthMeta && jcHealthMeta.partialPon ? jcHealthMeta.partialPon : { level: "gray", totalPon: 0, livePon: 0 };
+        const segments = [];
+        if (fullPon.totalPon > 0 || partialPon.totalPon === 0) {
+            segments.push(`
+                <span class="jc-health-segment">
+                    <span class="core-led ${fullPon.level}"></span>
+                    <span>FP- ${fullPon.totalPon}/${fullPon.livePon}</span>
+                </span>
+            `);
+        }
+        if (partialPon.totalPon > 0 || fullPon.totalPon === 0) {
+            segments.push(`
+                <span class="jc-health-segment">
+                    <span class="core-led ${partialPon.level}"></span>
+                    <span>PP- ${partialPon.totalPon}/${partialPon.livePon}</span>
+                </span>
+            `);
+        }
+        return segments.join("");
     }
 
     function getJcAlertLevel(boxData) {
@@ -2477,7 +2546,7 @@
         wrapper.innerHTML = `
             ${hasLocation ? `<a class="jc-badge" href="${mapLink}" target="_blank" rel="noopener noreferrer">${createJcBadgeHtml(boxData)}</a>` : `<div class="jc-badge">${createJcBadgeHtml(boxData)}</div>`}
             <div class="jc-link"></div>
-            <div class="jc-health-label"><span class="core-led ${jcHealthMeta.level}"></span><span>${jcHealthMeta.label}</span></div>
+            <div class="jc-health-label">${createJcHealthLabelHtml(jcHealthMeta)}</div>
             <div class="jc-after-label">${createAfterLabelHtml(previousLabel)}</div>
             <button type="button" class="jc-edit-toggle">Edit JC</button>
         `;
