@@ -518,7 +518,27 @@
         }
     }
 
-    function getActiveClient() {
+    function getActiveClient(preferredWindow) {
+        const normalizedPreferred = String(preferredWindow || "").trim().toUpperCase();
+        if (ALL_WINDOWS.includes(normalizedPreferred)) {
+            return normalizedPreferred;
+        }
+        const modalWindow = elements.jcModalWindowName ? String(elements.jcModalWindowName.value || "").trim().toUpperCase() : "";
+        if (elements.jcModal && elements.jcModal.classList.contains("show") && ALL_WINDOWS.includes(modalWindow)) {
+            return modalWindow;
+        }
+        const activeWindow = getActiveWindowName();
+        if (ALL_WINDOWS.includes(activeWindow)) {
+            return activeWindow;
+        }
+        const filterWindow = getWindowFilterValue();
+        if (ALL_WINDOWS.includes(filterWindow)) {
+            return filterWindow;
+        }
+        const contextClient = String(state.context && state.context.client || "").trim().toUpperCase();
+        if (ALL_WINDOWS.includes(contextClient)) {
+            return contextClient;
+        }
         return DEFAULT_CLIENT;
     }
 
@@ -572,6 +592,10 @@
 
     function normalizeMacValue(value) {
         return String(value || "").replace(/[^a-z0-9]/gi, "").toLowerCase();
+    }
+
+    function getMacMatchKey(value) {
+        return normalizeMacValue(value).slice(0, 11);
     }
 
     function escapeHtml(value) {
@@ -839,7 +863,7 @@
         let activeUsers = 0;
         let onlineUsers = 0;
         partialUsers.forEach((macAddress) => {
-            const userInfo = state.userStatusMap[macAddress];
+            const userInfo = getUserStatusByMac(macAddress);
             if (!userInfo) return;
             if (String(userInfo.service_status || "").trim().toLowerCase() !== "active") return;
             activeUsers += 1;
@@ -863,6 +887,23 @@
         return { level: "red", label, percentage, onlineUsers, activeUsers };
     }
 
+    function getUserStatusByMac(macAddress) {
+        const normalizedMac = getMacMatchKey(macAddress);
+        if (!normalizedMac) return null;
+        if (state.userStatusMap[normalizedMac]) {
+            return state.userStatusMap[normalizedMac];
+        }
+
+        const keys = Object.keys(state.userStatusMap || {});
+        for (const key of keys) {
+            if (!key) continue;
+            if (key.includes(normalizedMac) || normalizedMac.includes(key)) {
+                return state.userStatusMap[key];
+            }
+        }
+        return null;
+    }
+
     function getCoreHealthMeta(coreData) {
         if (normalizePonMode(coreData && coreData.ponMode) === "partial") {
             return getPartialPonStats(coreData);
@@ -880,6 +921,10 @@
     function getJcHealthMeta(boxData) {
         const ponSet = new Set();
         const wires = [...(boxData.inputWires || [])];
+        let fullTotalPon = 0;
+        let fullLivePon = 0;
+        let partialTotalPon = 0;
+        let partialLivePon = 0;
         wires.forEach((wire) => {
             (wire.coreDetails || []).forEach((core) => {
                 const healthKey = getCoreHealthKey(core);
@@ -893,24 +938,89 @@
             const coreData = wires.flatMap((wire) => wire.coreDetails || []).find((core) => getCoreHealthKey(core) === healthKey);
             const stats = getCoreHealthMeta(coreData || {});
             if (!stats || !stats.activeUsers) return;
+            const isPartial = normalizePonMode(coreData && coreData.ponMode) === "partial";
             totalPon += 1;
             if (Number(stats.onlineUsers || 0) > 0) {
                 livePon += 1;
             }
+            if (isPartial) {
+                partialTotalPon += 1;
+                if (Number(stats.onlineUsers || 0) > 0) partialLivePon += 1;
+            } else {
+                fullTotalPon += 1;
+                if (Number(stats.onlineUsers || 0) > 0) fullLivePon += 1;
+            }
         });
 
         if (!totalPon) {
-            return { level: "gray", label: "Pon 0/0", totalPon: 0, livePon: 0 };
+            return {
+                level: "gray",
+                label: "Pon 0/0",
+                totalPon: 0,
+                livePon: 0,
+                fullPon: { level: "gray", totalPon: 0, livePon: 0 },
+                partialPon: { level: "gray", totalPon: 0, livePon: 0 }
+            };
         }
 
         const label = `Pon ${totalPon}/${livePon}`;
+        const getSegmentLevel = (segmentTotal, segmentLive) => {
+            if (!segmentTotal) return "gray";
+            if (segmentLive === segmentTotal) return "green";
+            if (segmentLive === 0) return "red";
+            return "orange";
+        };
         if (livePon === totalPon) {
-            return { level: "green", label, totalPon, livePon };
+            return {
+                level: "green",
+                label,
+                totalPon,
+                livePon,
+                fullPon: { level: getSegmentLevel(fullTotalPon, fullLivePon), totalPon: fullTotalPon, livePon: fullLivePon },
+                partialPon: { level: getSegmentLevel(partialTotalPon, partialLivePon), totalPon: partialTotalPon, livePon: partialLivePon }
+            };
         }
         if (livePon === 0) {
-            return { level: "red", label, totalPon, livePon };
+            return {
+                level: "red",
+                label,
+                totalPon,
+                livePon,
+                fullPon: { level: getSegmentLevel(fullTotalPon, fullLivePon), totalPon: fullTotalPon, livePon: fullLivePon },
+                partialPon: { level: getSegmentLevel(partialTotalPon, partialLivePon), totalPon: partialTotalPon, livePon: partialLivePon }
+            };
         }
-        return { level: "orange", label, totalPon, livePon };
+        return {
+            level: "orange",
+            label,
+            totalPon,
+            livePon,
+            fullPon: { level: getSegmentLevel(fullTotalPon, fullLivePon), totalPon: fullTotalPon, livePon: fullLivePon },
+            partialPon: { level: getSegmentLevel(partialTotalPon, partialLivePon), totalPon: partialTotalPon, livePon: partialLivePon }
+        };
+    }
+
+    function createJcHealthLabelHtml(jcHealthMeta) {
+        const fullPon = jcHealthMeta && jcHealthMeta.fullPon ? jcHealthMeta.fullPon : { level: "gray", totalPon: 0, livePon: 0 };
+        const partialPon = jcHealthMeta && jcHealthMeta.partialPon ? jcHealthMeta.partialPon : { level: "gray", totalPon: 0, livePon: 0 };
+        const segments = [];
+        if (fullPon.totalPon > 0 || partialPon.totalPon === 0) {
+            segments.push(`
+                <span class="jc-health-segment">
+                    <span class="core-led ${fullPon.level}"></span>
+                    <span>FP- ${fullPon.totalPon}/${fullPon.livePon}</span>
+                </span>
+            `);
+        }
+        if (partialPon.totalPon > 0 || fullPon.totalPon === 0) {
+            segments.push(`
+                <span class="jc-health-segment">
+                    <span class="core-led ${partialPon.level}"></span>
+                    <span>PP- ${partialPon.totalPon}/${partialPon.livePon}</span>
+                </span>
+            `);
+        }
+        return segments.join("");
     }
 
     function getJcAlertLevel(boxData) {
@@ -948,7 +1058,7 @@
             const netsense = item && item.netsense ? item.netsense : {};
             const serviceStatus = String(userdb.service_status || "").trim().toLowerCase();
             const ponValue = normalizePonValue(netsense.pon_number);
-            const normalizedMac = normalizeMacValue(userdb.normalized_mac_address || userdb.mac_address || netsense.normalized_mac_address || netsense.mac_address);
+            const normalizedMac = getMacMatchKey(userdb.normalized_mac_address || userdb.mac_address || netsense.normalized_mac_address || netsense.mac_address);
             if (normalizedMac) {
                 userStatusMap[normalizedMac] = {
                     user_id: userdb.user_id || "",
@@ -970,16 +1080,16 @@
             if (!ponUserMap[ponValue]) {
                 ponUserMap[ponValue] = [];
             }
-            ponUserMap[ponValue].push({
-                user_id: userdb.user_id || "",
-                name: userdb.name || "",
-                mobile: userdb.primary_phone || "",
-                address: userdb.address || "",
+                ponUserMap[ponValue].push({
+                    user_id: userdb.user_id || "",
+                    name: userdb.name || "",
+                    mobile: userdb.primary_phone || "",
+                    address: userdb.address || "",
                 power: netsense.rxPower ?? netsense.txPower ?? "",
                 status: netsense.status || "",
                 mac_address: userdb.mac_address || netsense.mac_address || "",
-                normalized_mac_address: normalizedMac
-            });
+                    normalized_mac_address: normalizedMac
+                });
             ponStats[ponValue].activeUsers += 1;
             if (String(netsense.status || "").trim().toUpperCase() === "UP") {
                 ponStats[ponValue].onlineUsers += 1;
@@ -1546,7 +1656,7 @@
                 .split(",")
                 .map((item) => normalizeMacValue(item))
                 .filter(Boolean)
-                .map((macAddress) => state.userStatusMap[macAddress])
+                .map((macAddress) => getUserStatusByMac(macAddress))
                 .filter(Boolean)
                 .map((user) => ({
                     name: user.name || "",
@@ -1983,6 +2093,7 @@
         if (!await validateInlineCoreSelection(card)) {
             return false;
         }
+
         if (normalizePonMode(coreData.ponMode) === "partial") {
             await runPartialPonWorkflow({
                 cuid: "DEMO",
@@ -2406,7 +2517,7 @@
         wrapper.innerHTML = `
             ${hasLocation ? `<a class="jc-badge" href="${mapLink}" target="_blank" rel="noopener noreferrer">${createJcBadgeHtml(boxData)}</a>` : `<div class="jc-badge">${createJcBadgeHtml(boxData)}</div>`}
             <div class="jc-link"></div>
-            <div class="jc-health-label"><span class="core-led ${jcHealthMeta.level}"></span><span>${jcHealthMeta.label}</span></div>
+            <div class="jc-health-label">${createJcHealthLabelHtml(jcHealthMeta)}</div>
             <div class="jc-after-label">${createAfterLabelHtml(previousLabel)}</div>
             <button type="button" class="jc-edit-toggle">Edit JC</button>
         `;
@@ -2492,7 +2603,7 @@
     }
 
     async function createJc(payload) {
-        const response = await requestJson(apiUrlFor(getActiveClient(), "jc/create"), {
+        const response = await requestJson(apiUrlFor(getActiveClient(payload && payload.window), "jc/create"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2509,7 +2620,7 @@
     }
 
     async function updateJc(juid, payload) {
-        await requestJson(apiUrlFor(getActiveClient(), `jc/${juid}`), {
+        await requestJson(apiUrlFor(getActiveClient(payload && payload.window), `jc/${juid}`), {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2525,7 +2636,7 @@
     }
 
     async function createWire(payload) {
-        const response = await requestJson(apiUrlFor(getActiveClient(), "wire/create"), {
+        const response = await requestJson(apiUrlFor(getActiveClient(getActiveWindowName()), "wire/create"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2542,7 +2653,7 @@
     }
 
     async function updateWire(wuid, payload) {
-        await requestJson(apiUrlFor(getActiveClient(), `wire/${wuid}`), {
+        await requestJson(apiUrlFor(getActiveClient(getActiveWindowName()), `wire/${wuid}`), {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2557,19 +2668,20 @@
     }
 
     async function deleteWire(wuid) {
-        await requestJson(apiUrlFor(getActiveClient(), `wire/${wuid}`), {
+        await requestJson(apiUrlFor(getActiveClient(getActiveWindowName()), `wire/${wuid}`), {
             method: "DELETE"
         });
     }
 
     async function deleteJc(juid) {
-        await requestJson(apiUrlFor(getActiveClient(), `jc/${juid}`), {
+        const selectedWindow = state.selectedBox ? String(state.selectedBox.dataset.window || "").trim().toUpperCase() : "";
+        await requestJson(apiUrlFor(getActiveClient(selectedWindow), `jc/${juid}`), {
             method: "DELETE"
         });
     }
 
     async function createCore(payload) {
-        const response = await requestJson(apiUrlFor(getActiveClient(), "core/create"), {
+        const response = await requestJson(apiUrlFor(getActiveClient(getActiveWindowName()), "core/create"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2588,8 +2700,8 @@
         return response.CUID;
     }
 
-    async function updateCore(cuid, payload) {
-        await requestJson(apiUrlFor(getActiveClient(), `core/${cuid}`), {
+    async function updateCore(cuid, payload, preferredWindow) {
+        await requestJson(apiUrlFor(getActiveClient(preferredWindow || getActiveWindowName()), `core/${cuid}`), {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -2606,7 +2718,7 @@
     }
 
     async function deleteCore(cuid) {
-        await requestJson(apiUrlFor(getActiveClient(), `core/${cuid}`), {
+        await requestJson(apiUrlFor(getActiveClient(getActiveWindowName()), `core/${cuid}`), {
             method: "DELETE"
         });
     }
@@ -2773,7 +2885,7 @@
                             pon_mode: "partial",
                             oltpon: oltpon,
                             partialpon: macAddresses.join(",")
-                        });
+                        }, windowName);
                         closeModal();
                         await showNotice("Partial PON", `${macAddresses.length} manual user${macAddresses.length === 1 ? "" : "s"} saved successfully.`);
                         resolve({
@@ -2845,7 +2957,7 @@
                             pon_mode: "partial",
                             oltpon: oltpon,
                             partialpon: ""
-                        });
+                        }, windowName);
                         currentTimestamp = String(changedTimestamp || "").trim();
                         closeModal();
                         await showNotice("Partial PON", "Zero users found. Partial PON saved successfully.");
@@ -2990,7 +3102,7 @@
                 state.ponStats = {};
                 state.userStatusMap = {};
             }
-            let url = apiUrlFor(getActiveClient(), "jctree");
+            let url = apiUrlFor(getActiveClient(state.context && state.context.windowName), "jctree");
             url += `?windows=${encodeURIComponent(getWindowQueryValue(state.context.windowName))}`;
             const response = await requestJson(url);
             const tree = Array.isArray(response.tree) ? response.tree : [];
@@ -3137,6 +3249,7 @@
     async function saveNewCore() {
         const coreData = getCoreModalData();
         if (!validateCoreModalData(coreData)) return false;
+        
         if (normalizePonMode(coreData.ponMode) === "partial") {
             await runPartialPonWorkflow({
                 cuid: coreData.cuid || "DEMO",
