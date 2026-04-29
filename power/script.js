@@ -224,7 +224,9 @@ if (ponMultiList) {
     const cb = item.querySelector("input[type='checkbox']");
     
     if (cb) {
-      cb.checked = !cb.checked;
+      if (e.target !== cb) {
+        cb.checked = !cb.checked;
+      }
       if (cb.checked) {
         selectedPonsSet.add(pon);
       } else {

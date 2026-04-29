@@ -400,7 +400,9 @@ header h1 {
 
 /* Alert Blinking Effect */
 .complaint-card.alertBlink {
-  animation: blinkAlert 2s infinite;
+  opacity: 1;
+  transform: translateY(0);
+  animation: cardAppear 0.4s ease forwards, blinkAlert 2s infinite 0.4s;
 }
 
 @keyframes blinkAlert {
