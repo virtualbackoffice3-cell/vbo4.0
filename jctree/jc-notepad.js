@@ -972,7 +972,7 @@
             };
         }
         return {
-            level: "orange",
+            level: "green",
             label,
             totalPon,
             livePon,
