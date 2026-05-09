@@ -16,7 +16,7 @@ leadForm.addEventListener("submit", (event) => {
   const area = String(data.get("area") || "").trim();
   const mobile = String(data.get("mobile") || "").trim();
 
-  showToast(`Thanks ${name}. Amanwiz Ifotech will contact you for ${area}. For urgent help call 9918675387.`);
+  showToast(`Thanks ${name}. Amanwiz Infotech will contact you for ${area}. For urgent help call 9918675387.`);
   const whatsappText = encodeURIComponent(
     `New internet enquiry\nName: ${name}\nArea: ${area}\nMobile: ${mobile}`
   );
