@@ -80,7 +80,7 @@ let selectedDays = 2; // Default 2 days
 let selectedEvents = 1; // Default 1 event
 
 // Window list
-const WINDOWS = ["SEVAI", "MEDANTA", "INFOTECH"];
+const WINDOWS = ["SEVAI", "MEDANTA", "AMANWIZ"];
 
 // ---------------- Toast + Spinner ----------------
 function showToast(msg) {
