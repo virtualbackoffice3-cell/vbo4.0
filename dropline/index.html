@@ -1,1 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Line Down Users</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="app-shell">
+    <section class="topbar">
+      <div class="topbar-title">
+        <h1>Line Down Users</h1>
+      </div>
 
+      <div class="topbar-meta">
+        <div class="mini-stat">
+          <span class="label">Down Users</span>
+          <strong id="dropCount">0</strong>
+        </div>
+        <div class="mini-stat">
+          <span class="label">Last Updated</span>
+          <strong id="lastUpdated">-</strong>
+        </div>
+      </div>
+
+      <div class="controls" id="windowForm">
+        <div class="field">
+          <span>Window</span>
+          <div class="filter-menu" id="windowInput" data-filter="window" data-empty-label="No window" data-all-label="All windows">
+            <button class="filter-trigger" type="button">
+              <span class="filter-value">AMANWIZ</span>
+              <span class="filter-caret"></span>
+            </button>
+            <div class="filter-panel">
+              <div class="filter-tools">
+                <input class="filter-search" type="search" placeholder="Search window">
+                <div class="filter-actions">
+                  <button type="button" data-action="all">All</button>
+                  <button type="button" data-action="clear">Clear</button>
+                  <button type="button" data-action="apply">Apply</button>
+                </div>
+              </div>
+              <div class="filter-options">
+                <label><input type="checkbox" value="AMANWIZ"><span class="option-text">AMANWIZ</span></label>
+                <label><input type="checkbox" value="MEDANTA"><span class="option-text">MEDANTA</span></label>
+                <label><input type="checkbox" value="SEVAI"><span class="option-text">SEVAI</span></label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="toolbar">
+      <div class="search-box">
+        <span>Search</span>
+        <input id="searchInput" type="search" placeholder="Name, phone, address...">
+      </div>
+
+      <div class="search-box">
+        <span>PON</span>
+        <div class="filter-menu" id="ponFilter" data-filter="pon" data-empty-label="All PON" data-all-label="All PON">
+          <button class="filter-trigger" type="button">
+            <span class="filter-value">All PON</span>
+            <span class="filter-caret"></span>
+          </button>
+          <div class="filter-panel">
+            <div class="filter-tools">
+              <input class="filter-search" type="search" placeholder="Search PON">
+              <div class="filter-actions">
+                <button type="button" data-action="all">All</button>
+                <button type="button" data-action="clear">Clear</button>
+                <button type="button" data-action="apply">Apply</button>
+              </div>
+            </div>
+            <div class="filter-options">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="search-box">
+        <span>Event</span>
+        <div class="filter-menu" id="eventFilter" data-filter="event" data-empty-label="All events" data-all-label="All events">
+          <button class="filter-trigger" type="button">
+            <span class="filter-value">All events</span>
+            <span class="filter-caret"></span>
+          </button>
+          <div class="filter-panel">
+            <div class="filter-tools">
+              <input class="filter-search" type="search" placeholder="Search event">
+              <div class="filter-actions">
+                <button type="button" data-action="all">All</button>
+                <button type="button" data-action="clear">Clear</button>
+                <button type="button" data-action="apply">Apply</button>
+              </div>
+            </div>
+            <div class="filter-options">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="toolbar-actions">
+        <button id="screenshotButton" class="icon-button" type="button" title="Screenshot PNG" aria-label="Screenshot PNG">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 7h3l1.5-2h7L17 7h3a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"></path>
+            <circle cx="12" cy="13" r="4"></circle>
+          </svg>
+        </button>
+        <button id="csvButton" class="icon-button" type="button" title="Download CSV" aria-label="Download CSV">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v11"></path>
+            <path d="m7 11 5 5 5-5"></path>
+            <path d="M5 21h14"></path>
+          </svg>
+        </button>
+      </div>
+    </section>
+
+    <p class="message" id="message">Loading AMANWIZ users...</p>
+
+    <section class="table-wrap">
+      <table>
+        <thead id="tableHead"></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script src="javascript.js"></script>
+</body>
+</html>
