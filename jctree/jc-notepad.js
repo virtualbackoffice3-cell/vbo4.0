@@ -1375,6 +1375,7 @@
     function renderRouteHistoryBadges() {
         const pending = state.routeHistory.rows.filter((row) => !routeHistoryIsDone(row)).length;
         const history = state.routeHistory.rows.filter(routeHistoryIsDone).length;
+        updateRouteHistoryPendingBadge(pending);
         if (elements.routeHistorySummary) {
             elements.routeHistorySummary.textContent = `${pending} pending routes, ${history} routes in history`;
         }
@@ -1389,6 +1390,28 @@
             const countEl = tab.querySelector(".route-tab-count");
             if (countEl) countEl.textContent = count;
         });
+    }
+
+    function updateRouteHistoryPendingBadge(count) {
+        if (!elements.routeHistoryPendingBadge) return;
+        const value = Math.max(0, Number(count) || 0);
+        elements.routeHistoryPendingBadge.textContent = value;
+        elements.routeHistoryPendingBadge.hidden = value === 0;
+    }
+
+    async function refreshRouteHistoryPendingBadge(windowName) {
+        if (!elements.routeHistoryPendingBadge) return;
+        const activeWindow = String(windowName || getActiveWindowName() || state.routeHistory.window || DEFAULT_CLIENT).trim().toUpperCase();
+        if (!ALL_WINDOWS.includes(activeWindow)) return;
+        try {
+            const response = await fetch(routeHistoryEndpoint(activeWindow), { cache: "no-store" });
+            if (!response.ok) throw new Error(`Fetch failed (${response.status})`);
+            const data = await response.json();
+            const rows = Array.isArray(data.items) ? data.items : [];
+            updateRouteHistoryPendingBadge(rows.filter((row) => !routeHistoryIsDone(row)).length);
+        } catch (error) {
+            updateRouteHistoryPendingBadge(0);
+        }
     }
 
     function renderRouteHistory() {
@@ -3949,6 +3972,7 @@
         if (elements.routeHistoryWindow) {
             elements.routeHistoryWindow.value = normalizedWindow;
         }
+        refreshRouteHistoryPendingBadge(normalizedWindow);
         closeWindowPicker(true);
         await open({
             client: normalizedWindow,
@@ -4251,12 +4275,14 @@
         elements.routeHistoryMessage = document.getElementById("routeHistoryMessage");
         elements.routeHistoryRecords = document.getElementById("routeHistoryRecords");
         elements.routeHistoryTabs = Array.from(document.querySelectorAll("[data-route-tab]"));
+        elements.routeHistoryPendingBadge = document.getElementById("routeHistoryPendingBadge");
         if (!elements.mount) return;
         createShell();
         bindEvents();
         syncLiveCoreLimit();
         requestCurrentLocation();
         openWindowPicker();
+        refreshRouteHistoryPendingBadge(state.routeHistory.window);
     }
 
     async function open(context) {
