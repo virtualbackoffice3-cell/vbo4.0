@@ -6,10 +6,11 @@ const tableConfig = {
     columns: [
       ["serial_no", "#"],
       ["source_window", "Window"],
+      ["user_id", "User ID"],
       ["name", "Name"],
       ["phone_pon", "Phone / PON"],
       ["event_type", "Event / Type"],
-      ["down_time", "Down Time"],
+      ["down_time", "Last down time"],
       ["address", "Address"]
     ]
   }
@@ -364,6 +365,7 @@ function exportTableScreenshot() {
   const columnWidths = {
     serial_no: 42,
     source_window: 98,
+    user_id: 145,
     name: 180,
     phone_pon: 165,
     event_type: 170,
@@ -406,7 +408,7 @@ function exportTableScreenshot() {
 
   context.fillStyle = "#17202a";
   context.font = "700 22px Arial";
-  context.fillText("Line Down Users", padding, padding + 24);
+  context.fillText("User line down reasons", padding, padding + 24);
   context.font = "12px Arial";
   context.fillStyle = "#647181";
   context.fillText(`${rows.length} users`, padding, padding + 42);
@@ -663,7 +665,7 @@ function renderTable() {
 
   const downTimeHeader = tableHead.querySelector('th[data-sort-key="down_time"]');
   if (downTimeHeader) {
-    downTimeHeader.innerHTML = `<button type="button" class="sort-button" data-sort-key="down_time">Down Time${state.downTimeSortDirection ? ` <span class="sort-arrow">${state.downTimeSortDirection === "asc" ? "&#9652;" : "&#9662;"}</span>` : ""}</button>`;
+    downTimeHeader.innerHTML = `<button type="button" class="sort-button" data-sort-key="down_time">Last down time${state.downTimeSortDirection ? ` <span class="sort-arrow">${state.downTimeSortDirection === "asc" ? "&#9652;" : "&#9662;"}</span>` : ""}</button>`;
   }
 
   tableBody.innerHTML = rows

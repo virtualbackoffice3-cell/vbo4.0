@@ -452,6 +452,10 @@ tr:hover td {
   width: 10%;
 }
 
+.cell-user_id {
+  width: 12%;
+}
+
 .cell-phone_pon {
   width: 14%;
 }
