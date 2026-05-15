@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Task Desk - Employee</title>
+    <link rel="stylesheet" href="task.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="topbar">
+        <div class="title">
+          <h1>Task Desk</h1>
+          <p>Open task allocation</p>
+        </div>
+        <div class="controls">
+          <div class="field">
+            <label for="clientSelect">Window</label>
+            <select id="clientSelect"></select>
+          </div>
+          <div class="field">
+            <label for="reasonSelect">Reason</label>
+            <select id="reasonSelect"></select>
+          </div>
+          <button class="button" id="refreshButton" type="button">Refresh</button>
+        </div>
+      </section>
+
+      <section class="tabbar">
+        <button class="tab active" data-view="tasks" type="button">Tasks</button>
+        <button class="tab" data-view="performance" type="button">Performance</button>
+      </section>
+
+      <section class="panel" id="tasksPanel">
+        <div class="panel-head">
+          <strong id="panelTitle">Complaints</strong>
+          <span class="status" id="statusText"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="small">Sn</th>
+                <th>User ID</th>
+                <th>Name</th>
+                <th>Mobile No</th>
+                <th>Address</th>
+                <th>Pon No</th>
+                <th>Reason</th>
+                <th class="date-col">Created At</th>
+                <th>Task</th>
+                <th>Team</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="taskBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel hidden" id="performancePanel">
+        <div class="panel-head">
+          <strong id="performanceTitle">Completed Tasks (0)</strong>
+          <div class="controls compact-controls">
+            <div class="field">
+              <label for="perfFrom">From</label>
+              <input id="perfFrom" type="date">
+            </div>
+            <div class="field">
+              <label for="perfTo">To</label>
+              <input id="perfTo" type="date">
+            </div>
+          </div>
+        </div>
+        <div class="summary-strip" id="performanceSummary"></div>
+        <div class="table-wrap performance-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="small">Sn</th>
+                <th>Window</th>
+                <th>User ID</th>
+                <th>Name</th>
+                <th>Reason</th>
+                <th>Team</th>
+                <th>Picked At</th>
+                <th>Closed At</th>
+                <th>Time Taken</th>
+              </tr>
+            </thead>
+            <tbody id="performanceBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <div class="modal-backdrop" id="nameModal">
+      <div class="modal">
+        <h2>Employee Name</h2>
+        <div class="field">
+          <label for="employeeNameInput">Name</label>
+          <input id="employeeNameInput" autocomplete="name" placeholder="Enter your name">
+        </div>
+        <div class="modal-actions">
+          <button class="button" id="saveNameButton" type="button">Continue</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="unpickModal">
+      <div class="modal">
+        <h2>Unpick Remark</h2>
+        <div class="field">
+          <label for="unpickRemark">Reason</label>
+          <textarea id="unpickRemark" placeholder="Why is this task being unpicked?"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button class="button secondary" id="cancelUnpick" type="button">Cancel</button>
+          <button class="button" id="confirmUnpick" type="button">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="addressModal">
+      <div class="modal">
+        <h2>Address</h2>
+        <p class="modal-text" id="addressText"></p>
+        <div class="modal-actions">
+          <button class="button" id="closeAddress" type="button">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="employee.js"></script>
+  </body>
+</html>
