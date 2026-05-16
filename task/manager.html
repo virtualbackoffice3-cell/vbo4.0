@@ -29,6 +29,7 @@
       <section class="tabbar">
         <button class="tab active" data-view="tasks" type="button">Tasks</button>
         <button class="tab" data-view="performance" type="button">Performance</button>
+        <button class="tab" data-view="unallocated" type="button">Unallocated Closed</button>
         <button class="tab" data-view="team" type="button">Team</button>
       </section>
 
@@ -91,6 +92,32 @@
               </tr>
             </thead>
             <tbody id="performanceBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel hidden" id="unallocatedPanel">
+        <div class="panel-head">
+          <strong id="unallocatedTitle">Unallocated Closed (0)</strong>
+          <span class="status" id="unallocatedStatus"></span>
+        </div>
+        <div class="table-wrap performance-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="small">Sn</th>
+                <th>Window</th>
+                <th>User ID</th>
+                <th>Name</th>
+                <th>Reason</th>
+                <th>Created At</th>
+                <th>Closed At</th>
+                <th>Picked At</th>
+                <th>Team</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="unallocatedBody"></tbody>
           </table>
         </div>
       </section>

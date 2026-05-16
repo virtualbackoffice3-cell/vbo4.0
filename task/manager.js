@@ -14,10 +14,13 @@ let TEAM_MEMBERS = [
 const state = {
   client: DEFAULT_CLIENT,
   managerName: "",
+  view: "tasks",
   rows: [],
   allLogs: {},
   performanceLoaded: false,
   performanceRows: [],
+  unallocatedLoaded: false,
+  unallocatedRows: [],
   teamMembers: [],
   editingTeamId: null
 };
@@ -39,6 +42,7 @@ const els = {
 };
 els.tasksPanel = document.getElementById("tasksPanel");
 els.performancePanel = document.getElementById("performancePanel");
+els.unallocatedPanel = document.getElementById("unallocatedPanel");
 els.teamPanel = document.getElementById("teamPanel");
 els.viewTabs = Array.from(document.querySelectorAll(".tabbar .tab"));
 els.perfEmployee = document.getElementById("perfEmployee");
@@ -47,6 +51,9 @@ els.perfTo = document.getElementById("perfTo");
 els.performanceTitle = document.getElementById("performanceTitle");
 els.performanceSummary = document.getElementById("performanceSummary");
 els.performanceBody = document.getElementById("performanceBody");
+els.unallocatedTitle = document.getElementById("unallocatedTitle");
+els.unallocatedStatus = document.getElementById("unallocatedStatus");
+els.unallocatedBody = document.getElementById("unallocatedBody");
 els.teamTitle = document.getElementById("teamTitle");
 els.teamStatus = document.getElementById("teamStatus");
 els.teamNameInput = document.getElementById("teamNameInput");
@@ -194,6 +201,26 @@ function dateOnlyValue(value) {
     return "";
   }
   return `${parsed.year}-${String(parsed.month).padStart(2, "0")}-${String(parsed.day).padStart(2, "0")}`;
+}
+
+function toDateTimeLocal(value) {
+  const parsed = parseDbDate(value);
+  if (!parsed) {
+    return "";
+  }
+  return [
+    parsed.year,
+    String(parsed.month).padStart(2, "0"),
+    String(parsed.day).padStart(2, "0")
+  ].join("-") + `T${String(parsed.hour).padStart(2, "0")}:${String(parsed.minute).padStart(2, "0")}`;
+}
+
+function fromDateTimeLocal(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return nowLucknow();
+  }
+  return text.replace("T", " ") + ":00";
 }
 
 function setupDefaultPerformanceDates() {
@@ -541,6 +568,70 @@ function renderPerformance() {
   setupTableScrollBars();
 }
 
+function getUnallocatedRows() {
+  const rows = [];
+  for (const client of CLIENTS) {
+    for (const row of state.allLogs[client] || []) {
+      const action = cleanText(row.action).toLowerCase();
+      const task = cleanText(row.task).toLowerCase();
+      const takenby = cleanText(row.takenby);
+      const actiontime = cleanText(row.actiontime);
+      if (action !== "closed") {
+        continue;
+      }
+      if (task !== "pick" || !takenby || !actiontime) {
+        rows.push({ ...row, client });
+      }
+    }
+  }
+  return rows.sort((a, b) => dateSortValue(b.log_timestamp) - dateSortValue(a.log_timestamp));
+}
+
+function renderUnallocated() {
+  const rows = getUnallocatedRows();
+  state.unallocatedRows = rows;
+  els.unallocatedTitle.textContent = `Unallocated Closed (${rows.length})`;
+  els.unallocatedStatus.textContent = "";
+  if (!rows.length) {
+    els.unallocatedBody.innerHTML = `<tr><td colspan="10" class="cell-muted">No unallocated closed tasks found</td></tr>`;
+    setupTableScrollBars();
+    return;
+  }
+
+  els.unallocatedBody.innerHTML = "";
+  rows.forEach((row, index) => {
+    const tr = document.createElement("tr");
+    const teamPicker = makeTeamPicker(row);
+    const pickedInput = document.createElement("input");
+    pickedInput.type = "datetime-local";
+    pickedInput.value = toDateTimeLocal(row.actiontime || row.created_at || row.log_timestamp);
+
+    const saveButton = document.createElement("button");
+    saveButton.className = "button";
+    saveButton.type = "button";
+    saveButton.textContent = "OK";
+    saveButton.addEventListener("click", () => saveUnallocatedRow(row, pickedInput, teamPicker));
+
+    tr.innerHTML = `
+      <td class="small">${index + 1}</td>
+      <td>${row.client}</td>
+      <td>${valueOf(row, "user_id")}</td>
+      <td>${valueOf(row, "name")}</td>
+      <td class="reason">${valueOf(row, "reason")}</td>
+      <td class="date-col">${formatCreatedAt(valueOf(row, "created_at"))}</td>
+      <td class="date-col">${formatCreatedAt(valueOf(row, "log_timestamp"))}</td>
+      <td></td>
+      <td></td>
+      <td></td>
+    `;
+    tr.children[7].appendChild(pickedInput);
+    tr.children[8].appendChild(teamPicker);
+    tr.children[9].appendChild(saveButton);
+    els.unallocatedBody.appendChild(tr);
+  });
+  setupTableScrollBars();
+}
+
 function showPerformanceDetails(index) {
   const row = state.performanceRows[index];
   if (!row) {
@@ -703,15 +794,44 @@ async function loadPerformance() {
   }
 }
 
+async function loadUnallocated() {
+  els.unallocatedTitle.textContent = "Unallocated Closed";
+  els.unallocatedStatus.textContent = "Loading...";
+  els.unallocatedBody.innerHTML = `<tr><td colspan="10" class="cell-muted">Loading...</td></tr>`;
+  try {
+    const results = await Promise.all(CLIENTS.map(async (client) => {
+      const response = await fetch(`${API_BASE}/${client}/tasks`, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`${client} HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      return [client, data.tables?.complaint_logs?.rows || []];
+    }));
+    state.allLogs = Object.fromEntries(results);
+    state.unallocatedLoaded = true;
+    renderUnallocated();
+  } catch (error) {
+    els.unallocatedStatus.textContent = "Load failed";
+    els.unallocatedBody.innerHTML = `<tr><td colspan="10" class="cell-muted">Unallocated load failed</td></tr>`;
+    toast(`Unallocated load failed: ${error.message}`);
+  }
+}
+
 function switchView(view) {
+  state.view = view;
   const showPerformance = view === "performance";
+  const showUnallocated = view === "unallocated";
   const showTeam = view === "team";
-  els.tasksPanel.classList.toggle("hidden", showPerformance || showTeam);
+  els.tasksPanel.classList.toggle("hidden", showPerformance || showUnallocated || showTeam);
   els.performancePanel.classList.toggle("hidden", !showPerformance);
+  els.unallocatedPanel.classList.toggle("hidden", !showUnallocated);
   els.teamPanel.classList.toggle("hidden", !showTeam);
   els.viewTabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.view === view));
   if (showPerformance && !state.performanceLoaded) {
     loadPerformance();
+  }
+  if (showUnallocated && !state.unallocatedLoaded) {
+    loadUnallocated();
   }
   if (showTeam) {
     loadTeamConfig();
@@ -745,6 +865,38 @@ async function saveRow(row, taskSelect, teamPicker) {
   }
 }
 
+async function saveUnallocatedRow(row, pickedInput, teamPicker) {
+  const team = teamPicker.getValues();
+  if (!team.length) {
+    toast("Select minimum 1 team member");
+    return;
+  }
+  const payload = {
+    task: "Pick",
+    actiontime: fromDateTimeLocal(pickedInput.value),
+    unpickremark: row.unpickremark || "",
+    usermail: state.managerName,
+    takenby: team.join(",")
+  };
+
+  try {
+    const response = await fetch(`${API_BASE}/${row.client}/tasks/complaint_logs/${row.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.detail || `HTTP ${response.status}`);
+    }
+    toast("Allocation updated !!");
+    state.performanceLoaded = false;
+    await loadUnallocated();
+  } catch (error) {
+    toast(`Update failed: ${error.message}`);
+  }
+}
+
 els.saveNameButton.addEventListener("click", saveManagerName);
 els.managerNameInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
@@ -758,7 +910,23 @@ els.clientSelect.addEventListener("change", () => {
 });
 
 els.reasonSelect.addEventListener("change", render);
-els.refreshButton.addEventListener("click", loadTasks);
+els.refreshButton.addEventListener("click", () => {
+  if (state.view === "performance") {
+    state.performanceLoaded = false;
+    loadPerformance();
+    return;
+  }
+  if (state.view === "unallocated") {
+    state.unallocatedLoaded = false;
+    loadUnallocated();
+    return;
+  }
+  if (state.view === "team") {
+    loadTeamConfig();
+    return;
+  }
+  loadTasks();
+});
 els.perfEmployee.addEventListener("change", renderPerformance);
 els.perfFrom.addEventListener("change", renderPerformance);
 els.perfTo.addEventListener("change", renderPerformance);
