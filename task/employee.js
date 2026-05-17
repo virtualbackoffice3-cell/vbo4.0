@@ -1,4 +1,4 @@
-const CLIENTS = ["AMANWIZ", "MEDANTA", "SEVAI"];
+﻿const CLIENTS = ["AMANWIZ", "MEDANTA", "SEVAI"];
 const DEFAULT_CLIENT = "MEDANTA";
 const API_BASE = window.TASK_API_BASE || "https://app2.vbo.co.in";
 let EMPLOYEE_WINDOW_MAP = {
@@ -170,6 +170,10 @@ function nowLucknow() {
   return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
 }
 
+function stripRemarkTimestamp(value) {
+  return String(value || "").replace(/\s*\(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\)\s*$/, "");
+}
+
 function valueOf(row, ...keys) {
   for (const key of keys) {
     if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== "") {
@@ -262,6 +266,91 @@ function minutesBetween(startValue, endValue) {
   return Math.round((end - start) / 60000);
 }
 
+function workingMinutesBetween(startValue, endValue) {
+  const startMs = dateSortValue(startValue);
+  const endMs = endValue instanceof Date ? endValue.getTime() : dateSortValue(endValue);
+  if (!startMs || !endMs || endMs <= startMs) {
+    return 0;
+  }
+  let total = 0;
+  const current = new Date(startMs);
+  current.setHours(0, 0, 0, 0);
+  const end = new Date(endMs);
+  while (current.getTime() <= endMs) {
+    const dayStart = new Date(current);
+    dayStart.setHours(9, 0, 0, 0);
+    const dayEnd = new Date(current);
+    dayEnd.setHours(21, 0, 0, 0);
+    const from = Math.max(startMs, dayStart.getTime());
+    const to = Math.min(endMs, dayEnd.getTime());
+    if (to > from) {
+      total += Math.round((to - from) / 60000);
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  return total;
+}
+
+function breachLimitMinutes(reason) {
+  const text = cleanText(reason).toLowerCase();
+  if (text.includes("no connectivity")) {
+    return 240;
+  }
+  if (text.includes("speed issue")) {
+    return 720;
+  }
+  return 0;
+}
+
+function breachInfo(row, endValue = new Date()) {
+  const limit = breachLimitMinutes(row.reason);
+  if (!limit) {
+    return { applies: false, breached: false, remaining: 0 };
+  }
+  const used = workingMinutesBetween(row.created_at, endValue);
+  return { applies: true, breached: used > limit, remaining: limit - used };
+}
+
+function makeBreachTimer(row) {
+  const info = breachInfo(row);
+  const span = document.createElement("span");
+  if (!info.applies) {
+    span.className = "cell-muted";
+    span.textContent = "-";
+    return span;
+  }
+  span.className = `breach-timer ${info.breached ? "breached" : "safe"}`;
+  span.dataset.createdAt = row.created_at || "";
+  span.dataset.reason = row.reason || "";
+  updateBreachTimerNode(span);
+  return span;
+}
+
+function updateBreachTimerNode(node) {
+  const info = breachInfo({
+    created_at: node.dataset.createdAt,
+    reason: node.dataset.reason
+  });
+  node.classList.toggle("breached", info.breached);
+  node.classList.toggle("safe", !info.breached);
+  node.textContent = info.breached
+    ? "\u23f1 Breached"
+    : `\u23f1 ${formatMinutes(info.remaining)}`;
+}
+
+function updateBreachTimers() {
+  document.querySelectorAll(".breach-timer").forEach(updateBreachTimerNode);
+}
+
+function slaStatus(row, endValue) {
+  const info = breachInfo(row, endValue);
+  if (!info.applies) {
+    return "-";
+  }
+  const used = workingMinutesBetween(row.created_at, endValue);
+  return `${info.breached ? "Breached" : "Within SLA"} (${formatMinutes(used)})`;
+}
+
 function reasonPriority(reason) {
   const text = cleanText(reason).toLowerCase();
   if (text.includes("no connectivity")) {
@@ -295,6 +384,7 @@ function setupClients() {
 }
 
 function requireEmployeeName() {
+  setupEmployeeNameOptions();
   const saved = String(localStorage.getItem("taskEmployeeName") || "").trim();
   if (saved) {
     const matchedName = TEAM_MEMBERS.find((member) => member.toLowerCase() === saved.toLowerCase());
@@ -302,7 +392,6 @@ function requireEmployeeName() {
       localStorage.removeItem("taskEmployeeName");
       toast("Contact manger to join team");
       els.nameModal.classList.add("open");
-      els.employeeNameInput.focus();
       return;
     }
     state.employeeName = matchedName;
@@ -312,7 +401,6 @@ function requireEmployeeName() {
     return;
   }
   els.nameModal.classList.add("open");
-  els.employeeNameInput.focus();
 }
 
 function saveEmployeeName() {
@@ -331,6 +419,16 @@ function saveEmployeeName() {
   els.nameModal.classList.remove("open");
   setupClients();
   loadTasks();
+}
+
+function setupEmployeeNameOptions() {
+  els.employeeNameInput.innerHTML = [
+    `<option value="">Select employee</option>`,
+    ...TEAM_MEMBERS.map((name) => `<option value="${name}">${name}</option>`)
+  ].join("");
+  const saved = String(localStorage.getItem("taskEmployeeName") || "").trim();
+  const matchedName = TEAM_MEMBERS.find((member) => member.toLowerCase() === saved.toLowerCase());
+  els.employeeNameInput.value = matchedName || "";
 }
 
 function splitNames(value) {
@@ -425,6 +523,28 @@ function renderTeamText(row) {
   return names.length ? names.join(", ") : "";
 }
 
+function makeRemarkControl(row, canEdit) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "remark-box";
+  const input = document.createElement("textarea");
+  input.placeholder = "Remark";
+  input.value = stripRemarkTimestamp(row.userremark);
+  input.disabled = !canEdit;
+  const meta = document.createElement("span");
+  meta.className = "remark-meta";
+  meta.textContent = row.userremark || "";
+  const button = document.createElement("button");
+  button.className = "button secondary";
+  button.type = "button";
+  button.textContent = "Save";
+  button.disabled = !canEdit;
+  button.addEventListener("click", () => saveRemark(row, input));
+  wrapper.appendChild(input);
+  wrapper.appendChild(meta);
+  wrapper.appendChild(button);
+  return wrapper;
+}
+
 function setupReasonFilter() {
   const selected = els.reasonSelect.value || "All";
   const reasons = Array.from(new Set((state.allRows[state.client] || [])
@@ -463,7 +583,7 @@ function render() {
   els.statusText.textContent = "";
   els.taskBody.innerHTML = "";
   if (!rows.length) {
-    els.taskBody.innerHTML = `<tr><td colspan="11" class="cell-muted">No tasks found</td></tr>`;
+    els.taskBody.innerHTML = `<tr><td colspan="13" class="cell-muted">No tasks found</td></tr>`;
     setupTableScrollBars();
     return;
   }
@@ -485,6 +605,8 @@ function render() {
     saveButton.addEventListener("click", () => {
       toast(running ? "Complete your running task first !" : "Task is not editable");
     });
+    const remarkControl = makeRemarkControl(row, isPick(row) && isMine(row));
+    const timerControl = makeBreachTimer(row);
 
     if (canEdit && isRunningRow) {
       taskControl = makeTaskSelect("Unpick", ["Unpick"]);
@@ -515,6 +637,8 @@ function render() {
       <td></td>
       <td></td>
       <td></td>
+      <td></td>
+      <td></td>
     `;
     const address = valueOf(row, "address");
     if (address) {
@@ -527,10 +651,26 @@ function render() {
     }
     tr.children[8].appendChild(taskControl);
     tr.children[9].appendChild(teamControl);
-    tr.children[10].appendChild(saveButton);
+    tr.children[10].appendChild(timerControl);
+    tr.children[11].appendChild(saveButton);
+    tr.children[12].appendChild(remarkControl);
     els.taskBody.appendChild(tr);
   });
   setupTableScrollBars();
+}
+
+async function saveRemark(row, input) {
+  const remark = input.value.trim();
+  const payload = {
+    userremark: remark ? `${remark} (${nowLucknow()})` : ""
+  };
+  try {
+    await updateComplaint(row, payload);
+    toast("Remark saved");
+    await loadTasks();
+  } catch (error) {
+    toast(`Remark update failed: ${error.message}`);
+  }
 }
 
 function getCompletedRows() {
@@ -562,21 +702,24 @@ function getCompletedRows() {
 
 function renderPerformance() {
   const rows = getCompletedRows();
-  const totalMinutes = rows.reduce((sum, row) => sum + minutesBetween(row.actiontime, row.log_timestamp), 0);
+  const totalMinutes = rows.reduce((sum, row) => sum + minutesBetween(row.created_at, row.log_timestamp), 0);
   const avgMinutes = rows.length ? Math.round(totalMinutes / rows.length) : 0;
+  const breachedCount = rows.filter((row) => breachInfo(row, row.log_timestamp).breached).length;
   els.performanceTitle.textContent = `Completed Tasks (${rows.length})`;
   els.performanceSummary.innerHTML = `
     <span>Total: <strong>${rows.length}</strong></span>
     <span>Avg: <strong>${formatMinutes(avgMinutes)}</strong></span>
     <span>Total Time: <strong>${formatMinutes(totalMinutes)}</strong></span>
+    <span>Breached: <strong>${breachedCount}</strong></span>
   `;
   if (!rows.length) {
-    els.performanceBody.innerHTML = `<tr><td colspan="9" class="cell-muted">No completed tasks found</td></tr>`;
+    els.performanceBody.innerHTML = `<tr><td colspan="10" class="cell-muted">No completed tasks found</td></tr>`;
     setupTableScrollBars();
     return;
   }
   els.performanceBody.innerHTML = rows.map((row, index) => {
-    const takenMinutes = minutesBetween(row.actiontime, row.log_timestamp);
+    const takenMinutes = minutesBetween(row.created_at, row.log_timestamp);
+    const breached = breachInfo(row, row.log_timestamp).breached;
     return `
       <tr>
         <td class="small">${index + 1}</td>
@@ -588,6 +731,7 @@ function renderPerformance() {
         <td>${formatCreatedAt(valueOf(row, "actiontime"))}</td>
         <td>${formatCreatedAt(valueOf(row, "log_timestamp"))}</td>
         <td>${formatMinutes(takenMinutes)}</td>
+        <td>${slaStatus(row, row.log_timestamp)}</td>
       </tr>
     `;
   }).join("");
@@ -619,7 +763,7 @@ async function loadTasks() {
 async function loadPerformance() {
   els.performanceTitle.textContent = "Completed Tasks";
   els.performanceSummary.innerHTML = "";
-  els.performanceBody.innerHTML = `<tr><td colspan="9" class="cell-muted">Loading...</td></tr>`;
+  els.performanceBody.innerHTML = `<tr><td colspan="10" class="cell-muted">Loading...</td></tr>`;
   try {
     const results = await Promise.all(CLIENTS.map(async (client) => {
       const response = await fetch(`${API_BASE}/${client}/tasks`, { cache: "no-store" });
@@ -633,7 +777,7 @@ async function loadPerformance() {
     state.performanceLoaded = true;
     renderPerformance();
   } catch (error) {
-    els.performanceBody.innerHTML = `<tr><td colspan="9" class="cell-muted">Performance load failed</td></tr>`;
+    els.performanceBody.innerHTML = `<tr><td colspan="10" class="cell-muted">Performance load failed</td></tr>`;
     toast(`Performance load failed: ${error.message}`);
   }
 }
@@ -766,4 +910,6 @@ document.addEventListener("click", (event) => {
 
 setupDefaultPerformanceDates();
 setupTableScrollBars();
+window.setInterval(updateBreachTimers, 60000);
 loadTeamConfig().finally(requireEmployeeName);
+

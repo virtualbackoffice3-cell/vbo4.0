@@ -50,7 +50,9 @@
                 <th class="date-col">Created At</th>
                 <th>Task</th>
                 <th>Team</th>
+                <th>SLA</th>
                 <th>Action</th>
+                <th>Remark</th>
               </tr>
             </thead>
             <tbody id="taskBody"></tbody>
@@ -86,6 +88,7 @@
                 <th>Picked At</th>
                 <th>Closed At</th>
                 <th>Time Taken</th>
+                <th>SLA</th>
               </tr>
             </thead>
             <tbody id="performanceBody"></tbody>
@@ -99,7 +102,7 @@
         <h2>Employee Name</h2>
         <div class="field">
           <label for="employeeNameInput">Name</label>
-          <input id="employeeNameInput" autocomplete="name" placeholder="Enter your name">
+          <select id="employeeNameInput"></select>
         </div>
         <div class="modal-actions">
           <button class="button" id="saveNameButton" type="button">Continue</button>

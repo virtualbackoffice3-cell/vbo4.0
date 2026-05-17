@@ -13,12 +13,13 @@ let TEAM_MEMBERS = [
 
 const state = {
   client: DEFAULT_CLIENT,
-  managerName: "",
+  managerName: "Admin",
   view: "tasks",
   rows: [],
   allLogs: {},
   performanceLoaded: false,
   performanceRows: [],
+  performanceDetailRows: [],
   unallocatedLoaded: false,
   unallocatedRows: [],
   teamMembers: [],
@@ -530,15 +531,9 @@ function setupClients() {
 }
 
 function requireManagerName() {
-  const saved = String(localStorage.getItem("taskManagerName") || "").trim();
-  if (saved) {
-    state.managerName = saved;
-    setupClients();
-    loadTasks();
-    return;
-  }
-  els.nameModal.classList.add("open");
-  els.managerNameInput.focus();
+  state.managerName = "Admin";
+  setupClients();
+  loadTasks();
 }
 
 function saveManagerName() {
@@ -784,7 +779,7 @@ function render() {
   els.taskBody.innerHTML = "";
 
   if (!rows.length) {
-    els.taskBody.innerHTML = `<tr><td colspan="14" class="cell-muted">No rows found</td></tr>`;
+    els.taskBody.innerHTML = `<tr><td colspan="15" class="cell-muted">No rows found</td></tr>`;
     setupTableScrollBars();
     return;
   }
@@ -796,11 +791,14 @@ function render() {
     const teamPicker = makeTeamPicker(row);
     const remarkControl = makeRemarkControl(row);
     const slaControl = makeSlaControl(row);
+    const createdInput = document.createElement("input");
+    createdInput.type = "datetime-local";
+    createdInput.value = toDateTimeLocal(row.created_at);
     const saveButton = document.createElement("button");
     saveButton.className = "button";
     saveButton.type = "button";
     saveButton.textContent = "OK";
-    saveButton.addEventListener("click", () => saveRow(row, taskSelect, teamPicker));
+    saveButton.addEventListener("click", () => saveRow(row, taskSelect, teamPicker, createdInput));
 
     tr.innerHTML = `
       <td class="small">${index + 1}</td>
@@ -812,6 +810,8 @@ function render() {
       <td>${valueOf(row, "pon")}</td>
       <td class="reason">${valueOf(row, "reason")}</td>
       <td class="date-col">${formatCreatedAt(valueOf(row, "created_at"))}</td>
+      <td></td>
+      <td></td>
       <td></td>
       <td></td>
       <td></td>
@@ -829,11 +829,12 @@ function render() {
       tr.children[5].appendChild(addressLink);
     }
 
-    tr.children[9].appendChild(taskSelect);
-    tr.children[10].appendChild(teamPicker);
-    tr.children[11].appendChild(slaControl);
-    tr.children[12].appendChild(saveButton);
-    tr.children[13].appendChild(remarkControl);
+    tr.children[9].appendChild(createdInput);
+    tr.children[10].appendChild(taskSelect);
+    tr.children[11].appendChild(teamPicker);
+    tr.children[12].appendChild(slaControl);
+    tr.children[13].appendChild(saveButton);
+    tr.children[14].appendChild(remarkControl);
     els.taskBody.appendChild(tr);
   });
   setupTableScrollBars();
@@ -963,12 +964,18 @@ function renderUnallocated() {
   rows.forEach((row, index) => {
     const tr = document.createElement("tr");
     const teamPicker = makeTeamPicker(row);
+    const startInput = document.createElement("input");
+    startInput.type = "datetime-local";
+    startInput.value = toDateTimeLocal(row.created_at);
+    const closeInput = document.createElement("input");
+    closeInput.type = "datetime-local";
+    closeInput.value = toDateTimeLocal(row.log_timestamp);
 
     const saveButton = document.createElement("button");
     saveButton.className = "button";
     saveButton.type = "button";
     saveButton.textContent = "OK";
-    saveButton.addEventListener("click", () => saveUnallocatedRow(row, teamPicker));
+    saveButton.addEventListener("click", () => saveUnallocatedRow(row, startInput, closeInput, teamPicker));
 
     tr.innerHTML = `
       <td class="small">${index + 1}</td>
@@ -976,12 +983,15 @@ function renderUnallocated() {
       <td>${valueOf(row, "user_id")}</td>
       <td>${valueOf(row, "name")}</td>
       <td class="reason">${valueOf(row, "reason")}</td>
-      <td class="date-col">${formatCreatedAt(valueOf(row, "created_at"))}</td>
-      <td class="date-col">${formatCreatedAt(valueOf(row, "log_timestamp"))}</td>
-      <td>${slaStatus(row, row.log_timestamp)}</td>
+      <td></td>
+      <td></td>
+      <td></td>
       <td></td>
       <td></td>
     `;
+    tr.children[5].appendChild(startInput);
+    tr.children[6].appendChild(closeInput);
+    tr.children[7].textContent = slaStatus(row, row.log_timestamp);
     tr.children[8].appendChild(teamPicker);
     tr.children[9].appendChild(saveButton);
     els.unallocatedBody.appendChild(tr);
@@ -998,14 +1008,17 @@ function showPerformanceDetails(index, mode = "all") {
     ? row.details.filter((item) => breachInfo(item, item.log_timestamp).breached)
     : row.details;
   els.performanceDetailTitle.textContent = `${row.name} - ${mode === "breached" ? "Breached Tasks" : "Completed Tasks"} (${details.length})`;
+  state.performanceDetailRows = details;
   if (!details.length) {
-    els.performanceDetailBody.innerHTML = `<tr><td colspan="10" class="cell-muted">No tasks found</td></tr>`;
+    els.performanceDetailBody.innerHTML = `<tr><td colspan="11" class="cell-muted">No tasks found</td></tr>`;
     els.performanceDetailModal.classList.add("open");
     return;
   }
   els.performanceDetailBody.innerHTML = details.map((item, itemIndex) => {
     const takenMinutes = minutesBetween(item.created_at, item.log_timestamp);
     const sla = slaStatus(item, item.log_timestamp);
+    const startValue = toDateTimeLocal(item.created_at);
+    const closeValue = toDateTimeLocal(item.log_timestamp);
     return `
       <tr>
         <td class="small">${itemIndex + 1}</td>
@@ -1014,10 +1027,12 @@ function showPerformanceDetails(index, mode = "all") {
         <td>${valueOf(item, "name")}</td>
         <td class="reason">${valueOf(item, "reason")}</td>
         <td>${valueOf(item, "takenby")}</td>
+        <td><input type="datetime-local" class="start-time-input" value="${startValue}"></td>
         <td>${formatCreatedAt(valueOf(item, "actiontime"))}</td>
-        <td>${formatCreatedAt(valueOf(item, "log_timestamp"))}</td>
+        <td><input type="datetime-local" class="close-time-input" value="${closeValue}"></td>
         <td>${formatMinutes(takenMinutes)}</td>
         <td>${sla}</td>
+        <td><button class="button secondary detail-save" data-detail-index="${itemIndex}" type="button">Save</button></td>
       </tr>
     `;
   }).join("");
@@ -1155,7 +1170,7 @@ async function loadTasks() {
 async function loadPerformance() {
   els.performanceTitle.textContent = "Performance";
   els.performanceSummary.innerHTML = "";
-  els.performanceBody.innerHTML = `<tr><td colspan="7" class="cell-muted">Loading...</td></tr>`;
+    els.performanceBody.innerHTML = `<tr><td colspan="7" class="cell-muted">Loading...</td></tr>`;
   try {
     const results = await Promise.all(CLIENTS.map(async (client) => {
       const response = await fetch(`${API_BASE}/${client}/tasks`, { cache: "no-store" });
@@ -1238,13 +1253,15 @@ function switchView(view) {
   window.setTimeout(setupTableScrollBars, 0);
 }
 
-async function saveRow(row, taskSelect, teamPicker) {
+async function saveRow(row, taskSelect, teamPicker, createdInput) {
   const payload = {
+    _admin: true,
     task: taskSelect.value,
     actiontime: nowLucknow(),
     unpickremark: row.unpickremark || "",
     usermail: state.managerName,
-    takenby: teamPicker.getValues().join(",")
+    takenby: teamPicker.getValues().join(","),
+    created_at: fromDateTimeLocal(createdInput.value)
   };
 
   try {
@@ -1286,15 +1303,18 @@ async function saveRemark(row, input) {
   }
 }
 
-async function saveUnallocatedRow(row, teamPicker) {
+async function saveUnallocatedRow(row, startInput, closeInput, teamPicker) {
   const team = teamPicker.getValues();
   if (!team.length) {
     toast("Select minimum 1 team member");
     return;
   }
+  const startValue = fromDateTimeLocal(startInput.value);
   const payload = {
+    _admin: true,
     task: "Pick",
-    actiontime: row.actiontime || "",
+    created_at: startValue,
+    log_timestamp: fromDateTimeLocal(closeInput.value),
     unpickremark: row.unpickremark || "",
     usermail: state.managerName,
     takenby: team.join(",")
@@ -1310,11 +1330,68 @@ async function saveUnallocatedRow(row, teamPicker) {
     if (!response.ok) {
       throw new Error(data.detail || `HTTP ${response.status}`);
     }
+    if (row.open_log_id) {
+      const openResponse = await fetch(`${API_BASE}/${row.client}/tasks/complaint_logs/${row.open_log_id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ _admin: true, created_at: startValue })
+      });
+      const openData = await openResponse.json().catch(() => ({}));
+      if (!openResponse.ok) {
+        throw new Error(openData.detail || `HTTP ${openResponse.status}`);
+      }
+    }
     toast("Record saved");
     state.performanceLoaded = false;
     await loadUnallocated();
   } catch (error) {
     toast(`Update failed: ${error.message}`);
+  }
+}
+
+async function savePerformanceDetailTimes(button) {
+  const index = Number(button.dataset.detailIndex);
+  const row = state.performanceDetailRows[index];
+  const tr = button.closest("tr");
+  const startInput = tr?.querySelector(".start-time-input");
+  const closeInput = tr?.querySelector(".close-time-input");
+  if (!row || !startInput || !closeInput) {
+    return;
+  }
+  const startValue = fromDateTimeLocal(startInput.value);
+  const payload = {
+    _admin: true,
+    created_at: startValue,
+    log_timestamp: fromDateTimeLocal(closeInput.value)
+  };
+
+  try {
+    const response = await fetch(`${API_BASE}/${row.client}/tasks/complaint_logs/${row.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.detail || `HTTP ${response.status}`);
+    }
+    if (row.open_log_id) {
+      const openResponse = await fetch(`${API_BASE}/${row.client}/tasks/complaint_logs/${row.open_log_id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ _admin: true, created_at: startValue })
+      });
+      const openData = await openResponse.json().catch(() => ({}));
+      if (!openResponse.ok) {
+        throw new Error(openData.detail || `HTTP ${openResponse.status}`);
+      }
+    }
+    toast("Start/end time updated");
+    state.performanceLoaded = false;
+    await loadPerformance();
+    els.performanceDetailModal.classList.remove("open");
+  } catch (error) {
+    toast(`Time update failed: ${error.message}`);
   }
 }
 
@@ -1440,6 +1517,12 @@ els.performanceBody.addEventListener("click", (event) => {
   const button = event.target.closest(".count-button");
   if (button) {
     showPerformanceDetails(Number(button.dataset.performanceIndex), button.dataset.detailMode || "all");
+  }
+});
+els.performanceDetailBody.addEventListener("click", (event) => {
+  const button = event.target.closest(".detail-save");
+  if (button) {
+    savePerformanceDetailTimes(button);
   }
 });
 els.teamSaveButton.addEventListener("click", saveTeamMember);

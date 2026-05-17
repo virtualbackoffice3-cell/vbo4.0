@@ -3,14 +3,14 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Task Desk - Manager</title>
+    <title>Task Desk - Admin</title>
     <link rel="stylesheet" href="task.css">
   </head>
   <body>
     <main class="shell">
       <section class="topbar">
         <div class="title">
-          <h1>Task Desk Manager</h1>
+          <h1>Task Desk Admin</h1>
           <p>Open task allocation</p>
         </div>
         <div class="controls">
@@ -63,7 +63,8 @@
                 <th>Address</th>
                 <th>Pon No</th>
                 <th>Reason</th>
-                <th class="date-col">Created At</th>
+                <th class="date-col">Start Time</th>
+                <th>Created</th>
                 <th>Task</th>
                 <th>Team</th>
                 <th>SLA</th>
@@ -222,10 +223,12 @@
                 <th>Name</th>
                 <th>Reason</th>
                 <th>Team</th>
+                <th>Start Time</th>
                 <th>Picked At</th>
-                <th>Closed At</th>
+                <th>End Time</th>
                 <th>Time Taken</th>
                 <th>SLA</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody id="performanceDetailBody"></tbody>
@@ -238,6 +241,6 @@
     </div>
 
     <div class="toast" id="toast"></div>
-    <script src="manager.js"></script>
+    <script src="admin.js"></script>
   </body>
 </html>
