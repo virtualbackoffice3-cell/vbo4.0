@@ -17,7 +17,7 @@ const REMARK_OPTIONS = [
   "Device change",
   "Shifting request",
   "Device recovery",
-  "Other pronlem"
+  "Other problem"
 ];
 
 const cardContainer = document.getElementById("cardView");
@@ -293,11 +293,11 @@ function getEffectivePhone(r) {
 }
 
 function buildRemarkSelect(value) {
-  const normalizedValue = value === "Other pronlem" ? "Other" : value;
+  const normalizedValue = value === "Other pronlem" || value === "Other problem" ? "Other" : value;
   const selectedValue = REMARK_OPTIONS.includes(normalizedValue) || normalizedValue === "Other" ? normalizedValue : (normalizedValue ? "Other" : "");
   const defaultOption = `<option value="" ${selectedValue ? "" : "selected"}>Select remark</option>`;
   const options = REMARK_OPTIONS.map(opt => {
-    const optionValue = opt === "Other pronlem" ? "Other" : opt;
+    const optionValue = opt === "Other problem" ? "Other" : opt;
     return `<option value="${escapeHtml(optionValue)}" ${optionValue === selectedValue ? "selected" : ""}>${escapeHtml(opt)}</option>`;
   }
   ).join("");
@@ -305,8 +305,8 @@ function buildRemarkSelect(value) {
 }
 
 function buildAdditionalDetailInput(value, detailValue = "") {
-  const enabled = value === "Other" || value === "Other pronlem" || (value && !REMARK_OPTIONS.includes(value));
-  const inputValue = value === "Other" || value === "Other pronlem" ? detailValue : value;
+  const enabled = value === "Other" || value === "Other pronlem" || value === "Other problem" || (value && !REMARK_OPTIONS.includes(value));
+  const inputValue = value === "Other" || value === "Other pronlem" || value === "Other problem" ? detailValue : value;
   return `<input class="additionalDetailInput" value="${enabled ? escapeHtml(inputValue) : ""}" placeholder="Additional detail" ${enabled ? "" : "disabled"}>`;
 }
 
