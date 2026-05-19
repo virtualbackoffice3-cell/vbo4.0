@@ -140,7 +140,7 @@ async function loadTeamConfig() {
 }
 
 function setupTeamWindowInput() {
-  els.teamWindowInput.innerHTML = CLIENTS
+  els.teamWindowInput.innerHTML = ["All", ...CLIENTS]
     .map((client) => `<option value="${client}">${client}</option>`)
     .join("");
   els.teamWindowInput.value = DEFAULT_CLIENT;
@@ -329,7 +329,25 @@ function breachLimitMinutes(reason) {
     return 240;
   }
   if (text.includes("speed issue")) {
-    return 720;
+    return 1440;
+  }
+  if (text.includes("installation")) {
+    return 2160;
+  }
+  if (text.includes("red light") || text === "red" || text.includes(" red ")) {
+    return 420;
+  }
+  if (text.includes("bad power no net")) {
+    return 420;
+  }
+  if (text.includes("frequent speed")) {
+    return 1440;
+  }
+  if (text.includes("shifting request")) {
+    return 2160;
+  }
+  if (text.includes("device recovery")) {
+    return 4320;
   }
   return 0;
 }

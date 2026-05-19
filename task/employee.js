@@ -297,7 +297,25 @@ function breachLimitMinutes(reason) {
     return 240;
   }
   if (text.includes("speed issue")) {
-    return 720;
+    return 1440;
+  }
+  if (text.includes("installation")) {
+    return 2160;
+  }
+  if (text.includes("red light") || text === "red" || text.includes(" red ")) {
+    return 420;
+  }
+  if (text.includes("bad power no net")) {
+    return 420;
+  }
+  if (text.includes("frequent speed")) {
+    return 1440;
+  }
+  if (text.includes("shifting request")) {
+    return 2160;
+  }
+  if (text.includes("device recovery")) {
+    return 4320;
   }
   return 0;
 }
@@ -377,9 +395,9 @@ function compareRows(a, b) {
 }
 
 function setupClients() {
-  els.clientSelect.innerHTML = CLIENTS.map((client) => `<option value="${client}">${client}</option>`).join("");
+  els.clientSelect.innerHTML = ["All", ...CLIENTS].map((client) => `<option value="${client}">${client}</option>`).join("");
   const mappedClient = EMPLOYEE_WINDOW_MAP[state.employeeName] || DEFAULT_CLIENT;
-  state.client = CLIENTS.includes(mappedClient) ? mappedClient : DEFAULT_CLIENT;
+  state.client = mappedClient === "All" || CLIENTS.includes(mappedClient) ? mappedClient : DEFAULT_CLIENT;
   els.clientSelect.value = state.client;
 }
 
@@ -751,7 +769,10 @@ async function loadTasks() {
       return [client, data.tables?.complaints?.rows || []];
     }));
     state.allRows = Object.fromEntries(results.map(([client, rows]) => [client, rows]));
-    state.rows = (state.allRows[state.client] || []).slice().sort(compareRows);
+    state.rows = (state.client === "All"
+      ? CLIENTS.flatMap((client) => state.allRows[client] || [])
+      : (state.allRows[state.client] || [])
+    ).slice().sort(compareRows);
     setupReasonFilter();
     render();
   } catch (error) {
