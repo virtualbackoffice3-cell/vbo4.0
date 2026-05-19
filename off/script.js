@@ -11,7 +11,7 @@ let visibleLimit = INITIAL_VISIBLE_LIMIT;
 let visibleRows = [];
 let searchTimer = null;
 const REMARK_OPTIONS = [
-  "Red",
+  "Red light",
   "Bad power no net",
   "Frequent speed problem",
   "Device change",
