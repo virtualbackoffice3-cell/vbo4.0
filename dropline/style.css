@@ -488,8 +488,8 @@ tr:hover td {
   padding: 0;
   border-radius: 50%;
   color: #fff;
-  background: linear-gradient(135deg, #0f766e, #0ea5a4);
-  box-shadow: 0 8px 18px rgba(15, 118, 110, 0.26);
+  background: linear-gradient(135deg, #db2777, #fb7185);
+  box-shadow: 0 8px 18px rgba(219, 39, 119, 0.28);
   font-size: 0;
   white-space: nowrap;
   position: relative;
@@ -514,7 +514,7 @@ tr:hover td {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  color: #0f766e;
+  color: #db2777;
   background: #fff;
   font-size: 12px;
   font-weight: 900;
@@ -523,8 +523,25 @@ tr:hover td {
 }
 
 .complaint-button:hover {
-  background: linear-gradient(135deg, #0b5f59, #0d9488);
+  background: linear-gradient(135deg, #be185d, #f43f5e);
   transform: translateY(-1px);
+}
+
+.complaint-button.has-open-complaint {
+  background: linear-gradient(135deg, #2563eb, #38bdf8);
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.3);
+}
+
+.complaint-button.has-open-complaint::after {
+  color: #2563eb;
+}
+
+.complaint-button.has-open-complaint:hover {
+  background: linear-gradient(135deg, #1d4ed8, #0ea5e9);
+}
+
+.hidden-field {
+  display: none !important;
 }
 
 .stack-cell {
@@ -631,6 +648,18 @@ tr:hover td {
   color: var(--text);
 }
 
+.open-complaint-detail {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(203, 213, 225, 0.76);
+}
+
+.open-complaint-detail b {
+  color: #2563eb;
+}
+
 .complaint-grid {
   display: grid;
   gap: 12px;
@@ -665,6 +694,92 @@ tr:hover td {
   display: flex;
   justify-content: flex-end;
   margin-top: 16px;
+}
+
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 82px 18px 18px;
+  background: rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.confirm-backdrop.open {
+  display: flex;
+}
+
+.confirm-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  width: min(450px, 100%);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 14px;
+  padding: 18px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 252, 0.82));
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.24);
+}
+
+.confirm-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(135deg, #db2777, #fb7185);
+  font-weight: 900;
+}
+
+.confirm-content strong {
+  display: block;
+  color: var(--text);
+  font-size: 17px;
+  margin-bottom: 4px;
+}
+
+.confirm-content p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.confirm-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.confirm-cancel,
+.confirm-ok {
+  min-width: 86px;
+  height: 38px;
+  border-radius: 999px;
+}
+
+.confirm-cancel {
+  color: #1f2937;
+  background: #e2e8f0;
+}
+
+.confirm-cancel:hover {
+  background: #cbd5e1;
+}
+
+.confirm-ok {
+  background: linear-gradient(135deg, #0f766e, #0ea5a4);
+}
+
+.confirm-ok:hover {
+  background: linear-gradient(135deg, #0b5f59, #0d9488);
 }
 
 @media (max-width: 820px) {

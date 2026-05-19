@@ -11,7 +11,8 @@ const tableConfig = {
       ["phone_pon", "Phone / PON"],
       ["event_type", "Event / Type"],
       ["down_time", "Last down time"],
-      ["address", "Address"]
+      ["address", "Address"],
+      ["complaint_action", "Complaint"]
     ]
   }
 };
@@ -22,6 +23,8 @@ const state = {
     complaint_users: [],
     drop_users: []
   },
+  openComplaintUsers: new Set(),
+  openComplaintMap: new Map(),
   downTimeSortDirection: ""
 };
 
@@ -36,8 +39,31 @@ const tableHead = document.getElementById("tableHead");
 const tableBody = document.getElementById("tableBody");
 const screenshotButton = document.getElementById("screenshotButton");
 const csvButton = document.getElementById("csvButton");
+const complaintModal = document.getElementById("complaintModal");
+const complaintClose = document.getElementById("complaintClose");
+const complaintSummary = document.getElementById("complaintSummary");
+const complaintReason = document.getElementById("complaintReason");
+const complaintCallingPhone = document.getElementById("complaintCallingPhone");
+const complaintDetail = document.getElementById("complaintDetail");
+const complaintTeam = document.getElementById("complaintTeam");
+const complaintMode = document.getElementById("complaintMode");
+const complaintSubmit = document.getElementById("complaintSubmit");
+const confirmModal = document.getElementById("confirmModal");
+const confirmCancel = document.getElementById("confirmCancel");
+const confirmOk = document.getElementById("confirmOk");
 const WINDOW_STORAGE_KEY = "lidownusers.windowSelection";
 const EVENT_STORAGE_KEY = "lidownusers.eventSelection";
+const REMARK_OPTIONS = [
+  "Red light",
+  "Bad power no net",
+  "Frequent speed problem",
+  "Device change",
+  "Shifting request",
+  "Device recovery",
+  "Other problem"
+];
+const TEAM_OPTIONS = ["TeamAmanwiz", "TeamMedanta", "TeamSevai"];
+let activeComplaintRow = null;
 
 function getInitialWindow() {
   const params = new URLSearchParams(window.location.search);
@@ -191,6 +217,187 @@ function getPhone(row) {
   return row.Phone || row.primary_phone || "-";
 }
 
+function getRegisteredPhone(row) {
+  const phone = getPhone(row);
+  return phone === "-" ? "" : phone;
+}
+
+function getComplaintReason(row) {
+  const eventText = cleanValue(row.downEvent || row.downEventType).toLowerCase();
+  if (eventText.includes("red")) {
+    return "Red light";
+  }
+  return "Bad power no net";
+}
+
+function getDefaultTeam(windowName) {
+  if (windowName === "AMANWIZ") return "TeamAmanwiz";
+  if (windowName === "MEDANTA") return "TeamMedanta";
+  if (windowName === "SEVAI") return "TeamSevai";
+  return TEAM_OPTIONS[0];
+}
+
+function syncComplaintDetail() {
+  const isOther = complaintReason.value === "Other";
+  complaintDetail.disabled = !isOther;
+  if (!isOther) {
+    complaintDetail.value = "";
+  }
+}
+
+function setupComplaintControls() {
+  complaintReason.innerHTML = REMARK_OPTIONS.map((reason) => {
+    const value = reason === "Other problem" ? "Other" : reason;
+    return `<option value="${escapeHtml(value)}">${escapeHtml(reason)}</option>`;
+  }).join("");
+  complaintTeam.innerHTML = TEAM_OPTIONS.map((team) => `<option>${escapeHtml(team)}</option>`).join("");
+  complaintReason.addEventListener("change", syncComplaintDetail);
+}
+
+function openComplaintModal(row) {
+  activeComplaintRow = row;
+  const windowName = cleanValue(row.source_window || getInitialWindow()).toUpperCase();
+  const complaintKey = `${windowName}|${cleanValue(row.user_id).toLowerCase()}`;
+  const openComplaint = state.openComplaintMap.get(complaintKey);
+  const openReason = cleanValue(openComplaint?.additional_detail) && cleanValue(openComplaint?.reason).toLowerCase() === "other"
+    ? openComplaint.additional_detail
+    : openComplaint?.reason;
+
+  complaintSummary.innerHTML = `
+    <div><b>${escapeHtml(row.name)}</b></div>
+    <div>User ID: ${escapeHtml(row.user_id)}</div>
+    <div>Registered no: ${escapeHtml(getPhone(row))}</div>
+    <div>PON: ${escapeHtml(row.pon)}</div>
+    <div>${escapeHtml(row.address)}</div>
+    ${openComplaint ? `
+      <div class="open-complaint-detail">
+        <b>Complaint already open</b>
+        <span>Remark: ${escapeHtml(openReason || "")}</span>
+        <span>Team: ${escapeHtml(openComplaint.Team || "")}</span>
+        <span>Mode: ${escapeHtml(openComplaint.Mode || "")}</span>
+        <span>Created: ${escapeHtml(openComplaint.created_at || "")}</span>
+      </div>
+    ` : ""}
+  `;
+  complaintCallingPhone.value = row.calling_phone || "";
+  complaintReason.value = getComplaintReason(row);
+  complaintTeam.value = getDefaultTeam(windowName);
+  complaintMode.value = "Auto";
+  syncComplaintDetail();
+  complaintSubmit.disabled = Boolean(openComplaint);
+  complaintSubmit.textContent = openComplaint ? "Already Open" : "Mark Complaint";
+  complaintModal.classList.add("open");
+}
+
+function closeComplaintModal() {
+  activeComplaintRow = null;
+  complaintSubmit.disabled = false;
+  complaintSubmit.textContent = "Mark Complaint";
+  complaintModal.classList.remove("open");
+}
+
+async function hasOpenComplaint(row) {
+  const windowName = cleanValue(row.source_window).toUpperCase();
+  const userId = cleanValue(row.user_id);
+  if (!windowName || !userId) {
+    return false;
+  }
+  try {
+    const response = await fetch(`${API_BASE_URL}/${encodeURIComponent(windowName)}/heroesocr_user_complaints/${encodeURIComponent(userId)}`);
+    if (!response.ok) {
+      return false;
+    }
+    const data = await response.json();
+    return (data.current_complaints || []).some((item) => String(item.status || "").toLowerCase() === "open");
+  } catch (error) {
+    return false;
+  }
+}
+
+function confirmMarkComplaint() {
+  return new Promise((resolve) => {
+    const cleanup = (value) => {
+      confirmModal.classList.remove("open");
+      confirmOk.onclick = null;
+      confirmCancel.onclick = null;
+      confirmModal.onclick = null;
+      resolve(value);
+    };
+
+    confirmOk.onclick = () => cleanup(true);
+    confirmCancel.onclick = () => cleanup(false);
+    confirmModal.onclick = (event) => {
+      if (event.target === confirmModal) {
+        cleanup(false);
+      }
+    };
+    confirmModal.classList.add("open");
+  });
+}
+
+async function submitComplaint() {
+  if (!activeComplaintRow || complaintSubmit.disabled) {
+    return;
+  }
+
+  const row = activeComplaintRow;
+  const windowName = cleanValue(row.source_window).toUpperCase();
+  if (!windowName || !row.user_id) {
+    setMessage("Window or user id missing.", "error");
+    return;
+  }
+
+  complaintSubmit.disabled = true;
+  complaintSubmit.textContent = "Marking...";
+  try {
+    const confirmed = await confirmMarkComplaint();
+    if (!confirmed) {
+      return;
+    }
+
+    if (await hasOpenComplaint(row)) {
+      const proceed = window.confirm("Complaint already open for this user. Continue?");
+      if (!proceed) {
+        return;
+      }
+    }
+
+    const payload = {
+      user_id: row.user_id || "",
+      name: row.name || "",
+      address: row.address || "",
+      reason: complaintReason.value || "",
+      additional_detail: complaintReason.value === "Other" ? complaintDetail.value.trim() : "",
+      Mode: complaintMode.value,
+      Phone: complaintCallingPhone.value.trim() || getRegisteredPhone(row),
+      registered_phone: getRegisteredPhone(row),
+      calling_phone: complaintCallingPhone.value.trim(),
+      Team: complaintTeam.value,
+      pon: row.pon || "",
+      statusUpDown: "DOWN",
+      CreatedBy: "User"
+    };
+
+    const response = await fetch(`${API_BASE_URL}/${encodeURIComponent(windowName)}/mark_complain`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json();
+    if (!response.ok || result.status === "error") {
+      throw new Error(result.message || "Complaint mark failed");
+    }
+
+    closeComplaintModal();
+    setMessage("Complaint marked !!", "success");
+  } catch (error) {
+    setMessage(error.message || "Complaint mark failed.", "error");
+  } finally {
+    complaintSubmit.disabled = false;
+    complaintSubmit.textContent = "Mark Complaint";
+  }
+}
+
 function renderCell(row, key) {
   if (key === "serial_no") {
     return escapeHtml(row.serial_no);
@@ -216,6 +423,11 @@ function renderCell(row, key) {
   }
   if (key === "down_time") {
     return escapeHtml(formatDisplayDate(row[key]));
+  }
+  if (key === "complaint_action") {
+    const complaintKey = `${cleanValue(row.source_window).toUpperCase()}|${cleanValue(row.user_id).toLowerCase()}`;
+    const openClass = state.openComplaintUsers.has(complaintKey) ? " has-open-complaint" : "";
+    return `<button class="complaint-button${openClass}" type="button" data-complaint-index="${row._display_index}" title="Create complaint" aria-label="Create complaint">!</button>`;
   }
   return escapeHtml(row[key]);
 }
@@ -267,6 +479,7 @@ function getSortedRows(rows) {
 function getDisplayRows() {
   return getSortedRows(getFilteredRows()).map((row, index) => ({
     ...row,
+    _display_index: index,
     serial_no: index + 1
   }));
 }
@@ -286,6 +499,9 @@ function getColumnText(row, key) {
   }
   if (key === "down_time") {
     return formatDisplayDate(row[key]);
+  }
+  if (key === "complaint_action") {
+    return "";
   }
   return cleanValue(row[key]);
 }
@@ -692,6 +908,26 @@ function renderTable() {
   setMessage(`${rows.length} filtered users showing.`, rows.length ? "success" : "");
 }
 
+tableBody.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-complaint-index]");
+  if (!button) {
+    return;
+  }
+  const rows = getDisplayRows();
+  const row = rows[Number(button.dataset.complaintIndex)];
+  if (row) {
+    openComplaintModal(row);
+  }
+});
+
+complaintClose.addEventListener("click", closeComplaintModal);
+complaintSubmit.addEventListener("click", submitComplaint);
+complaintModal.addEventListener("click", (event) => {
+  if (event.target === complaintModal) {
+    closeComplaintModal();
+  }
+});
+
 function latestTimestamp(payloads) {
   const timestamps = payloads
     .map((payload) => payload.last_updated)
@@ -716,6 +952,29 @@ async function fetchWindowData(activeWindow) {
   return payload;
 }
 
+async function loadOpenComplaintUsers(activeWindows) {
+  const entries = await Promise.all(activeWindows.map(async (activeWindow) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/${encodeURIComponent(activeWindow)}/heroesocr_latest?limit=5000`, { cache: "no-store" });
+      if (!response.ok) {
+        return [];
+      }
+      const payload = await response.json();
+      return (payload.rows || [])
+        .filter((row) => String(row.status || "Open").toLowerCase() === "open")
+        .map((row) => ({
+          key: `${activeWindow}|${cleanValue(row.user_id).toLowerCase()}`,
+          row
+        }));
+    } catch (error) {
+      return [];
+    }
+  }));
+  const flatEntries = entries.flat();
+  state.openComplaintUsers = new Set(flatEntries.map((entry) => entry.key));
+  state.openComplaintMap = new Map(flatEntries.map((entry) => [entry.key, entry.row]));
+}
+
 async function loadUsers() {
   const activeWindows = getAppliedValues(windowInput);
   if (!activeWindows.length) {
@@ -732,7 +991,10 @@ async function loadUsers() {
   setMessage(`Loading ${activeWindows.join(", ")} users...`);
 
   try {
-    const payloads = await Promise.all(activeWindows.map(fetchWindowData));
+    const [payloads] = await Promise.all([
+      Promise.all(activeWindows.map(fetchWindowData)),
+      loadOpenComplaintUsers(activeWindows)
+    ]);
     state.data.complaint_users = [];
     state.data.drop_users = payloads.flatMap((payload) =>
       (Array.isArray(payload.drop_users) ? payload.drop_users : []).map((row) => ({
@@ -791,4 +1053,5 @@ const initialWindowValues = getStoredFilterValues(windowInput);
 setSelectedValues(windowInput, initialWindowValues.length ? initialWindowValues : [getInitialWindow()]);
 commitFilterSelection(windowInput);
 eventFilter.dataset.appliedValues = JSON.stringify(getStoredFilterValues(eventFilter));
+setupComplaintControls();
 loadUsers();

@@ -129,6 +129,58 @@
     </section>
   </main>
 
+  <div class="modal-backdrop" id="complaintModal">
+    <div class="complaint-card">
+      <div class="complaint-card-head">
+        <strong>Mark complain</strong>
+        <button class="modal-close" id="complaintClose" type="button">Close</button>
+      </div>
+      <div class="complaint-summary" id="complaintSummary"></div>
+      <div class="complaint-grid">
+        <label>
+          <span>Remark</span>
+          <select id="complaintReason"></select>
+        </label>
+        <label>
+          <span>Additional detail</span>
+          <input id="complaintDetail" type="text" placeholder="Additional detail">
+        </label>
+        <label class="hidden-field">
+          <span>Team</span>
+          <select id="complaintTeam"></select>
+        </label>
+        <label>
+          <span>Mode</span>
+          <select id="complaintMode">
+            <option>Auto</option>
+            <option>Manual</option>
+          </select>
+        </label>
+        <label>
+          <span>Calling no</span>
+          <input id="complaintCallingPhone" type="tel" placeholder="Calling number">
+        </label>
+      </div>
+      <div class="complaint-actions">
+        <button id="complaintSubmit" type="button">Mark Complaint</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="confirm-backdrop" id="confirmModal">
+    <div class="confirm-card">
+      <div class="confirm-icon">!</div>
+      <div class="confirm-content">
+        <strong>Mark complaint?</strong>
+        <p>Do you want to mark complaint for this user?</p>
+      </div>
+      <div class="confirm-actions">
+        <button class="confirm-cancel" id="confirmCancel" type="button">Cancel</button>
+        <button class="confirm-ok" id="confirmOk" type="button">OK</button>
+      </div>
+    </div>
+  </div>
+
   <script src="javascript.js"></script>
 </body>
 </html>
