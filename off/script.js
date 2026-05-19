@@ -5,6 +5,20 @@ let filtered = [];
 let currentMode = "all";
 let currentView = "cards";
 let currentDownList = [];
+const INITIAL_VISIBLE_LIMIT = 200;
+const VISIBLE_BATCH_SIZE = 200;
+let visibleLimit = INITIAL_VISIBLE_LIMIT;
+let visibleRows = [];
+let searchTimer = null;
+const REMARK_OPTIONS = [
+  "Red",
+  "Bad power no net",
+  "Frequent speed problem",
+  "Device change",
+  "Shifting request",
+  "Device recovery",
+  "Other pronlem"
+];
 
 const cardContainer = document.getElementById("cardView");
 const tbody = document.querySelector("#dataTable tbody");
@@ -24,6 +38,18 @@ const menuToggle = document.getElementById("menuToggle");
 const topMenu = document.getElementById("topMenu");
 const userCount = document.getElementById("userCount");
 const btnToggleView = document.getElementById("btnToggleView");
+const loadMoreBtn = document.createElement("button");
+loadMoreBtn.id = "loadMoreBtn";
+loadMoreBtn.type = "button";
+loadMoreBtn.style.cssText = "display:none;margin:16px auto;padding:10px 18px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-weight:600;";
+loadMoreBtn.onclick = () => {
+  visibleLimit += VISIBLE_BATCH_SIZE;
+  if (currentView === "cards") renderCards();
+  else renderTable();
+};
+if (tableWrap && tableWrap.parentNode) {
+  tableWrap.parentNode.insertBefore(loadMoreBtn, tableWrap.nextSibling);
+}
 
 let isComplainsView = false;
 
@@ -185,7 +211,7 @@ async function fetchWindowData(windowName) {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    return (data.rows || []).map(row => ({ 
+    return (data.rows || []).map(row => prepareRow({ 
       ...row, 
       down_list: row.down_list || "",
       _complaint_id: row.ComplaintID || row.id || "",
@@ -196,6 +222,170 @@ async function fetchWindowData(windowName) {
     showToast(`Failed to load ${windowName}`);
     return [];
   }
+}
+
+function buildSearchText(row) {
+  return [
+    row._window,
+    row.PON,
+    row.Users,
+    row.NMID,
+    row["Registered no"],
+    row["Calling no"],
+    row["Last called no"],
+    row.Name,
+    row.MAC,
+    row.Serial,
+    row.Location,
+    row.Remarks,
+    row.reason,
+    row.additional_detail,
+    row.Team,
+    row.Mode,
+    row["User status"]
+  ].map(v => String(v || "").toLowerCase()).join(" ");
+}
+
+function prepareRow(row) {
+  const prepared = { ...row };
+  prepared._searchText = buildSearchText(prepared);
+  return prepared;
+}
+
+function updateVisibleRows() {
+  visibleRows = filtered.slice(0, visibleLimit);
+  if (!loadMoreBtn) return;
+  if (filtered.length > visibleRows.length) {
+    loadMoreBtn.style.display = "block";
+    loadMoreBtn.textContent = `Show more (${visibleRows.length}/${filtered.length})`;
+  } else {
+    loadMoreBtn.style.display = "none";
+  }
+}
+
+function scheduleApplyFilters() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    visibleLimit = INITIAL_VISIBLE_LIMIT;
+    applyAllFilters();
+  }, 250);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function getRegisteredPhone(r) {
+  return r["Registered no"] || r.registered_phone || r.primary_phone || r.Phone || "";
+}
+
+function getCallingPhone(r) {
+  return r["Calling no"] || r.calling_phone || "";
+}
+
+function getEffectivePhone(r) {
+  return getCallingPhone(r) || r["Last called no"] || getRegisteredPhone(r) || "";
+}
+
+function buildRemarkSelect(value) {
+  const normalizedValue = value === "Other pronlem" ? "Other" : value;
+  const selectedValue = REMARK_OPTIONS.includes(normalizedValue) || normalizedValue === "Other" ? normalizedValue : (normalizedValue ? "Other" : "");
+  const defaultOption = `<option value="" ${selectedValue ? "" : "selected"}>Select remark</option>`;
+  const options = REMARK_OPTIONS.map(opt => {
+    const optionValue = opt === "Other pronlem" ? "Other" : opt;
+    return `<option value="${escapeHtml(optionValue)}" ${optionValue === selectedValue ? "selected" : ""}>${escapeHtml(opt)}</option>`;
+  }
+  ).join("");
+  return `<select class="remarkInput">${defaultOption}${options}</select>`;
+}
+
+function buildAdditionalDetailInput(value, detailValue = "") {
+  const enabled = value === "Other" || value === "Other pronlem" || (value && !REMARK_OPTIONS.includes(value));
+  const inputValue = value === "Other" || value === "Other pronlem" ? detailValue : value;
+  return `<input class="additionalDetailInput" value="${enabled ? escapeHtml(inputValue) : ""}" placeholder="Additional detail" ${enabled ? "" : "disabled"}>`;
+}
+
+function syncAdditionalDetail(root) {
+  const remark = root.querySelector(".remarkInput");
+  const detail = root.querySelector(".additionalDetailInput");
+  if (!remark || !detail) return;
+
+  const isOther = remark.value === "Other";
+  detail.disabled = !isOther;
+  if (!isOther) detail.value = "";
+}
+
+function wireRemarkDetail(root) {
+  const remark = root.querySelector(".remarkInput");
+  if (!remark) return;
+  remark.onchange = () => syncAdditionalDetail(root);
+  syncAdditionalDetail(root);
+}
+
+function getAdditionalDetail(root) {
+  const remark = root.querySelector(".remarkInput");
+  const detail = root.querySelector(".additionalDetailInput");
+  return remark && detail && remark.value === "Other" ? detail.value.trim() : "";
+}
+
+async function saveCallingPhone(r, root) {
+  const input = root.querySelector(".callingPhoneInput");
+  const button = root.querySelector(".callingPhoneSave");
+  if (!input || !button) return;
+
+  const userId = r.Users || r.user_id || "";
+  if (!userId) {
+    showToast("User ID missing");
+    return;
+  }
+
+  const callingPhone = input.value.trim();
+  const oldText = button.textContent;
+  button.disabled = true;
+  button.textContent = "Saving";
+
+  try {
+    const response = await fetch(`${baseUrl}/${r._window}/user/calling_phone`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, calling_phone: callingPhone })
+    });
+    const result = await response.json();
+    if (!response.ok || result.status !== "ok") {
+      throw new Error(result.message || "Save failed");
+    }
+
+    [rawRows, filtered].forEach(list => {
+      list.forEach(row => {
+        const sameUser = String(row.Users || row.user_id || "").toLowerCase() === String(userId).toLowerCase();
+        if (row._window === r._window && sameUser) {
+          row["Calling no"] = callingPhone;
+          row.calling_phone = callingPhone;
+          row["Last called no"] = callingPhone || getRegisteredPhone(row);
+        }
+      });
+    });
+    r["Calling no"] = callingPhone;
+    r.calling_phone = callingPhone;
+    r["Last called no"] = callingPhone || getRegisteredPhone(r);
+    showToast("Calling no saved", true);
+  } catch (error) {
+    showToast(error.message || "Calling no save failed");
+  } finally {
+    button.disabled = false;
+    button.textContent = oldText;
+  }
+}
+
+function wireCallingPhoneSave(root, r) {
+  const button = root.querySelector(".callingPhoneSave");
+  if (!button) return;
+  button.onclick = () => saveCallingPhone(r, root);
 }
 
 async function fetchOpenComplaintUsers(windowName) {
@@ -354,14 +544,19 @@ async function handleMarkComplaint(r, cardElement, remarkInput, modeSelect, team
    ✅ Execute Mark Complaint (Actual API call)
 ================================= */
 async function executeMarkComplaint(r, cardElement, remarkInput, modeSelect, teamSelect, markButton) {
+  const callingPhone = getCallingPhone(r);
+  const registeredPhone = getRegisteredPhone(r);
   const payload = {
     user_id: r.Users || "",
     name: r.Name || "",
     address: r.Location || "",
     reason: remarkInput.value || "",
+    additional_detail: getAdditionalDetail(cardElement),
     Mode: modeSelect.value,
     Power: r.Power,
-    Phone: r["Last called no"] || "",
+    Phone: callingPhone || registeredPhone || r["Last called no"] || "",
+    registered_phone: registeredPhone,
+    calling_phone: callingPhone,
     Team: teamSelect.value,
     pon: r.PON || ""
   };
@@ -528,7 +723,7 @@ function showDownUsersInModal() {
   modalBody.innerHTML = users.map((u, i) => `
     <div class="modalEntry">
       <div class="modalRow"><b>${i + 1}. ${u.Name || "N/A"}</b></div>
-      <div class="modalRow"><b>📞 Phone:</b> ${u["Last called no"] || ""}</div>
+      <div class="modalRow"><b>Phone:</b> Reg ${getRegisteredPhone(u) || ""} / Call ${getCallingPhone(u) || ""}</div>
       <div class="modalRow"><b>📍 Location:</b> ${u.Location || ""}</div>
       <div class="modalRow"><b>🔌 Status:</b> ${u["User status"] || ""}</div>
       <div class="modalRow"><b>🧷 MAC:</b> ${u.MAC || ""}</div>
@@ -597,6 +792,7 @@ if (ponClearBtn) {
       ponMultiList.querySelectorAll("input[type='checkbox']").forEach(cb => cb.checked = false);
     }
     updatePonButtonText();
+    visibleLimit = INITIAL_VISIBLE_LIMIT;
     applyAllFilters();
   };
 }
@@ -604,6 +800,7 @@ if (ponClearBtn) {
 if (ponOkBtn) {
   ponOkBtn.onclick = () => {
     ponMultiDropdown.classList.remove("show");
+    visibleLimit = INITIAL_VISIBLE_LIMIT;
     applyAllFilters();
   };
 }
@@ -831,6 +1028,7 @@ async function fetchData() {
 
     showToast(rawRows.length ? `${rawRows.length} users loaded` : "No users found");
     populateFilters();
+    visibleLimit = INITIAL_VISIBLE_LIMIT;
     applyAllFilters();
   } catch (err) {
     showToast("Load failed");
@@ -868,9 +1066,7 @@ function applyAllFilters() {
 
   const term = globalSearch.value.trim().toLowerCase();
   if (term) {
-    data = data.filter(r =>
-      Object.values(r).some(v => String(v || '').toLowerCase().includes(term))
-    );
+    data = data.filter(r => (r._searchText || buildSearchText(r)).includes(term));
   }
 
   const pr = (powerRange?.value || "").trim();
@@ -897,6 +1093,7 @@ function applyAllFilters() {
   if (filterStatus.value) data = data.filter(r => r["User status"] === filterStatus.value);
 
   filtered = data;
+  updateVisibleRows();
 
   const runtimeTs = (filtered[0] && filtered[0]._runtime_timestamp) ? filtered[0]._runtime_timestamp : "";
   setHeadingCountAndTimestamp(filtered.length, runtimeTs);
@@ -911,28 +1108,32 @@ function applyAllFilters() {
 async function renderCards() {
   cardContainer.innerHTML = "";
   tableWrap.style.display = "none";
+  updateVisibleRows();
 
   if (!filtered.length) {
     cardContainer.style.display = "grid";
     cardContainer.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-secondary);">No users found</div>';
+    if (loadMoreBtn) loadMoreBtn.style.display = "none";
     return;
   }
 
-  const hasSections = filtered.some(r => r._page_id);
+  const hasSections = visibleRows.some(r => r._page_id);
   if (!hasSections) {
     cardContainer.style.display = "grid";
+    const fragment = document.createDocumentFragment();
     
     // Render cards without blocking on badge checks
-    filtered.forEach((r, index) => {
-      renderSingleCard(r, index, cardContainer);
+    visibleRows.forEach((r, index) => {
+      renderSingleCard(r, index, fragment);
     });
+    cardContainer.appendChild(fragment);
     return;
   }
 
   cardContainer.style.display = "block";
 
   const groups = {};
-  filtered.forEach(r => {
+  visibleRows.forEach(r => {
     const key = r._page_id || "Others";
     if (!groups[key]) groups[key] = [];
     groups[key].push(r);
@@ -942,6 +1143,8 @@ async function renderCards() {
 
   // Setup lazy badge checker
   const badgeObserver = setupLazyBadgeCheck();
+
+  const fragment = document.createDocumentFragment();
 
   groupKeys.forEach(gk => {
     groups[gk].sort((a, b) => safeParseDate(b._created_at) - safeParseDate(a._created_at));
@@ -965,8 +1168,9 @@ async function renderCards() {
       }
     });
     
-    cardContainer.appendChild(section);
+    fragment.appendChild(section);
   });
+  cardContainer.appendChild(fragment);
 }
 
 function renderSingleCard(r, index, container) {
@@ -1005,13 +1209,21 @@ function renderSingleCard(r, index, container) {
       </div>
       <div class="card-row"><span class="card-label">Window:</span><span class="card-value">${r._window || ""}</span></div>
       <div class="card-row"><span class="card-label">User ID:</span><span class="card-value">${r.Users || ""}</span></div>
-      <div class="card-row"><span class="card-label">Mobile:</span><span class="card-value">${r["Last called no"] || ""}</span></div>
+      <div class="card-row"><span class="card-label">Reg No:</span><span class="card-value">${getRegisteredPhone(r) || ""}</span></div>
+      <div class="card-row">
+        <span class="card-label">Calling No:</span>
+        <div class="phoneEdit">
+          <input class="callingPhoneInput" value="${escapeHtml(getCallingPhone(r))}" inputmode="tel">
+          <button class="callingPhoneSave" type="button">Save</button>
+        </div>
+      </div>
       <div class="card-row"><span class="card-label">PON:</span><span class="card-value">${r.PON || ""}</span></div>
       <div class="card-row"><span class="card-label">Location:</span><span class="card-value">${r.Location || ""}</span></div>
       <div class="card-row"><span class="card-label">Power:</span><span class="card-value">${r.Power?.toFixed(2) || ""}</span></div>
       <div class="card-row"><span class="card-label">Down users:</span><span class="card-value">${downCount}</span></div>
       <div class="card-row"><span class="card-label">MAC / Serial:</span><span class="card-value">${r.MAC || ""} / ${r.Serial || ""}</span></div>
-      <div class="card-row"><span class="card-label">Remark:</span><input class="remarkInput" value="${remarkValue}"></div>
+      <div class="card-row"><span class="card-label">Remark:</span>${buildRemarkSelect(remarkValue)}</div>
+      <div class="card-row"><span class="card-label">Detail:</span>${buildAdditionalDetailInput(remarkValue, r.additional_detail || "")}</div>
       <div class="card-row">
         <span class="card-label">Team:</span>
         <select class="teamSel">
@@ -1045,6 +1257,8 @@ function renderSingleCard(r, index, container) {
 
   const modeSel = card.querySelector(".modeSel");
   modeSel.value = r.Mode || "Manual";
+  wireRemarkDetail(card);
+  wireCallingPhoneSave(card, r);
 
   // MARK BUTTON - With loading state and button disable
   const markBtn = card.querySelector(".mark-btn");
@@ -1091,9 +1305,12 @@ function renderSingleCard(r, index, container) {
           name: r.Name || "",
           address: r.Location || "",
           reason: card.querySelector(".remarkInput").value || "",
+          additional_detail: getAdditionalDetail(card),
           Mode: modeSel.value,
           Power: r.Power,
-          Phone: r["Last called no"] || "",
+          Phone: getEffectivePhone(r),
+          registered_phone: getRegisteredPhone(r),
+          calling_phone: getCallingPhone(r),
           Team: teamSel.value,
           pon: r.PON || ""
         };
@@ -1128,7 +1345,7 @@ function renderSingleCard(r, index, container) {
   };
 
   container.appendChild(card);
-  setTimeout(() => card.classList.add("visible"), index * 60);
+  setTimeout(() => card.classList.add("visible"), Math.min(index, 30) * 12);
   
   return card; // Return card for observer
 }
@@ -1140,13 +1357,15 @@ async function renderTable() {
   tbody.innerHTML = "";
   cardContainer.style.display = "none";
   tableWrap.style.display = "block";
+  updateVisibleRows();
 
   if (!filtered.length) {
     tbody.innerHTML = '<tr><td colspan="15" style="text-align:center;padding:20px;color:var(--text-secondary);">No users found</td></tr>';
+    if (loadMoreBtn) loadMoreBtn.style.display = "none";
     return;
   }
 
-  const tableData = [...filtered];
+  const tableData = [...visibleRows];
 
   if (tableData.some(r => r._page_id)) {
     tableData.sort((a, b) => {
@@ -1157,6 +1376,7 @@ async function renderTable() {
   }
 
   let lastGroup = "";
+  const fragment = document.createDocumentFragment();
 
   // Table view: No badge checks (performance)
   for (const r of tableData) {
@@ -1165,7 +1385,7 @@ async function renderTable() {
       if (grp !== lastGroup) {
         const sep = document.createElement("tr");
         sep.innerHTML = `<td colspan="14" style="font-weight:800;padding:10px;background:#f5f5f5;">${grp}</td>`;
-        tbody.appendChild(sep);
+        fragment.appendChild(sep);
         lastGroup = grp;
       }
     }
@@ -1191,11 +1411,23 @@ async function renderTable() {
       <td>${r._window || ""}</td>
       <td>${r.PON || ""}</td>
       <td>${r.Users || ""}</td>
-      <td>${r["Last called no"] || ""}</td>
+      <td>
+        <div class="phoneStack">
+          <div><span>Reg:</span> ${getRegisteredPhone(r) || ""}</div>
+          <div class="phoneEdit">
+            <span>Call:</span>
+            <input class="callingPhoneInput" value="${escapeHtml(getCallingPhone(r))}" inputmode="tel">
+            <button class="callingPhoneSave" type="button">Save</button>
+          </div>
+        </div>
+      </td>
       <td>${r.Name || ""}</td>
       <td>${r.MAC || ""}<br><small>${r.Serial || ""}</small></td>
       <td>${downCount}</td>
-      <td><input class="remarkInput remarkCol" value="${remarkValue}"></td>
+      <td>
+        ${buildRemarkSelect(remarkValue)}
+        ${buildAdditionalDetailInput(remarkValue, r.additional_detail || "")}
+      </td>
       <td class="teamCol resizableCol">
         <select class="teamSel">
           <option>TeamAmanwiz</option>
@@ -1233,6 +1465,8 @@ async function renderTable() {
 
     const modeSelect = tr.querySelector(".modeSel");
     modeSelect.value = r.Mode || "Manual";
+    wireRemarkDetail(tr);
+    wireCallingPhoneSave(tr, r);
 
     // MARK BUTTON - With loading state
     const markBtn = tr.querySelector(".mark-btn");
@@ -1275,9 +1509,12 @@ async function renderTable() {
             name: r.Name || "",
             address: r.Location || "",
             reason: tr.querySelector(".remarkInput").value || "",
+            additional_detail: getAdditionalDetail(tr),
             Mode: modeSelect.value,
             Power: r.Power,
-            Phone: r["Last called no"] || "",
+            Phone: getEffectivePhone(r),
+            registered_phone: getRegisteredPhone(r),
+            calling_phone: getCallingPhone(r),
             Team: teamSelect.value,
             pon: r.PON || ""
           };
@@ -1309,8 +1546,9 @@ async function renderTable() {
       }
     };
 
-    tbody.appendChild(tr);
+    fragment.appendChild(tr);
   }
+  tbody.appendChild(fragment);
 }
 
 /* ===============================
@@ -1353,22 +1591,23 @@ document.getElementById("btnScreenshot").onclick = () => {
 };
 
 document.getElementById("btnCsv").onclick = () => {
-  if (!filtered.length) {
+  if (!visibleRows.length) {
     showToast("No data to export");
     return;
   }
 
   const headers = [
-    "Window", "PON", "User ID", "Mobile", "Name",
+    "Window", "PON", "User ID", "Registered No", "Calling No", "Name",
     "Mac / Serial", "Power", "Location"
   ];
 
-  const rows = filtered.map(r => {
+  const rows = visibleRows.map(r => {
     return [
       r._window || "",
       r.PON || "",
       r.Users || "",
-      r["Last called no"] || "",
+      getRegisteredPhone(r) || "",
+      getCallingPhone(r) || "",
       r.Name || "",
       `${r.MAC || ""} / ${r.Serial || ""}`,
       r.Power != null ? Number(r.Power).toFixed(2) : "",
@@ -1396,6 +1635,7 @@ document.getElementById("btnCsv").onclick = () => {
 document.getElementById("windowSelect").onchange = (e) => {
   currentWindow = e.target.value;
   isComplainsView = false;
+  visibleLimit = INITIAL_VISIBLE_LIMIT;
   fetchData();
 };
 
@@ -1424,12 +1664,14 @@ document.getElementById("btnComplains").onclick = async () => {
       allData = (data.rows || []).map(r => ({ ...r, _window: currentWindow }));
     }
 
-    rawRows = allData.map(r => ({
+    rawRows = allData.map(r => prepareRow({
       ...r,
       Users: r.user_id,
       Name: r.name,
       Location: r.address,
-      "Last called no": r.Phone || "",
+      "Registered no": r.registered_phone || r.Phone || "",
+      "Calling no": r.calling_phone || "",
+      "Last called no": r.calling_phone || r.Phone || r.registered_phone || "",
       PON: r.pon || "",
       "User status": (r.statusUpDown || r["User status"] || "DOWN").toUpperCase(),
       down_list: r.down_list || "",
@@ -1441,6 +1683,7 @@ document.getElementById("btnComplains").onclick = async () => {
     showToast(rawRows.length ? `${rawRows.length} complaints loaded` : "No complaints found");
 
     populateFilters();
+    visibleLimit = INITIAL_VISIBLE_LIMIT;
     applyAllFilters();
 
   } catch (e) {
@@ -1452,13 +1695,20 @@ document.getElementById("btnComplains").onclick = async () => {
 
 document.getElementById("btnRefresh").onclick = () => {
   isComplainsView = false;
+  visibleLimit = INITIAL_VISIBLE_LIMIT;
   fetchData();
 };
 
-globalSearch.oninput = applyAllFilters;
-if (powerRange) powerRange.oninput = applyAllFilters;
-filterMode.onchange = applyAllFilters;
-filterStatus.onchange = applyAllFilters;
+globalSearch.oninput = scheduleApplyFilters;
+if (powerRange) powerRange.oninput = scheduleApplyFilters;
+filterMode.onchange = () => {
+  visibleLimit = INITIAL_VISIBLE_LIMIT;
+  applyAllFilters();
+};
+filterStatus.onchange = () => {
+  visibleLimit = INITIAL_VISIBLE_LIMIT;
+  applyAllFilters();
+};
 
 // init
 fetchData();
