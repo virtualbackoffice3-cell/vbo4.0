@@ -27,7 +27,8 @@ const state = {
   allRows: {},
   allLogs: {},
   performanceLoaded: false,
-  pendingUnpick: null
+  pendingUnpick: null,
+  pendingPick: null
 };
 
 const els = {
@@ -45,6 +46,10 @@ const els = {
   unpickRemark: document.getElementById("unpickRemark"),
   cancelUnpick: document.getElementById("cancelUnpick"),
   confirmUnpick: document.getElementById("confirmUnpick"),
+  pickTeamModal: document.getElementById("pickTeamModal"),
+  pickTeamHolder: document.getElementById("pickTeamHolder"),
+  cancelPickTeam: document.getElementById("cancelPickTeam"),
+  confirmPickTeam: document.getElementById("confirmPickTeam"),
   addressModal: document.getElementById("addressModal"),
   addressText: document.getElementById("addressText"),
   closeAddress: document.getElementById("closeAddress")
@@ -52,8 +57,12 @@ const els = {
 els.tasksPanel = document.getElementById("tasksPanel");
 els.performancePanel = document.getElementById("performancePanel");
 els.viewTabs = Array.from(document.querySelectorAll(".tabbar .tab"));
+els.taskSearch = document.getElementById("taskSearch");
+els.taskFrom = document.getElementById("taskFrom");
+els.taskTo = document.getElementById("taskTo");
 els.perfFrom = document.getElementById("perfFrom");
 els.perfTo = document.getElementById("perfTo");
+els.perfSearch = document.getElementById("perfSearch");
 els.performanceTitle = document.getElementById("performanceTitle");
 els.performanceSummary = document.getElementById("performanceSummary");
 els.performanceBody = document.getElementById("performanceBody");
@@ -232,6 +241,8 @@ function setupDefaultPerformanceDates() {
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
+  els.taskFrom.value = `${year}-${month}-01`;
+  els.taskTo.value = `${year}-${month}-${day}`;
   els.perfFrom.value = `${year}-${month}-01`;
   els.perfTo.value = `${year}-${month}-${day}`;
 }
@@ -581,10 +592,39 @@ function setupReasonFilter() {
   els.reasonSelect.value = reasons.includes(selected) ? selected : "All";
 }
 
+function rowSearchText(row) {
+  return [
+    row.client,
+    valueOf(row, "user_id"),
+    valueOf(row, "name"),
+    valueOf(row, "Phone", "phone", "mobile"),
+    valueOf(row, "address"),
+    valueOf(row, "pon"),
+    valueOf(row, "reason"),
+    valueOf(row, "task"),
+    valueOf(row, "takenby"),
+    valueOf(row, "unpickremark"),
+    valueOf(row, "userremark")
+  ].join(" ").toLowerCase();
+}
+
 function filteredRows() {
   const reason = els.reasonSelect.value || "All";
+  const search = cleanText(els.taskSearch.value).toLowerCase();
+  const from = els.taskFrom.value;
+  const to = els.taskTo.value;
   return state.rows
     .filter((row) => reason === "All" || cleanText(row.reason) === reason)
+    .filter((row) => {
+      const createdDate = dateOnlyValue(row.created_at);
+      if (from && createdDate && createdDate < from) {
+        return false;
+      }
+      if (to && createdDate && createdDate > to) {
+        return false;
+      }
+      return !search || rowSearchText(row).includes(search);
+    })
     .slice()
     .sort(compareRows);
 }
@@ -592,6 +632,22 @@ function filteredRows() {
 function showAddress(address) {
   els.addressText.textContent = cleanText(address) || "NA";
   els.addressModal.classList.add("open");
+}
+
+function openPickTeamModal(row) {
+  state.pendingPick = {
+    row,
+    teamPicker: makeTeamPicker(row)
+  };
+  els.pickTeamHolder.innerHTML = "";
+  els.pickTeamHolder.appendChild(state.pendingPick.teamPicker);
+  els.pickTeamModal.classList.add("open");
+}
+
+function closePickTeamModal() {
+  state.pendingPick = null;
+  els.pickTeamHolder.innerHTML = "";
+  els.pickTeamModal.classList.remove("open");
 }
 
 function render() {
@@ -636,6 +692,11 @@ function render() {
     } else if (canEdit) {
       taskControl = makeTaskSelect(currentTask, ["Pending", "Pick", "Unpick"]);
       teamControl = makeTeamPicker(row);
+      taskControl.addEventListener("change", () => {
+        if (taskControl.value === "Pick") {
+          openPickTeamModal(row);
+        }
+      });
       saveButton = document.createElement("button");
       saveButton.className = "button";
       saveButton.type = "button";
@@ -694,6 +755,7 @@ async function saveRemark(row, input) {
 function getCompletedRows() {
   const from = els.perfFrom.value;
   const to = els.perfTo.value;
+  const search = cleanText(els.perfSearch.value).toLowerCase();
   const rows = [];
   for (const client of CLIENTS) {
     for (const row of state.allLogs[client] || []) {
@@ -710,6 +772,9 @@ function getCompletedRows() {
         continue;
       }
       if (to && closedDate && closedDate > to) {
+        continue;
+      }
+      if (search && !rowSearchText({ ...row, client }).includes(search)) {
         continue;
       }
       rows.push({ ...row, client });
@@ -884,8 +949,12 @@ els.reasonSelect.addEventListener("change", () => {
   render();
 });
 
+els.taskSearch.addEventListener("input", render);
+els.taskFrom.addEventListener("change", render);
+els.taskTo.addEventListener("change", render);
 els.perfFrom.addEventListener("change", renderPerformance);
 els.perfTo.addEventListener("change", renderPerformance);
+els.perfSearch.addEventListener("input", renderPerformance);
 els.viewTabs.forEach((tab) => {
   tab.addEventListener("click", () => switchView(tab.dataset.view));
 });
@@ -919,6 +988,37 @@ els.confirmUnpick.addEventListener("click", () => {
   state.pendingUnpick = null;
   els.unpickModal.classList.remove("open");
   submitRow(pending.row, "Unpick", splitNames(pending.row.takenby), remark);
+});
+
+els.cancelPickTeam.addEventListener("click", () => {
+  closePickTeamModal();
+  render();
+});
+
+els.confirmPickTeam.addEventListener("click", () => {
+  const pending = state.pendingPick;
+  if (!pending) {
+    return;
+  }
+  const team = pending.teamPicker.getValues();
+  if (team.length < 1) {
+    toast("Select minimum 1 team member");
+    return;
+  }
+  if (team.length > 2) {
+    toast("Please contact your manager or select 2 persons!");
+    return;
+  }
+  const row = pending.row;
+  closePickTeamModal();
+  submitRow(row, "Pick", team, "");
+});
+
+els.pickTeamModal.addEventListener("click", (event) => {
+  if (event.target === els.pickTeamModal) {
+    closePickTeamModal();
+    render();
+  }
 });
 
 document.addEventListener("click", (event) => {

@@ -34,6 +34,20 @@
       <section class="panel" id="tasksPanel">
         <div class="panel-head">
           <strong id="panelTitle">Complaints</strong>
+          <div class="controls compact-controls">
+            <div class="field">
+              <label for="taskSearch">Search</label>
+              <input id="taskSearch" type="search" placeholder="User, name, phone...">
+            </div>
+            <div class="field">
+              <label for="taskFrom">From</label>
+              <input id="taskFrom" type="date">
+            </div>
+            <div class="field">
+              <label for="taskTo">To</label>
+              <input id="taskTo" type="date">
+            </div>
+          </div>
           <span class="status" id="statusText"></span>
         </div>
         <div class="table-wrap">
@@ -71,6 +85,10 @@
             <div class="field">
               <label for="perfTo">To</label>
               <input id="perfTo" type="date">
+            </div>
+            <div class="field">
+              <label for="perfSearch">Search</label>
+              <input id="perfSearch" type="search" placeholder="User, name, phone...">
             </div>
           </div>
         </div>
@@ -120,6 +138,20 @@
         <div class="modal-actions">
           <button class="button secondary" id="cancelUnpick" type="button">Cancel</button>
           <button class="button" id="confirmUnpick" type="button">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="pickTeamModal">
+      <div class="modal">
+        <h2>Add your team member</h2>
+        <div class="field">
+          <label>Team</label>
+          <div id="pickTeamHolder"></div>
+        </div>
+        <div class="modal-actions">
+          <button class="button secondary" id="cancelPickTeam" type="button">Cancel</button>
+          <button class="button" id="confirmPickTeam" type="button">OK</button>
         </div>
       </div>
     </div>
