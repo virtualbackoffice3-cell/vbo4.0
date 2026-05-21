@@ -1,1 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Day End Report</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Day End Report</h1>
+      <p id="summaryText">Loading...</p>
+    </div>
+    <div class="windowBox">
+      <label>Window</label>
+      <div class="multiSelect" data-multi="window">
+        <button id="windowSelectBtn" class="multiBtn" type="button">All</button>
+        <div id="windowMenu" class="multiMenu" hidden>
+          <label><input type="checkbox" value="ALL" checked> All</label>
+          <label><input type="checkbox" value="AMANWIZ"> AMANWIZ</label>
+          <label><input type="checkbox" value="MEDANTA"> MEDANTA</label>
+          <label><input type="checkbox" value="SEVAI"> SEVAI</label>
+        </div>
+      </div>
+    </div>
+  </header>
 
+  <main>
+    <section class="toolbar">
+      <div class="field searchField">
+        <label for="searchInput">Search</label>
+        <input id="searchInput" type="search" placeholder="Name, phone, package, address...">
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <div class="multiSelect" data-multi="status">
+          <button id="statusSelectBtn" class="multiBtn" type="button">All</button>
+          <div id="statusMenu" class="multiMenu" hidden>
+            <label><input type="checkbox" value="ALL" checked> All</label>
+            <label><input type="checkbox" value="Pending"> Pending</label>
+            <label><input type="checkbox" value="Due"> Due</label>
+            <label><input type="checkbox" value="Done"> Done</label>
+            <label><input type="checkbox" value="Balance"> Balance</label>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="dateFrom">From</label>
+        <input id="dateFrom" type="date">
+      </div>
+      <div class="field">
+        <label for="dateTo">To</label>
+        <input id="dateTo" type="date">
+      </div>
+      <button id="refreshBtn" type="button">Refresh</button>
+      <button id="csvBtn" class="ghostBtn" type="button">CSV</button>
+    </section>
+
+    <section class="tabs">
+      <button class="tab active" type="button" data-tab="report">Report</button>
+      <button class="tab iconTab" type="button" data-tab="history" aria-label="History" title="History">
+        <svg class="clockIcon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 2a10 10 0 1 0 10 10A10.01 10.01 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.01 8.01 0 0 1-8 8zm1-13h-2v6l5 3 1-1.7-4-2.3z"/>
+        </svg>
+      </button>
+    </section>
+
+    <section id="statusBadges" class="statusBadges"></section>
+
+    <section class="tableWrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Transaction</th>
+            <th>Date</th>
+            <th>Phone</th>
+            <th>Package</th>
+            <th>Address</th>
+            <th>Amount</th>
+            <th>Status</th>
+            <th>Mark</th>
+            <th>Remarks</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+      <div id="emptyState" class="emptyState">No entries found</div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <div id="editModal" class="modal" hidden>
+    <div class="modalPanel">
+      <div class="modalHead">
+        <h2>Edit Payment</h2>
+        <button id="closeModalBtn" class="iconBtn" type="button">x</button>
+      </div>
+      <div class="miniCard" id="editMeta"></div>
+      <label for="editStatus">Status</label>
+      <select id="editStatus">
+        <option value="Pending">Pending</option>
+        <option value="Due">Due</option>
+        <option value="Done">Done</option>
+        <option value="Balance">Balance</option>
+      </select>
+      <label for="editRemarks">Remarks</label>
+      <textarea id="editRemarks" rows="4"></textarea>
+      <div class="modalActions">
+        <button id="cancelEditBtn" type="button" class="ghostBtn">Cancel</button>
+        <button id="saveEditBtn" type="button">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="addressModal" class="modal" hidden>
+    <div class="modalPanel smallPanel">
+      <div class="modalHead">
+        <h2>Address</h2>
+        <button id="closeAddressBtn" class="iconBtn" type="button">x</button>
+      </div>
+      <p id="addressText" class="addressText"></p>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
