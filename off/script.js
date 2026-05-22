@@ -75,6 +75,41 @@ const modalCloseBtn = document.getElementById("modalCloseBtn");
 const modalActions = document.getElementById("modalActions");
 const btnDownUsers = document.getElementById("btnDownUsers");
 const modalCloseButton = document.getElementById("modalCloseButton");
+let addressModal = document.getElementById("addressModal");
+if (!addressModal) {
+  addressModal = document.createElement("div");
+  addressModal.id = "addressModal";
+  addressModal.className = "addressModalOverlay";
+  addressModal.innerHTML = `
+    <div class="addressModalBox">
+      <div class="addressModalHead">
+        <strong>Full Address</strong>
+        <button class="addressModalClose" type="button">Close</button>
+      </div>
+      <div class="addressModalText"></div>
+    </div>
+  `;
+  document.body.appendChild(addressModal);
+}
+const addressModalText = addressModal.querySelector(".addressModalText");
+const addressModalClose = addressModal.querySelector(".addressModalClose");
+
+function openAddressModal(address) {
+  if (!address) return;
+  addressModalText.textContent = address;
+  addressModal.style.display = "flex";
+}
+
+function closeAddressModal() {
+  addressModal.style.display = "none";
+}
+
+addressModalClose.onclick = closeAddressModal;
+addressModal.onclick = (event) => {
+  if (event.target === addressModal) {
+    closeAddressModal();
+  }
+};
 
 /* ===============================
    ✅ Confirmation Modal for Existing Complaints
@@ -295,7 +330,7 @@ function getEffectivePhone(r) {
 function buildRemarkSelect(value) {
   const normalizedValue = value === "Other pronlem" || value === "Other problem" ? "Other" : value;
   const selectedValue = REMARK_OPTIONS.includes(normalizedValue) || normalizedValue === "Other" ? normalizedValue : (normalizedValue ? "Other" : "");
-  const defaultOption = `<option value="" ${selectedValue ? "" : "selected"}>Select remark</option>`;
+  const defaultOption = `<option value="" ${selectedValue ? "" : "selected"}>Select task catagory</option>`;
   const options = REMARK_OPTIONS.map(opt => {
     const optionValue = opt === "Other problem" ? "Other" : opt;
     return `<option value="${escapeHtml(optionValue)}" ${optionValue === selectedValue ? "selected" : ""}>${escapeHtml(opt)}</option>`;
@@ -307,7 +342,7 @@ function buildRemarkSelect(value) {
 function buildAdditionalDetailInput(value, detailValue = "") {
   const enabled = value === "Other" || value === "Other pronlem" || value === "Other problem" || (value && !REMARK_OPTIONS.includes(value));
   const inputValue = value === "Other" || value === "Other pronlem" || value === "Other problem" ? detailValue : value;
-  return `<input class="additionalDetailInput" value="${enabled ? escapeHtml(inputValue) : ""}" placeholder="Additional detail" ${enabled ? "" : "disabled"}>`;
+  return `<input class="additionalDetailInput" value="${enabled ? escapeHtml(inputValue) : ""}" placeholder="Remarks" ${enabled ? "" : "disabled"}>`;
 }
 
 function syncAdditionalDetail(root) {
@@ -1218,12 +1253,12 @@ function renderSingleCard(r, index, container) {
         </div>
       </div>
       <div class="card-row"><span class="card-label">PON:</span><span class="card-value">${r.PON || ""}</span></div>
-      <div class="card-row"><span class="card-label">Location:</span><span class="card-value">${r.Location || ""}</span></div>
+      <div class="card-row"><span class="card-label">Location:</span><button class="card-value addressLink" type="button" title="${escapeHtml(r.Location || "")}">${r.Location || ""}</button></div>
       <div class="card-row"><span class="card-label">Power:</span><span class="card-value">${r.Power?.toFixed(2) || ""}</span></div>
       <div class="card-row"><span class="card-label">Down users:</span><span class="card-value">${downCount}</span></div>
       <div class="card-row"><span class="card-label">MAC / Serial:</span><span class="card-value">${r.MAC || ""} / ${r.Serial || ""}</span></div>
-      <div class="card-row"><span class="card-label">Remark:</span>${buildRemarkSelect(remarkValue)}</div>
-      <div class="card-row"><span class="card-label">Detail:</span>${buildAdditionalDetailInput(remarkValue, r.additional_detail || "")}</div>
+      <div class="card-row"><span class="card-label">Task catagory:</span>${buildRemarkSelect(remarkValue)}</div>
+      <div class="card-row"><span class="card-label">Remarks:</span>${buildAdditionalDetailInput(remarkValue, r.additional_detail || "")}</div>
       <div class="card-row">
         <span class="card-label">Team:</span>
         <select class="teamSel">
@@ -1257,6 +1292,13 @@ function renderSingleCard(r, index, container) {
 
   const modeSel = card.querySelector(".modeSel");
   modeSel.value = r.Mode || "Manual";
+  const addressLink = card.querySelector(".addressLink");
+  if (addressLink) {
+    addressLink.onclick = (event) => {
+      event.stopPropagation();
+      openAddressModal(r.Location || "");
+    };
+  }
   wireRemarkDetail(card);
   wireCallingPhoneSave(card, r);
 
