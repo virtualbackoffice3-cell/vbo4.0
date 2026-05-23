@@ -53,6 +53,9 @@
             window: "AMANWIZ",
             tab: "pending",
             rows: [],
+            searchTerm: "",
+            teamMembers: [],
+            teamLoaded: false,
             lastUpdated: "",
             loaded: false
         }
@@ -1202,6 +1205,10 @@
         return apiUrlFor(windowName, "linetracker");
     }
 
+    function teamConfigEndpoint() {
+        return `${API_BASE_URL}/team-config`;
+    }
+
     function routeHistoryTimestampEndpoint(windowName) {
         return apiUrlFor(windowName, "usertag");
     }
@@ -1297,6 +1304,7 @@
     function routeHistoryAuditPanel(row) {
         const recovered = routeHistoryIsRecovered(row);
         const remark = escapeHtml(row.AuditRemark || "");
+        const deleteButton = `<button class="route-delete-btn" type="button" data-route-delete="${row.id}">Delete</button>`;
 
         if (routeHistoryIsDone(row)) {
             return `
@@ -1312,6 +1320,7 @@
                 <aside class="route-audit-panel">
                     <span class="route-pill waiting">Waiting for UP</span>
                     <p class="route-small-note">Audit can be completed after this route comes UP.</p>
+                    <div class="route-audit-actions">${deleteButton}</div>
                 </aside>
             `;
         }
@@ -1323,11 +1332,59 @@
                     <option value="Pending" ${routeHistoryIsDone(row) ? "" : "selected"}>Pending</option>
                     <option value="Done" ${routeHistoryIsDone(row) ? "selected" : ""}>Done</option>
                 </select>
+                ${routeHistoryTeamSelect(row.id)}
                 <textarea data-route-remark="${row.id}" placeholder="Audit remark">${remark}</textarea>
                 <div class="route-audit-actions">
                     <button class="route-save-btn" type="button" data-route-save="${row.id}">Save Audit</button>
+                    ${deleteButton}
                 </div>
             </aside>
+        `;
+    }
+
+    function routeHistoryTeamSelect(id) {
+        const windowName = String(state.routeHistory.window || "").trim().toUpperCase();
+        const sortedMembers = state.routeHistory.teamMembers.slice().sort((left, right) => {
+            const leftWindow = String(left.default_window || "").trim().toUpperCase();
+            const rightWindow = String(right.default_window || "").trim().toUpperCase();
+            const leftActive = leftWindow === windowName ? 0 : 1;
+            const rightActive = rightWindow === windowName ? 0 : 1;
+            if (leftActive !== rightActive) return leftActive - rightActive;
+            return String(left.name || "").localeCompare(String(right.name || ""), undefined, { sensitivity: "base" });
+        });
+        const options = sortedMembers.map((member, index) => {
+            const name = String(member.name || "").trim();
+            if (!name) return "";
+            const memberWindow = String(member.default_window || "").trim().toUpperCase();
+            const label = memberWindow ? `${name} (${memberWindow})` : name;
+            const optionId = `route-team-${id}-${index}`;
+            return `
+                <label class="route-team-option" for="${escapeHtml(optionId)}">
+                    <input id="${escapeHtml(optionId)}" type="checkbox" value="${escapeHtml(name)}" data-route-team-option="${id}">
+                    <span>${escapeHtml(label)}</span>
+                </label>
+            `;
+        }).join("");
+
+        if (!options) {
+            return `
+                <div class="route-team-picker">
+                    <button class="route-team-trigger" type="button" disabled>No team members</button>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="route-team-picker" data-route-team-picker="${id}">
+                <button class="route-team-trigger" type="button" data-route-team-trigger="${id}">Select team</button>
+                <div class="route-team-menu" data-route-team-menu="${id}">
+                    ${options}
+                    <div class="route-team-actions">
+                        <button type="button" data-route-team-clear="${id}">Clear</button>
+                        <button type="button" data-route-team-ok="${id}">OK</button>
+                    </div>
+                </div>
+            </div>
         `;
     }
 
@@ -1353,10 +1410,41 @@
     }
 
     function routeHistoryFilteredRows() {
-        if (state.routeHistory.tab === "history") {
-            return state.routeHistory.rows.filter(routeHistoryIsDone);
-        }
-        return state.routeHistory.rows.filter((row) => !routeHistoryIsDone(row));
+        const tabRows = state.routeHistory.tab === "history"
+            ? state.routeHistory.rows.filter(routeHistoryIsDone)
+            : state.routeHistory.rows.filter((row) => !routeHistoryIsDone(row));
+        const searchTerm = String(state.routeHistory.searchTerm || "").trim().toLowerCase();
+        if (!searchTerm) return tabRows;
+        return tabRows.filter((row) => routeHistorySearchText(row).includes(searchTerm));
+    }
+
+    function routeHistorySearchText(row) {
+        return [
+            row.id,
+            row.point_type,
+            row.point_key,
+            row.status,
+            row.pon_number,
+            row.partialpon,
+            row.total_user_count,
+            row.down_at,
+            row.up_at,
+            row.jcname,
+            row.jc_otdr,
+            row.jc_previousjc,
+            row.wire_drum,
+            row.wire_otdrdistance,
+            row.wiretype,
+            row.wire_inout,
+            row.corecolorandnumber,
+            row.tube,
+            row.core_power,
+            row.core_remark,
+            row.Audit,
+            row.AuditRemark,
+            routeHistoryAffectedPon(row),
+            routeHistoryName(row)
+        ].map((value) => String(value || "").toLowerCase()).join(" ");
     }
 
     function showRouteHistoryMessage(text, isError = false) {
@@ -1419,7 +1507,9 @@
         const rows = routeHistoryFilteredRows();
         renderRouteHistoryBadges();
         if (!rows.length) {
-            const emptyText = state.routeHistory.tab === "history"
+            const emptyText = String(state.routeHistory.searchTerm || "").trim()
+                ? "No route history matches your search."
+                : state.routeHistory.tab === "history"
                 ? "No route UP/Down history yet."
                 : "No pending route down records.";
             elements.routeHistoryRecords.innerHTML = `<div class="route-empty">${emptyText}</div>`;
@@ -1458,6 +1548,20 @@
         }
     }
 
+    async function loadRouteHistoryTeams() {
+        if (state.routeHistory.teamLoaded) return;
+        try {
+            const response = await fetch(teamConfigEndpoint(), { cache: "no-store" });
+            if (!response.ok) throw new Error(`Team fetch failed (${response.status})`);
+            const data = await response.json();
+            state.routeHistory.teamMembers = Array.isArray(data.members) ? data.members : [];
+            state.routeHistory.teamLoaded = true;
+        } catch (error) {
+            state.routeHistory.teamMembers = [];
+            state.routeHistory.teamLoaded = true;
+        }
+    }
+
     async function saveRouteHistoryAudit(id, audit, remark) {
         showRouteHistoryMessage("");
         const response = await fetch(routeHistoryEndpoint(state.routeHistory.window), {
@@ -1472,12 +1576,92 @@
         return data;
     }
 
-    function buildRouteAuditRemark(remark) {
+    async function deleteRouteHistoryRecord(id) {
+        showRouteHistoryMessage("");
+        const response = await fetch(`${routeHistoryEndpoint(state.routeHistory.window)}/${encodeURIComponent(id)}`, {
+            method: "DELETE"
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data.detail || `Delete failed (${response.status})`);
+        }
+        return data;
+    }
+
+    function buildRouteAuditRemark(remark, teamNames) {
         const text = String(remark || "").trim();
+        const teams = Array.isArray(teamNames)
+            ? teamNames.map((name) => String(name || "").trim()).filter(Boolean)
+            : [];
         const now = new Date();
         const pad = (value) => String(value).padStart(2, "0");
         const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-        return text ? `${timestamp} - ${text}` : timestamp;
+        const lines = [text ? `${timestamp} - ${text}` : timestamp];
+        if (teams.length) lines.push(`Work done by : ${teams.join(", ")}`);
+        return lines.join("\n");
+    }
+
+    function getSelectedRouteTeams(id) {
+        return Array.from(elements.routeHistoryRecords.querySelectorAll(`[data-route-team-option="${id}"]:checked`))
+            .map((option) => option.value);
+    }
+
+    function updateRouteTeamTrigger(id) {
+        const trigger = elements.routeHistoryRecords.querySelector(`[data-route-team-trigger="${id}"]`);
+        if (!trigger) return;
+        const teams = getSelectedRouteTeams(id);
+        trigger.textContent = teams.length ? teams.join(", ") : "Select team";
+        trigger.title = teams.join(", ");
+    }
+
+    function closeRouteTeamPickers(exceptPicker) {
+        if (!elements.routeHistoryRecords) return;
+        elements.routeHistoryRecords.querySelectorAll(".route-team-picker.open").forEach((picker) => {
+            if (picker !== exceptPicker) picker.classList.remove("open");
+        });
+    }
+
+    function showRouteConfirm(options) {
+        const modal = elements.routeConfirmModal;
+        if (!modal) return Promise.resolve(true);
+
+        return new Promise((resolve) => {
+            const title = elements.routeConfirmTitle;
+            const message = elements.routeConfirmMessage;
+            const ok = elements.routeConfirmOk;
+            const cancel = elements.routeConfirmCancel;
+
+            if (title) title.textContent = options.title || "Confirm action";
+            if (message) message.textContent = options.message || "Please confirm this action.";
+            if (ok) ok.textContent = options.confirmText || "Confirm";
+            modal.classList.toggle("danger", Boolean(options.danger));
+            modal.classList.add("show");
+            modal.setAttribute("aria-hidden", "false");
+
+            const finish = (value) => {
+                modal.classList.remove("show", "danger");
+                modal.setAttribute("aria-hidden", "true");
+                if (ok) ok.removeEventListener("click", onOk);
+                if (cancel) cancel.removeEventListener("click", onCancel);
+                modal.removeEventListener("click", onBackdrop);
+                document.removeEventListener("keydown", onKeyDown);
+                resolve(value);
+            };
+            const onOk = () => finish(true);
+            const onCancel = () => finish(false);
+            const onBackdrop = (event) => {
+                if (event.target === modal) finish(false);
+            };
+            const onKeyDown = (event) => {
+                if (event.key === "Escape") finish(false);
+            };
+
+            if (ok) ok.addEventListener("click", onOk);
+            if (cancel) cancel.addEventListener("click", onCancel);
+            modal.addEventListener("click", onBackdrop);
+            document.addEventListener("keydown", onKeyDown);
+            if (ok) ok.focus();
+        });
     }
 
     function bindRouteHistoryRecordEvents() {
@@ -1528,10 +1712,16 @@
                 const id = Number(button.dataset.routeSave);
                 const textarea = elements.routeHistoryRecords.querySelector(`[data-route-remark="${id}"]`);
                 const select = elements.routeHistoryRecords.querySelector(`[data-route-audit="${id}"]`);
+                const confirmed = await showRouteConfirm({
+                    title: "Save audit?",
+                    message: "This will update the route audit status and remark.",
+                    confirmText: "Save"
+                });
+                if (!confirmed) return;
                 button.disabled = true;
                 button.textContent = "Saving";
                 try {
-                    await saveRouteHistoryAudit(id, select ? select.value : "Done", buildRouteAuditRemark(textarea ? textarea.value : ""));
+                    await saveRouteHistoryAudit(id, select ? select.value : "Done", buildRouteAuditRemark(textarea ? textarea.value : "", getSelectedRouteTeams(id)));
                     await loadRouteHistory();
                     showRouteHistoryMessage("Audit updated.");
                 } catch (error) {
@@ -1540,6 +1730,64 @@
                     button.disabled = false;
                     button.textContent = "Save Audit";
                 }
+            });
+        });
+
+        elements.routeHistoryRecords.querySelectorAll("[data-route-delete]").forEach((button) => {
+            button.addEventListener("click", async () => {
+                const id = Number(button.dataset.routeDelete);
+                const confirmed = await showRouteConfirm({
+                    title: "Delete entry?",
+                    message: "This pending route history entry will be removed.",
+                    confirmText: "Delete",
+                    danger: true
+                });
+                if (!confirmed) return;
+                button.disabled = true;
+                button.textContent = "Deleting";
+                try {
+                    await deleteRouteHistoryRecord(id);
+                    await loadRouteHistory();
+                    showRouteHistoryMessage("Entry deleted.");
+                } catch (error) {
+                    showRouteHistoryMessage(error.message || "Unable to delete entry", true);
+                } finally {
+                    button.disabled = false;
+                    button.textContent = "Delete";
+                }
+            });
+        });
+
+        elements.routeHistoryRecords.querySelectorAll("[data-route-team-trigger]").forEach((button) => {
+            button.addEventListener("click", () => {
+                const picker = button.closest(".route-team-picker");
+                if (!picker) return;
+                const nextOpen = !picker.classList.contains("open");
+                closeRouteTeamPickers(picker);
+                picker.classList.toggle("open", nextOpen);
+            });
+        });
+
+        elements.routeHistoryRecords.querySelectorAll("[data-route-team-option]").forEach((checkbox) => {
+            checkbox.addEventListener("change", () => {
+                updateRouteTeamTrigger(checkbox.dataset.routeTeamOption);
+            });
+        });
+
+        elements.routeHistoryRecords.querySelectorAll("[data-route-team-ok]").forEach((button) => {
+            button.addEventListener("click", () => {
+                const picker = button.closest(".route-team-picker");
+                if (picker) picker.classList.remove("open");
+            });
+        });
+
+        elements.routeHistoryRecords.querySelectorAll("[data-route-team-clear]").forEach((button) => {
+            button.addEventListener("click", () => {
+                const id = button.dataset.routeTeamClear;
+                elements.routeHistoryRecords.querySelectorAll(`[data-route-team-option="${id}"]`).forEach((checkbox) => {
+                    checkbox.checked = false;
+                });
+                updateRouteTeamTrigger(id);
             });
         });
     }
@@ -1554,6 +1802,7 @@
             elements.lineTrackerPanel.classList.add("show");
             elements.lineTrackerPanel.setAttribute("aria-hidden", "false");
         }
+        await loadRouteHistoryTeams();
         await loadRouteHistory();
     }
 
@@ -1984,11 +2233,119 @@
         return nodes;
     }
 
+    const MEDANTA_FMS_MAPPING = [
+        {
+            title: "96 CORE - BLUE TUBE",
+            start: 1,
+            groups: [
+                { label: "CORE 1-12", className: "blue", span: 12 },
+                { label: "CORE 13-24", className: "orange", span: 12 }
+            ],
+            routes: [
+                { label: "ATALPUR 12 CORE BIRLA CORE 1-7", span: 7 },
+                { label: "BARGAD WALI JC - 12 CORE EURO DIGITAL - 1-6", span: 6 },
+                { label: "GOMTI DIARY - 12 CORE EURO DIGITAL - CORE 1-5", span: 11 }
+            ],
+            values: [
+                "74.12 P-1", "74.12 P-2", "74.7 P-4", "74.4 P-3", "74.7 P-1", "74.12 P-4",
+                "74.4 P-1", "74.4 P-4", "74.5 P-3", "74.5 P-1", "74.5 P-2", "74.12 P-3",
+                "74.10 P-3", "Free", "Free", "Free", "74.5 P-4", "74.9 P-2",
+                "74.7 P-3", "74.7 P-2", "74.4 P-2", "Free", "Free", "Free"
+            ]
+        },
+        {
+            title: "96 CORE - GREEN/GREY TUBE",
+            start: 25,
+            groups: [
+                { label: "96 CORE - GREEN TUBE - CORE 1-12", className: "green", span: 12 },
+                { label: "96 CORE - GREY TUBE - CORE 37-48", className: "grey", span: 12 }
+            ],
+            routes: [
+                { label: "48 CORE 8 TUBE - BLUE TUBE 1-6 , ORANGE TUBE 1-6", span: 12 },
+                { label: "48 CORE 8 TUBE - GREEN TUBE 1-6", span: 6 },
+                { label: "12 CORE BLACK FIBER (1 TO 6)", span: 6 }
+            ],
+            values: [
+                "74.9 P-3", "74.9 P-4", "74.3 P-4", "74.10 P-4", "74.10 P-2", "74.3 P-1",
+                "Free", "Free", "Free", "Free", "Free", "Free",
+                "Free", "Free", "Free", "Free", "Free", "Free",
+                "Free", "Free", "Free", "Free", "Free", "74.9 P-1"
+            ]
+        }
+    ];
+
+    function createFmsMappingHtml() {
+        return MEDANTA_FMS_MAPPING.map((section) => {
+            const numbers = Array.from({ length: section.values.length }, (_, index) => section.start + index);
+            return `
+                <div class="fms-section">
+                    <div class="fms-section-title">${escapeHtml(section.title)}</div>
+                    <table class="fms-table">
+                        <tbody>
+                            <tr>
+                                ${section.groups.map((group) => `<th class="fms-head ${group.className}" colspan="${group.span}">${escapeHtml(group.label)}</th>`).join("")}
+                            </tr>
+                            <tr>
+                                ${numbers.map((number) => `<th class="fms-core">${number}</th>`).join("")}
+                            </tr>
+                            <tr>
+                                ${section.routes.map((route) => `<td class="fms-route" colspan="${route.span}">${escapeHtml(route.label)}</td>`).join("")}
+                            </tr>
+                            <tr>
+                                ${section.values.map((value) => `<td class="${String(value).toLowerCase() === "free" ? "fms-free" : ""}">${escapeHtml(value)}</td>`).join("")}
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }).join("");
+    }
+
     function createOfficeNode() {
-        const office = document.createElement("div");
-        office.className = "olt";
-        office.textContent = `${ROOT_PREVIOUS_JC}${state.context && state.context.windowName ? ` (${state.context.windowName})` : ""}`;
-        return office;
+        const activeWindow = String(state.context && state.context.windowName || "").trim().toUpperCase();
+        const label = `${ROOT_PREVIOUS_JC}${activeWindow ? ` (${activeWindow})` : ""}`;
+
+        if (activeWindow !== "MEDANTA") {
+            const office = document.createElement("div");
+            office.className = "olt";
+            office.textContent = label;
+            return office;
+        }
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "olt-fms-wrap";
+        wrapper.innerHTML = `
+            <div class="olt" role="button" tabindex="0" aria-expanded="false">
+                <span>${escapeHtml(label)}</span>
+                <small>FMS Mapping</small>
+            </div>
+            <div class="fms-panel" hidden>
+                <div class="fms-panel-head">
+                    <strong>FMS Mapping</strong>
+                    <span>Static reference</span>
+                </div>
+                ${createFmsMappingHtml()}
+            </div>
+        `;
+
+        const trigger = wrapper.querySelector(".olt");
+        const panel = wrapper.querySelector(".fms-panel");
+        const togglePanel = (event) => {
+            event.stopPropagation();
+            const expanded = trigger.getAttribute("aria-expanded") === "true";
+            trigger.setAttribute("aria-expanded", String(!expanded));
+            wrapper.classList.toggle("open", !expanded);
+            panel.hidden = expanded;
+        };
+
+        trigger.addEventListener("click", togglePanel);
+        trigger.addEventListener("keydown", (event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            togglePanel(event);
+        });
+
+        return wrapper;
     }
 
     function applyBranchConnector(branch) {
@@ -4044,6 +4401,17 @@
                 loadRouteHistory().catch((error) => showRouteHistoryMessage(error.message || "Unable to load route history", true));
             });
         }
+        if (elements.routeHistorySearch) {
+            elements.routeHistorySearch.addEventListener("input", () => {
+                state.routeHistory.searchTerm = elements.routeHistorySearch.value;
+                renderRouteHistory();
+            });
+        }
+        document.addEventListener("click", (event) => {
+            if (!elements.routeHistoryRecords || !elements.routeHistoryRecords.contains(event.target)) return;
+            if (event.target.closest(".route-team-picker")) return;
+            closeRouteTeamPickers();
+        });
         (elements.routeHistoryTabs || []).forEach((tab) => {
             tab.addEventListener("click", () => {
                 (elements.routeHistoryTabs || []).forEach((item) => item.classList.remove("active"));
@@ -4274,8 +4642,14 @@
         elements.routeHistoryUpdatedBadge = document.getElementById("routeHistoryUpdatedBadge");
         elements.routeHistoryMessage = document.getElementById("routeHistoryMessage");
         elements.routeHistoryRecords = document.getElementById("routeHistoryRecords");
+        elements.routeHistorySearch = document.getElementById("routeHistorySearch");
         elements.routeHistoryTabs = Array.from(document.querySelectorAll("[data-route-tab]"));
         elements.routeHistoryPendingBadge = document.getElementById("routeHistoryPendingBadge");
+        elements.routeConfirmModal = document.getElementById("routeConfirmModal");
+        elements.routeConfirmTitle = document.getElementById("routeConfirmTitle");
+        elements.routeConfirmMessage = document.getElementById("routeConfirmMessage");
+        elements.routeConfirmOk = document.getElementById("routeConfirmOk");
+        elements.routeConfirmCancel = document.getElementById("routeConfirmCancel");
         if (!elements.mount) return;
         createShell();
         bindEvents();

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JC Fiber Tree</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-    <link rel="stylesheet" href="styles.css?v=route-history-merge-5">
+    <link rel="stylesheet" href="styles.css?v=medanta-fms-2">
 </head>
 <body>
 
@@ -36,6 +36,7 @@
                 <p id="routeHistorySummary">Loading route history...</p>
             </div>
             <div class="route-history-actions">
+                <input id="routeHistorySearch" type="search" placeholder="Search route history" aria-label="Search route history">
                 <select id="routeHistoryWindow" aria-label="Window"></select>
                 <button id="routeHistoryRefresh" type="button">Refresh</button>
                 <button id="lineTrackerClose" type="button">Close</button>
@@ -62,6 +63,17 @@
     </div>
 </div>
 
+<div class="route-confirm-modal" id="routeConfirmModal" aria-hidden="true">
+    <div class="route-confirm-card" role="dialog" aria-modal="true" aria-labelledby="routeConfirmTitle">
+        <h2 id="routeConfirmTitle">Confirm action</h2>
+        <p id="routeConfirmMessage">Please confirm this action.</p>
+        <div class="route-confirm-actions">
+            <button id="routeConfirmCancel" type="button">Cancel</button>
+            <button id="routeConfirmOk" type="button">Confirm</button>
+        </div>
+    </div>
+</div>
+
 <div class="jc-window-modal" id="jcWindowModal">
     <div class="jc-window-card">
         <h2>Please Select Window</h2>
@@ -75,6 +87,6 @@
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="jc-notepad.js?v=route-history-merge-5"></script>
+<script src="jc-notepad.js?v=medanta-fms-2"></script>
 </body>
 </html>
