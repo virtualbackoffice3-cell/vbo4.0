@@ -35,7 +35,9 @@ const els = {
 };
 
 function toInputDate(date) {
-  return date.toISOString().slice(0, 10);
+  const offset = date.getTimezoneOffset();
+  const local = new Date(date.getTime() - offset * 60000);
+  return local.toISOString().split("T")[0];
 }
 
 function setDefaultDates() {
@@ -182,6 +184,7 @@ function render() {
         </button>`;
     return `
       <tr>
+        <td>${escapeHtml(row._client)}</td>
         <td>${escapeHtml(row.username)}</td>
         <td>${escapeHtml(row.TransactionName)}</td>
         <td>${escapeHtml(formatDate(row.date))}</td>
@@ -244,14 +247,15 @@ function downloadCsv() {
     return;
   }
 
-  const headers = ["Username", "Transaction", "Date", "Phone", "Package", "Address", "Amount", "Status", "Remarks"];
+  const headers = ["Window", "Username", "Transaction", "Date", "Phone", "Package", "Address", "Amount", "Status", "Remarks"];
   if (state.tab !== "history") {
-    headers.splice(8, 0, "Mark");
+    headers.splice(9, 0, "Mark");
   }
 
   const lines = [headers.map(csvCell).join(",")];
   state.rows.forEach((row) => {
     const values = [
+      row._client,
       row.username,
       row.TransactionName,
       formatDate(row.date),

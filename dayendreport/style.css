@@ -250,7 +250,7 @@ button:disabled {
 
 table {
   width: 100%;
-  min-width: 1120px;
+  min-width: 1200px;
   border-collapse: collapse;
 }
 
@@ -433,8 +433,8 @@ th {
   font-weight: 700;
 }
 
-.historyTable th:nth-child(9),
-.historyTable td:nth-child(9) {
+.historyTable th:nth-child(10),
+.historyTable td:nth-child(10) {
   display: none;
 }
 
