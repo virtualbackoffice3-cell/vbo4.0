@@ -551,6 +551,48 @@ th.small {
   min-width: 96px;
 }
 
+.running-select {
+  animation: runningBgPulse 1.15s ease-in-out infinite;
+  background-color: #dcfae6;
+  border-color: #32d583;
+  color: #027a48;
+}
+
+.running-select.breached-running {
+  animation: breachedRunningBgPulse 1.05s ease-in-out infinite;
+  border-color: #f04438;
+}
+
+.running-select option {
+  color: #1d2939;
+}
+
+@keyframes runningBgPulse {
+  0%,
+  100% {
+    background-color: #dcfae6;
+    box-shadow: 0 0 0 0 rgba(18, 183, 106, 0);
+  }
+
+  50% {
+    background-color: #86efac;
+    box-shadow: 0 0 0 4px rgba(18, 183, 106, 0.16);
+  }
+}
+
+@keyframes breachedRunningBgPulse {
+  0%,
+  100% {
+    background-color: #fee4e2;
+    box-shadow: 0 0 0 0 rgba(240, 68, 56, 0);
+  }
+
+  50% {
+    background-color: #86efac;
+    box-shadow: 0 0 0 4px rgba(18, 183, 106, 0.18);
+  }
+}
+
 .team-select {
   min-height: 74px;
   min-width: 160px;

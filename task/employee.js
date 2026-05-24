@@ -152,16 +152,6 @@ function isMine(row) {
   return String(row.usermail || "").trim().toLowerCase() === state.employeeName.toLowerCase();
 }
 
-function getRunningTask() {
-  for (const client of CLIENTS) {
-    const row = (state.allRows[client] || []).find((item) => isPick(item) && isMine(item));
-    if (row) {
-      return { client, row };
-    }
-  }
-  return null;
-}
-
 function nowLucknow() {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Kolkata",
@@ -478,12 +468,34 @@ function makeTaskSelect(current, options) {
   return select;
 }
 
+function makeActionSelect(current, actions) {
+  const select = makeTaskSelect(current, [current, ...actions]);
+  const currentOption = select.querySelector(`option[value='${current}']`);
+  if (currentOption) {
+    currentOption.hidden = true;
+  }
+  return select;
+}
+
 function makeTaskPill(task) {
   const span = document.createElement("span");
   const normalized = normalizeTask(task);
   span.className = `pill ${normalized.toLowerCase()}`;
   span.textContent = normalized;
   return span;
+}
+
+function makeRunningTaskSelect(isBreached) {
+  const select = makeTaskSelect("Running", ["Running", "Unpick"]);
+  const runningOption = select.querySelector("option[value='Running']");
+  if (runningOption) {
+    runningOption.hidden = true;
+  }
+  select.classList.add("running-select");
+  if (isBreached) {
+    select.classList.add("breached-running");
+  }
+  return select;
 }
 
 function makeTeamPicker(row) {
@@ -651,7 +663,6 @@ function closePickTeamModal() {
 }
 
 function render() {
-  const running = getRunningTask();
   const rows = filteredRows();
   els.panelTitle.textContent = `Complaints (${rows.length})`;
   els.statusText.textContent = "";
@@ -664,8 +675,8 @@ function render() {
 
   rows.forEach((row, index) => {
     const currentTask = normalizeTask(row.task);
-    const isRunningRow = running && running.client === state.client && Number(running.row.id) === Number(row.id);
-    const canEdit = isRunningRow || (!running && isPendingOrUnpick(row));
+    const canUnpickMine = isPick(row) && isMine(row);
+    const canEdit = canUnpickMine || isPendingOrUnpick(row);
     const tr = document.createElement("tr");
     tr.classList.add(`task-row-${currentTask.toLowerCase()}`);
 
@@ -677,31 +688,37 @@ function render() {
     saveButton.type = "button";
     saveButton.textContent = "Locked";
     saveButton.addEventListener("click", () => {
-      toast(running ? "Complete your running task first !" : "Task is not editable");
+      toast("Task is not editable");
     });
     const remarkControl = makeRemarkControl(row, isPick(row) && isMine(row));
     const timerControl = makeBreachTimer(row);
 
-    if (canEdit && isRunningRow) {
-      taskControl = makeTaskSelect("Unpick", ["Unpick"]);
-      saveButton = document.createElement("button");
-      saveButton.className = "button";
-      saveButton.type = "button";
-      saveButton.textContent = "OK";
-      saveButton.addEventListener("click", () => saveRow(row, taskControl, null));
+    if (canEdit && canUnpickMine) {
+      const unpickSelect = makeRunningTaskSelect(breachInfo(row).breached);
+      saveButton = document.createElement("span");
+      saveButton.className = "cell-muted";
+      saveButton.textContent = "-";
+      unpickSelect.addEventListener("change", () => {
+        const isUnpick = unpickSelect.value === "Unpick";
+        unpickSelect.classList.toggle("running-select", !isUnpick);
+        unpickSelect.classList.toggle("breached-running", !isUnpick && breachInfo(row).breached);
+        if (isUnpick) {
+          saveRow(row, unpickSelect, null);
+        }
+      });
+      taskControl = unpickSelect;
     } else if (canEdit) {
-      taskControl = makeTaskSelect(currentTask, ["Pending", "Pick", "Unpick"]);
+      taskControl = makeActionSelect(currentTask, ["Pick"]);
       teamControl = makeTeamPicker(row);
       taskControl.addEventListener("change", () => {
         if (taskControl.value === "Pick") {
           openPickTeamModal(row);
         }
       });
-      saveButton = document.createElement("button");
-      saveButton.className = "button";
+      saveButton = document.createElement("span");
+      saveButton.className = "cell-muted";
       saveButton.type = "button";
-      saveButton.textContent = "OK";
-      saveButton.addEventListener("click", () => saveRow(row, taskControl, teamControl));
+      saveButton.textContent = "-";
     }
 
     tr.innerHTML = `
@@ -894,6 +911,10 @@ async function updateComplaint(row, payload) {
 
 function saveRow(row, taskControl, teamControl) {
   const task = taskControl.value;
+  if (task === "Running") {
+    toast("Select Unpick first");
+    return;
+  }
   if (task === "Unpick") {
     state.pendingUnpick = { row };
     els.unpickRemark.value = "";
@@ -976,6 +997,7 @@ els.refreshButton.addEventListener("click", () => {
 els.cancelUnpick.addEventListener("click", () => {
   state.pendingUnpick = null;
   els.unpickModal.classList.remove("open");
+  render();
 });
 
 els.confirmUnpick.addEventListener("click", () => {
