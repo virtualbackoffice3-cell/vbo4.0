@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Day End Report</title>
+  <title>Cash settlement report</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="topbar">
     <div>
-      <h1>Day End Report</h1>
+      <h1>Cash settlement report</h1>
       <p id="summaryText">Loading...</p>
     </div>
     <div class="windowBox">
@@ -59,6 +59,7 @@
 
     <section class="tabs">
       <button class="tab active" type="button" data-tab="report">Report</button>
+      <button class="tab" type="button" data-tab="settlement">Today`s settlement</button>
       <button class="tab iconTab" type="button" data-tab="history" aria-label="History" title="History">
         <svg class="clockIcon" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M12 2a10 10 0 1 0 10 10A10.01 10.01 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8.01 8.01 0 0 1-8 8zm1-13h-2v6l5 3 1-1.7-4-2.3z"/>
@@ -67,6 +68,7 @@
     </section>
 
     <section id="statusBadges" class="statusBadges"></section>
+    <section id="settlementSummary" class="settlementSummary" hidden></section>
 
     <section class="tableWrap">
       <table>
@@ -78,6 +80,7 @@
             <th>Date</th>
             <th>Phone</th>
             <th>Package</th>
+            <th>By</th>
             <th>Address</th>
             <th>Amount</th>
             <th>Status</th>

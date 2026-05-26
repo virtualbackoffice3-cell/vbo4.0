@@ -18,6 +18,8 @@ const els = {
   refresh: document.getElementById("refreshBtn"),
   csv: document.getElementById("csvBtn"),
   badges: document.getElementById("statusBadges"),
+  settlementSummary: document.getElementById("settlementSummary"),
+  tableWrap: document.querySelector(".tableWrap"),
   tbody: document.getElementById("tableBody"),
   empty: document.getElementById("emptyState"),
   summary: document.getElementById("summaryText"),
@@ -77,6 +79,14 @@ function formatDate(value) {
   const date = match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : new Date(raw);
   if (Number.isNaN(date.getTime())) return raw;
   return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).replace(",", "");
+}
+
+function rowInputDate(value) {
+  const raw = String(value || "").trim();
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) return `${match[1]}-${match[2]}-${match[3]}`;
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? "" : toInputDate(date);
 }
 
 function shortAddress(value) {
@@ -141,8 +151,14 @@ document.addEventListener("click", (event) => {
 function buildUrl(client) {
   const endpoint = state.tab === "history" ? "log" : "report";
   const url = new URL(`${API_BASE}/${client}/dayendreport/${endpoint}`);
-  if (els.from.value) url.searchParams.set("date_from", els.from.value);
-  if (els.to.value) url.searchParams.set("date_to", els.to.value);
+  if (state.tab === "settlement") {
+    const today = toInputDate(new Date());
+    url.searchParams.set("date_from", today);
+    url.searchParams.set("date_to", today);
+  } else {
+    if (els.from.value) url.searchParams.set("date_from", els.from.value);
+    if (els.to.value) url.searchParams.set("date_to", els.to.value);
+  }
   if (els.search.value.trim()) url.searchParams.set("search", els.search.value.trim());
   return url;
 }
@@ -158,9 +174,11 @@ async function loadRows() {
       return (data.rows || []).map((row) => ({ ...row, _client: client }));
     }));
     const statuses = selectedStatuses();
+    const today = toInputDate(new Date());
     state.rows = responses.flat().filter((row) => (
-      (state.tab !== "history" || (row.payment_status || "Pending") !== "Pending")
-      && (statuses.includes("ALL") || statuses.includes(row.payment_status || "Pending"))
+      (state.tab !== "settlement" || rowInputDate(row.date) === today)
+      && (state.tab !== "history" || (row.payment_status || "Pending") !== "Pending")
+      && (state.tab === "settlement" || statuses.includes("ALL") || statuses.includes(row.payment_status || "Pending"))
     ));
     render();
   } catch (error) {
@@ -174,6 +192,9 @@ async function loadRows() {
 
 function render() {
   const rows = state.rows;
+  const isSettlement = state.tab === "settlement";
+  els.tableWrap.hidden = isSettlement;
+  els.settlementSummary.hidden = !isSettlement;
   document.querySelector("table").classList.toggle("historyTable", state.tab === "history");
   els.tbody.innerHTML = rows.map((row) => {
     const status = row.payment_status || "Pending";
@@ -190,6 +211,7 @@ function render() {
         <td>${escapeHtml(formatDate(row.date))}</td>
         <td>${escapeHtml(row.Phone)}</td>
         <td>${escapeHtml(row.Packagename)}</td>
+        <td>${escapeHtml(row.byUser)}</td>
         <td>
           <button class="addressBtn" type="button" data-address="${escapeHtml(row.Address)}">
             ${escapeHtml(shortAddress(row.Address))}
@@ -203,12 +225,13 @@ function render() {
     `;
   }).join("");
   els.empty.style.display = rows.length ? "none" : "block";
-  els.summary.textContent = `${rows.length} ${state.tab === "history" ? "history entries" : "report entries"}`;
+  els.summary.textContent = `${rows.length} ${state.tab === "history" ? "history entries" : isSettlement ? "settlement entries" : "report entries"}`;
   renderBadges(rows);
+  renderSettlementSummary(rows);
 }
 
 function renderBadges(rows) {
-  if (state.tab === "history") {
+  if (state.tab === "history" || state.tab === "settlement") {
     els.badges.innerHTML = "";
     els.badges.hidden = true;
     return;
@@ -236,6 +259,66 @@ function renderBadges(rows) {
   }).join("");
 }
 
+function renderSettlementSummary(rows) {
+  if (state.tab !== "settlement") {
+    els.settlementSummary.innerHTML = "";
+    return;
+  }
+
+  const totals = new Map();
+  rows.forEach((row) => {
+    const byUser = String(row.byUser || "Blank").trim() || "Blank";
+    const client = row._client || "";
+    const byTotals = totals.get(byUser) || new Map();
+    const item = byTotals.get(client) || { amount: 0, count: 0 };
+    item.amount += Number(row.Amount || 0);
+    item.count += 1;
+    byTotals.set(client, item);
+    totals.set(byUser, byTotals);
+  });
+
+  const items = [...totals.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  const clientTotals = new Map(CLIENTS.map((client) => [client, { amount: 0, count: 0 }]));
+  let grandAmount = 0;
+  let grandCount = 0;
+
+  function cellText(item) {
+    return item && item.count ? `${money(item.amount)}/${item.count}` : "0/0";
+  }
+
+  els.settlementSummary.innerHTML = `
+    <h2>Today\`s cash settlemnet</h2>
+    <div class="settlementMatrix">
+      <div class="settlementHead">By</div>
+      ${CLIENTS.map((client) => `<div class="settlementHead">${escapeHtml(client)}</div>`).join("")}
+      <div class="settlementHead">Total</div>
+      ${items.map(([byUser, byTotals]) => {
+        let rowAmount = 0;
+        let rowCount = 0;
+        const cells = CLIENTS.map((client) => {
+          const item = byTotals.get(client) || { amount: 0, count: 0 };
+          const clientTotal = clientTotals.get(client);
+          clientTotal.amount += item.amount;
+          clientTotal.count += item.count;
+          rowAmount += item.amount;
+          rowCount += item.count;
+          return `<div>${cellText(item)}</div>`;
+        }).join("");
+        grandAmount += rowAmount;
+        grandCount += rowCount;
+        return `
+          <div>${escapeHtml(byUser)}</div>
+          ${cells}
+          <div><strong>${money(rowAmount)}/${rowCount}</strong></div>
+        `;
+      }).join("")}
+      <div class="settlementTotal">Total</div>
+      ${CLIENTS.map((client) => `<div class="settlementTotal">${cellText(clientTotals.get(client))}</div>`).join("")}
+      <div class="settlementTotal">${money(grandAmount)}/${grandCount}</div>
+    </div>
+  `;
+}
+
 function csvCell(value) {
   const text = String(value ?? "");
   return `"${text.replaceAll('"', '""')}"`;
@@ -247,9 +330,9 @@ function downloadCsv() {
     return;
   }
 
-  const headers = ["Window", "Username", "Transaction", "Date", "Phone", "Package", "Address", "Amount", "Status", "Remarks"];
+  const headers = ["Window", "Username", "Transaction", "Date", "Phone", "Package", "By", "Address", "Amount", "Status", "Remarks"];
   if (state.tab !== "history") {
-    headers.splice(9, 0, "Mark");
+    headers.splice(10, 0, "Mark");
   }
 
   const lines = [headers.map(csvCell).join(",")];
@@ -261,6 +344,7 @@ function downloadCsv() {
       formatDate(row.date),
       row.Phone,
       row.Packagename,
+      row.byUser,
       row.Address,
       money(row.Amount),
       row.payment_status || "Pending",

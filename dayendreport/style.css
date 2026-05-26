@@ -248,6 +248,62 @@ button:disabled {
   box-shadow: 0 8px 22px rgba(16, 32, 51, 0.05);
 }
 
+.tableWrap[hidden] {
+  display: none;
+}
+
+.settlementSummary {
+  max-width: 920px;
+  border: 1px solid #dce6e1;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+  box-shadow: 0 8px 22px rgba(16, 32, 51, 0.05);
+}
+
+.settlementSummary[hidden] {
+  display: none;
+}
+
+.settlementSummary h2 {
+  margin-bottom: 8px;
+  color: #20384a;
+  font-size: 16px;
+}
+
+.settlementMatrix {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.4fr) repeat(4, minmax(110px, 1fr));
+  overflow-x: auto;
+  color: #40576b;
+}
+
+.settlementMatrix > div {
+  border-top: 1px solid #e4ece8;
+  padding: 8px 10px;
+  white-space: nowrap;
+}
+
+.settlementMatrix > div:not(:nth-child(5n + 1)) {
+  text-align: right;
+}
+
+.settlementHead {
+  color: #385064;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.settlementSummary strong {
+  color: #102033;
+}
+
+.settlementTotal {
+  color: #102033;
+  font-weight: 700;
+}
+
 table {
   width: 100%;
   min-width: 1200px;
