@@ -294,8 +294,9 @@ function openEdit(key) {
     <span>${escapeHtml(row.Packagename || "")}</span>
     <span>Amount: ${money(row.Amount)}</span>
   `;
-  els.editStatus.value = row.payment_status || "Pending";
-  els.editRemarks.value = "";
+  const statusValues = [...els.editStatus.options].map((option) => option.value);
+  els.editStatus.value = statusValues.includes(row.payment_status) ? row.payment_status : "Pending";
+  setDefaultEditRemark();
   els.modal.hidden = false;
 }
 
@@ -316,8 +317,8 @@ function closeAddress() {
 async function saveEdit() {
   if (!state.editing) return;
   const remarks = els.editRemarks.value.trim();
-  if (els.editStatus.value === "Balance" && !remarks) {
-    showToast("Balance remark required");
+  if (!remarks) {
+    showToast("Remark required");
     els.editRemarks.focus();
     return;
   }
@@ -341,6 +342,14 @@ async function saveEdit() {
   } finally {
     els.saveEdit.disabled = false;
   }
+}
+
+function setDefaultEditRemark() {
+  const defaults = {
+    "Amanwiz UPI": "UPI Transaction no - ",
+    Cash: "Cash received by - ",
+  };
+  els.editRemarks.value = defaults[els.editStatus.value] || "";
 }
 
 let searchTimer = null;
@@ -381,6 +390,7 @@ els.csv.addEventListener("click", downloadCsv);
 els.from.addEventListener("change", loadRows);
 els.to.addEventListener("change", loadRows);
 els.search.addEventListener("input", scheduleLoad);
+els.editStatus.addEventListener("change", setDefaultEditRemark);
 els.saveEdit.addEventListener("click", saveEdit);
 els.cancelEdit.addEventListener("click", closeEdit);
 els.closeModal.addEventListener("click", closeEdit);
