@@ -43,13 +43,24 @@ main {
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) 180px 160px 160px 110px 76px;
+  grid-template-columns: minmax(280px, 1fr) 180px 160px 160px 110px 76px 82px;
   gap: 12px;
   align-items: end;
   padding: 14px;
   background: #ffffff;
   border: 1px solid #dce6e1;
   border-radius: 8px;
+}
+
+.toolbar.matrixMode {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.toolbar.matrixMode .field,
+.toolbar.matrixMode #refreshBtn,
+.toolbar.matrixMode #csvBtn {
+  display: none;
 }
 
 .field,
@@ -278,13 +289,15 @@ button:disabled {
   color: #40576b;
 }
 
-.settlementMatrix > div {
+.settlementMatrix > div,
+.settlementMatrix > button {
   border-top: 1px solid #e4ece8;
   padding: 8px 10px;
   white-space: nowrap;
 }
 
-.settlementMatrix > div:not(:nth-child(5n + 1)) {
+.settlementMatrix > div:not(:nth-child(5n + 1)),
+.settlementMatrix > button:not(:nth-child(5n + 1)) {
   text-align: right;
 }
 
@@ -304,9 +317,23 @@ button:disabled {
   font-weight: 700;
 }
 
+.matrixCell {
+  border-radius: 0;
+  background: #ffffff;
+  color: #102033;
+}
+
+.matrixCell:hover {
+  background: #eef5f2;
+}
+
+.matrixStrong {
+  font-weight: 700;
+}
+
 table {
   width: 100%;
-  min-width: 1200px;
+  min-width: 1320px;
   border-collapse: collapse;
 }
 
@@ -433,6 +460,23 @@ th {
   width: min(520px, 100%);
 }
 
+.detailPanel {
+  width: min(1120px, 96vw);
+  max-height: 88vh;
+}
+
+.detailContent {
+  overflow: auto;
+  max-height: calc(88vh - 92px);
+  border: 1px solid #dce6e1;
+  border-radius: 7px;
+  background: #ffffff;
+}
+
+.detailTable {
+  min-width: 1080px;
+}
+
 .addressText {
   color: #20384a;
   line-height: 1.45;
@@ -451,6 +495,20 @@ th {
 .ghostBtn {
   background: #dfe9e5;
   color: #20384a;
+}
+
+.iconOnly {
+  display: inline-grid;
+  width: 42px;
+  min-width: 42px;
+  place-items: center;
+  padding: 11px;
+}
+
+.iconOnly svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
 }
 
 .miniCard {
@@ -487,11 +545,6 @@ th {
   color: #40576b;
   font-size: 12px;
   font-weight: 700;
-}
-
-.historyTable th:nth-child(10),
-.historyTable td:nth-child(10) {
-  display: none;
 }
 
 @media (max-width: 900px) {
