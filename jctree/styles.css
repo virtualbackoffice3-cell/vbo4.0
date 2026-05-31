@@ -827,7 +827,26 @@ body {
 .jc-note-root .jc-map-jc-mount { flex:1; overflow:auto; padding: 8px 6px 6px; }
 .jc-map-popup-root .jc-note-inner-modal { z-index: 2600; }
 .jc-map-div-icon { background: transparent; border: 0; }
-.map-jc-marker { width: 118px; display:flex; flex-direction:column; align-items:center; gap:4px; transform: translateY(-4px); }
+.map-jc-marker { position:relative; width:24px; height:24px; display:flex; align-items:center; justify-content:center; transform: translate(-1px,-1px); }
+.map-jc-marker.is-preview { width:118px; height:auto; flex-direction:column; gap:4px; transform: translateY(-4px); }
+.map-jc-preview { display:none; flex-direction:column; align-items:center; gap:4px; }
+.map-jc-marker.is-preview .map-jc-preview { display:flex; }
+.map-jc-marker.is-preview .map-jc-dot { display:none; }
+.map-jc-dot { position:relative; width:12px; height:12px; border-radius:999px; background:#0ea5e9; border:2px solid #ffffff; box-shadow:0 0 0 1px rgba(8,47,73,.24), 0 5px 12px rgba(8,47,73,.22); }
+.map-jc-dot::after { content:""; position:absolute; inset:-7px; border-radius:999px; border:2px solid rgba(14,165,233,.48); animation:mapJcPulse 1.35s ease-out infinite; }
+.map-jc-dot-green { background:#16a34a; }
+.map-jc-dot-green::after { border-color:rgba(22,163,74,.46); }
+.map-jc-dot-orange { background:#f97316; }
+.map-jc-dot-orange::after { border-color:rgba(249,115,22,.5); }
+.map-jc-dot-red { background:#dc2626; }
+.map-jc-dot-red::after { border-color:rgba(220,38,38,.52); }
+.map-jc-dot-gray, .map-jc-dot-grey { background:#64748b; }
+.map-jc-dot-gray::after, .map-jc-dot-grey::after { border-color:rgba(100,116,139,.42); }
+@keyframes mapJcPulse {
+    0% { transform:scale(.45); opacity:.9; }
+    76% { transform:scale(1.3); opacity:0; }
+    100% { transform:scale(1.3); opacity:0; }
+}
 .map-jc-badge { width:108px; min-height:30px; max-width:108px; padding:3px 6px; border-radius:16px; border:1px solid #d3e3ed; background:rgba(255,255,255,.95); color:#215067; font-size:10px; font-weight:700; line-height:1.04; text-align:center; display:flex; align-items:center; justify-content:center; box-shadow:0 6px 14px rgba(34,76,102,.14); white-space:normal; word-break:break-word; }
 .map-marker-otdr { font-weight:700; }
 .map-jc-box { width:44px; height:44px; display:flex; overflow:hidden; border-radius:10px; background:linear-gradient(145deg,#eef6fb,#cfe1ec); border:1px solid #bcd3df; box-shadow: inset 0 1px 0 rgba(255,255,255,.9), inset -6px -6px 12px rgba(110,146,168,.14), 0 8px 18px rgba(68,101,122,.12); }

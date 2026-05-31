@@ -1162,23 +1162,41 @@
             .filter((node) => Number.isFinite(node.lat) && Number.isFinite(node.lng));
     }
 
-    function createMapMarkerHtml(node) {
+    function createMapMarkerHtml(node, mode = "dot") {
         const healthMeta = node && node.healthMeta ? node.healthMeta : { level: "gray", label: "Pon 0/0" };
         const titleHtml = node && node.otdrDistance
             ? `${String(node.jcName || "JC")}<br><span class="map-marker-otdr">(${String(node.otdrDistance)})</span>`
             : String(node && node.jcName || "JC");
         const previousHtml = node && node.previousJc ? `After ${String(node.previousJc)}` : "";
         return `
-            <div class="map-jc-marker">
-                <div class="map-jc-badge">${titleHtml}</div>
-                <div class="map-jc-box">
-                    <div class="map-jc-side left"></div>
-                    <div class="map-jc-side right"></div>
+            <div class="map-jc-marker ${mode === "preview" ? "is-preview" : "is-dot"}">
+                <div class="map-jc-dot map-jc-dot-${healthMeta.level}" title="${String(node && node.jcName || "JC")}"></div>
+                <div class="map-jc-preview">
+                    <div class="map-jc-badge">${titleHtml}</div>
+                    <div class="map-jc-box">
+                        <div class="map-jc-side left"></div>
+                        <div class="map-jc-side right"></div>
+                    </div>
+                    <div class="map-jc-health"><span class="core-led ${healthMeta.level}"></span><span>${healthMeta.label}</span></div>
+                    ${previousHtml ? `<div class="map-jc-after">${previousHtml}</div>` : ""}
                 </div>
-                <div class="map-jc-health"><span class="core-led ${healthMeta.level}"></span><span>${healthMeta.label}</span></div>
-                ${previousHtml ? `<div class="map-jc-after">${previousHtml}</div>` : ""}
             </div>
         `;
+    }
+
+    function createMapMarkerIcon(node, mode = "dot") {
+        return window.L.divIcon({
+            className: "jc-map-div-icon",
+            html: createMapMarkerHtml(node, mode),
+            iconSize: mode === "preview" ? [118, 92] : [24, 24],
+            iconAnchor: mode === "preview" ? [59, 70] : [12, 12],
+            popupAnchor: [0, -64]
+        });
+    }
+
+    function setMapMarkerMode(marker, node, mode = "dot") {
+        marker._jcMapMode = mode;
+        marker.setIcon(createMapMarkerIcon(node, mode));
     }
 
     function ensureLeafletMap() {
@@ -1968,17 +1986,26 @@
         state.jcMapMarkers.forEach((marker) => marker.remove());
         state.jcMapMarkers = nodes.map((node) => {
             const marker = window.L.marker([node.lat, node.lng], {
-                icon: window.L.divIcon({
-                    className: "jc-map-div-icon",
-                    html: createMapMarkerHtml(node),
-                    iconSize: [118, 92],
-                    iconAnchor: [59, 70],
-                    popupAnchor: [0, -64]
-                })
+                icon: createMapMarkerIcon(node, "dot")
             }).addTo(map);
             marker.on("click", () => {
-                openMapJcModal(node);
+                const nextCount = Number(marker._jcMapClickCount || 0) + 1;
+                marker._jcMapClickCount = nextCount;
+                if (nextCount >= 3) {
+                    openMapJcModal(node);
+                    marker._jcMapClickCount = 0;
+                    return;
+                }
+                state.jcMapMarkers.forEach((item) => {
+                    if (item !== marker && item._jcMapMode === "preview") {
+                        item._jcMapClickCount = 0;
+                        setMapMarkerMode(item, item._jcMapNode, "dot");
+                    }
+                });
+                setMapMarkerMode(marker, node, "preview");
             });
+            marker._jcMapNode = node;
+            marker._jcMapClickCount = 0;
             return marker;
         });
 
@@ -1991,7 +2018,6 @@
             map.invalidateSize();
             if (nodes.length === 1) {
                 map.setView([nodes[0].lat, nodes[0].lng], 16);
-                state.jcMapMarkers[0].openPopup();
             } else {
                 map.fitBounds(bounds.pad(0.18));
             }
