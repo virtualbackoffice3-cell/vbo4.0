@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Task Desk - Admin</title>
+    <link rel="stylesheet" href="task.css">
+    <style>
+      .demo-account-badge { display:inline-flex; align-items:center; margin-left:10px; padding:5px 9px; border:1px solid rgba(15,23,42,.14); border-radius:6px; background:#fff7ed; color:#9a3412; font-size:12px; font-weight:700; vertical-align:middle; }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="topbar">
+        <div class="title">
+          <h1>Task Desk Admin</h1>
+          <p>Open task allocation</p>
+        </div>
+        <button class="menu-toggle" type="button" aria-label="Open menu"><span></span><span></span><span></span></button>
+        <div class="controls">
+          <button class="drawer-close" type="button" aria-label="Close menu">Close</button>
+          <div class="field">
+            <label for="clientSelect">Window</label>
+            <select id="clientSelect"></select>
+          </div>
+          <div class="field">
+            <label for="reasonSelect">Task catagory</label>
+            <div id="reasonSelect" class="multi-filter"></div>
+          </div>
+          <div class="field">
+            <label for="teamFilter">Assigned team</label>
+            <div id="teamFilter" class="multi-filter"></div>
+          </div>
+          <div class="field">
+            <label for="slaFilter">SLA time</label>
+            <div id="slaFilter" class="multi-filter"></div>
+          </div>
+          <div class="field">
+            <label for="searchInput">Search</label>
+            <input id="searchInput" type="search" placeholder="Search complaints">
+          </div>
+          <button class="button mobile-apply" type="button">Apply filter</button>
+          <button class="button secondary icon-button screenshot-button" id="screenshotButton" type="button" aria-label="Download table PNG" title="Download table PNG"><span class="camera-icon"></span></button>
+          <button class="button secondary" id="csvButton" type="button">CSV</button>
+          <button class="button" id="refreshButton" type="button">Refresh</button>
+        </div>
+      </section>
+
+      <section class="tabbar">
+        <button class="tab active" data-view="tasks" type="button">Open</button>
+        <button class="tab" data-view="unallocated" type="button">Closed</button>
+        <button class="tab" data-view="performance" type="button">Performance</button>
+        <button class="tab" data-view="team" type="button">Team</button>
+      </section>
+
+      <section class="panel" id="tasksPanel">
+        <div class="panel-head">
+          <strong id="panelTitle">Complaints</strong>
+          <span class="status" id="statusText"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="small">Sn</th>
+                <th>Window</th>
+                <th>User ID</th>
+                <th>Name</th>
+                <th>Mobile No</th>
+                <th>Task catagory</th>
+                <th>SLA time</th>
+                <th class="date-col">Complaint time</th>
+                <th>Task status</th>
+                <th>Assigned team</th>
+                <th>Pon No</th>
+                <th>Action</th>
+                <th>Remark</th>
+                <th>Address</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody id="taskBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel hidden" id="performancePanel">
+        <div class="panel-head">
+          <strong id="performanceTitle">Performance (0)</strong>
+          <div class="controls compact-controls">
+            <div class="field">
+              <label for="perfEmployee">Employee</label>
+              <select id="perfEmployee"></select>
+            </div>
+            <div class="field">
+              <label for="perfReason">Task catagory</label>
+              <div id="perfReason" class="multi-filter"></div>
+            </div>
+            <div class="field">
+              <label for="perfFrom">From</label>
+              <input id="perfFrom" type="date">
+            </div>
+            <div class="field">
+              <label for="perfTo">To</label>
+              <input id="perfTo" type="date">
+            </div>
+          </div>
+        </div>
+        <div class="summary-strip" id="performanceSummary"></div>
+        <div class="table-wrap performance-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="small">Sn</th>
+                <th>Employee</th>
+                <th>Breached</th>
+                <th>Task status</th>
+                <th>Avg Time</th>
+                <th>Total Time</th>
+                <th>Windows</th>
+              </tr>
+            </thead>
+            <tbody id="performanceBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel hidden" id="unallocatedPanel">
+        <div class="panel-head">
+          <strong id="unallocatedTitle">Closed Tasks (0)</strong>
+          <div class="controls compact-controls">
+            <div class="field">
+              <label for="closedFrom">From</label>
+              <input id="closedFrom" type="date">
+            </div>
+            <div class="field">
+              <label for="closedTo">To</label>
+              <input id="closedTo" type="date">
+            </div>
+            <span class="status" id="unallocatedStatus"></span>
+          </div>
+        </div>
+        <div class="table-wrap performance-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="small">Sn</th>
+                <th>Window</th>
+                <th>User ID</th>
+                <th>Name</th>
+                <th>Task catagory</th>
+                <th>SLA time</th>
+                <th>Complaint time</th>
+                <th>Assigned team</th>
+                <th>Save</th>
+                <th>End Time</th>
+              </tr>
+            </thead>
+            <tbody id="unallocatedBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel hidden" id="teamPanel">
+        <div class="panel-head">
+          <strong id="teamTitle">Team Members</strong>
+          <span class="status" id="teamStatus"></span>
+        </div>
+        <div class="team-editor">
+          <div class="field">
+            <label for="teamNameInput">Name</label>
+            <input id="teamNameInput" placeholder="Employee name">
+          </div>
+          <div class="field">
+            <label for="teamWindowInput">Default Window</label>
+            <select id="teamWindowInput"></select>
+          </div>
+          <button class="button" id="teamSaveButton" type="button">Add</button>
+          <button class="button secondary" id="teamCancelButton" type="button">Cancel</button>
+        </div>
+        <div class="table-wrap performance-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="small">Sn</th>
+                <th>Name</th>
+                <th>Default Window</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="teamBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <div class="modal-backdrop" id="nameModal">
+      <div class="modal">
+        <h2>Manager Name</h2>
+        <div class="field">
+          <label for="managerNameInput">Name</label>
+          <input id="managerNameInput" autocomplete="name" placeholder="Enter your name">
+        </div>
+        <div class="modal-actions">
+          <button class="button" id="saveNameButton" type="button">Continue</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="addressModal">
+      <div class="modal">
+        <h2>Address</h2>
+        <p class="modal-text" id="addressText"></p>
+        <div class="modal-actions">
+          <button class="button" id="closeAddress" type="button">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="performanceDetailModal">
+      <div class="modal wide-modal">
+        <h2 id="performanceDetailTitle">Completed Tasks</h2>
+        <div class="table-wrap modal-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="small">Sn</th>
+                <th>Window</th>
+                <th>User ID</th>
+                <th>Name</th>
+                <th>Task catagory</th>
+                <th>SLA time</th>
+                <th>Complaint time</th>
+                <th>Picked At</th>
+                <th>Assigned team</th>
+                <th>Action</th>
+                <th>End Time</th>
+                <th>Time Taken</th>
+              </tr>
+            </thead>
+            <tbody id="performanceDetailBody"></tbody>
+          </table>
+        </div>
+        <div class="modal-actions">
+          <button class="button" id="closePerformanceDetail" type="button">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="demo-guard.js?v=demo-1"></script>
+    <script src="admin.js"></script>
+  </body>
+</html>

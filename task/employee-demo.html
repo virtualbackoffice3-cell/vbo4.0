@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Task Desk - Employee</title>
+    <link rel="stylesheet" href="task.css">
+    <style>
+      .demo-account-badge { display:inline-flex; align-items:center; margin-left:10px; padding:5px 9px; border:1px solid rgba(15,23,42,.14); border-radius:6px; background:#fff7ed; color:#9a3412; font-size:12px; font-weight:700; vertical-align:middle; }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="topbar">
+        <div class="title">
+          <h1>Task Desk</h1>
+        </div>
+        <button class="menu-toggle" type="button" aria-label="Open menu"><span></span><span></span><span></span></button>
+        <div class="controls">
+          <button class="drawer-close" type="button" aria-label="Close menu">Close</button>
+          <div class="field">
+            <label for="clientSelect">Window</label>
+            <select id="clientSelect"></select>
+          </div>
+          <div class="field">
+            <label for="reasonSelect">Task catagory</label>
+            <select id="reasonSelect"></select>
+          </div>
+          <button class="button mobile-apply" type="button">Apply filter</button>
+          <button class="button secondary icon-button screenshot-button" id="screenshotButton" type="button" aria-label="Download table PNG" title="Download table PNG"><span class="camera-icon"></span></button>
+          <button class="button" id="refreshButton" type="button">Refresh</button>
+        </div>
+      </section>
+
+      <section class="tabbar">
+        <button class="tab active" data-view="tasks" type="button">Tasks</button>
+        <button class="tab" data-view="performance" type="button">Performance</button>
+      </section>
+
+      <section class="panel" id="tasksPanel">
+        <div class="panel-head">
+          <strong id="panelTitle">Complaints</strong>
+          <div class="controls compact-controls">
+            <div class="field">
+              <label for="taskSearch">Search</label>
+              <input id="taskSearch" type="search" placeholder="User, name, phone...">
+            </div>
+            <div class="field">
+              <label for="taskFrom">From</label>
+              <input id="taskFrom" type="date">
+            </div>
+            <div class="field">
+              <label for="taskTo">To</label>
+              <input id="taskTo" type="date">
+            </div>
+          </div>
+          <span class="status" id="statusText"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="small">Sn</th>
+                <th>Window</th>
+                <th>User ID</th>
+                <th>Name</th>
+                <th>Mobile No</th>
+                <th>Task catagory</th>
+                <th>SLA time</th>
+                <th class="date-col">Complaint time</th>
+                <th>Task status</th>
+                <th>Assigned team</th>
+                <th>Pon No</th>
+                <th>Action</th>
+                <th>Remark</th>
+                <th>Address</th>
+              </tr>
+            </thead>
+            <tbody id="taskBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel hidden" id="performancePanel">
+        <div class="panel-head">
+          <strong id="performanceTitle">Completed Tasks (0)</strong>
+          <div class="controls compact-controls">
+            <div class="field">
+              <label for="perfFrom">From</label>
+              <input id="perfFrom" type="date">
+            </div>
+            <div class="field">
+              <label for="perfTo">To</label>
+              <input id="perfTo" type="date">
+            </div>
+            <div class="field">
+              <label for="perfSearch">Search</label>
+              <input id="perfSearch" type="search" placeholder="User, name, phone...">
+            </div>
+          </div>
+        </div>
+        <div class="summary-strip" id="performanceSummary"></div>
+        <div class="table-wrap performance-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="small">Sn</th>
+                <th>Window</th>
+                <th>User ID</th>
+                <th>Name</th>
+                <th>Task catagory</th>
+                <th>SLA time</th>
+                <th>Picked At</th>
+                <th>Assigned team</th>
+                <th>Closed At</th>
+                <th>Time Taken</th>
+              </tr>
+            </thead>
+            <tbody id="performanceBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <div class="modal-backdrop" id="nameModal">
+      <div class="modal">
+        <h2>Employee Name</h2>
+        <div class="field">
+          <label for="employeeNameInput">Name</label>
+          <select id="employeeNameInput"></select>
+        </div>
+        <div class="modal-actions">
+          <button class="button" id="saveNameButton" type="button">Continue</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="unpickModal">
+      <div class="modal">
+        <h2>Unpick Remark</h2>
+        <div class="field">
+          <label for="unpickRemark">Reason</label>
+          <textarea id="unpickRemark" placeholder="Why is this task being unpicked?"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button class="button secondary" id="cancelUnpick" type="button">Cancel</button>
+          <button class="button" id="confirmUnpick" type="button">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="pickTeamModal">
+      <div class="modal">
+        <h2>Add your team member</h2>
+        <div class="field">
+          <label>Team</label>
+          <div id="pickTeamHolder"></div>
+        </div>
+        <div class="modal-actions">
+          <button class="button secondary" id="cancelPickTeam" type="button">Cancel</button>
+          <button class="button" id="confirmPickTeam" type="button">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="addressModal">
+      <div class="modal">
+        <h2>Address</h2>
+        <p class="modal-text" id="addressText"></p>
+        <div class="modal-actions">
+          <button class="button" id="closeAddress" type="button">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="demo-guard.js?v=demo-1"></script>
+    <script src="employee.js"></script>
+  </body>
+</html>
