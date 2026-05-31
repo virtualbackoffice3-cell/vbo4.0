@@ -13,7 +13,9 @@
           <h1>Task Desk Admin</h1>
           <p>Open task allocation</p>
         </div>
+        <button class="menu-toggle" type="button" aria-label="Open menu"><span></span><span></span><span></span></button>
         <div class="controls">
+          <button class="drawer-close" type="button" aria-label="Close menu">Close</button>
           <div class="field">
             <label for="clientSelect">Window</label>
             <select id="clientSelect"></select>
@@ -34,6 +36,8 @@
             <label for="searchInput">Search</label>
             <input id="searchInput" type="search" placeholder="Search complaints">
           </div>
+          <button class="button mobile-apply" type="button">Apply filter</button>
+          <button class="button secondary icon-button screenshot-button" id="screenshotButton" type="button" aria-label="Download table PNG" title="Download table PNG"><span class="camera-icon"></span></button>
           <button class="button secondary" id="csvButton" type="button">CSV</button>
           <button class="button" id="refreshButton" type="button">Refresh</button>
         </div>
@@ -60,16 +64,16 @@
                 <th>User ID</th>
                 <th>Name</th>
                 <th>Mobile No</th>
-                <th>Address</th>
-                <th>Pon No</th>
                 <th>Task catagory</th>
+                <th>SLA time</th>
                 <th class="date-col">Complaint time</th>
-                <th>Created</th>
                 <th>Task status</th>
                 <th>Assigned team</th>
-                <th>SLA time</th>
+                <th>Pon No</th>
                 <th>Action</th>
                 <th>Remark</th>
+                <th>Address</th>
+                <th>Created</th>
               </tr>
             </thead>
             <tbody id="taskBody"></tbody>
@@ -142,11 +146,11 @@
                 <th>User ID</th>
                 <th>Name</th>
                 <th>Task catagory</th>
-                <th>Complaint time</th>
-                <th>End Time</th>
                 <th>SLA time</th>
+                <th>Complaint time</th>
                 <th>Assigned team</th>
                 <th>Save</th>
+                <th>End Time</th>
               </tr>
             </thead>
             <tbody id="unallocatedBody"></tbody>
@@ -222,13 +226,13 @@
                 <th>User ID</th>
                 <th>Name</th>
                 <th>Task catagory</th>
-                <th>Assigned team</th>
+                <th>SLA time</th>
                 <th>Complaint time</th>
                 <th>Picked At</th>
+                <th>Assigned team</th>
+                <th>Action</th>
                 <th>End Time</th>
                 <th>Time Taken</th>
-                <th>SLA time</th>
-                <th>Action</th>
               </tr>
             </thead>
             <tbody id="performanceDetailBody"></tbody>

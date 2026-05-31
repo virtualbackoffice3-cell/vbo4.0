@@ -12,7 +12,9 @@
         <div class="title">
           <h1>Task Desk</h1>
         </div>
+        <button class="menu-toggle" type="button" aria-label="Open menu"><span></span><span></span><span></span></button>
         <div class="controls">
+          <button class="drawer-close" type="button" aria-label="Close menu">Close</button>
           <div class="field">
             <label for="clientSelect">Window</label>
             <select id="clientSelect"></select>
@@ -21,6 +23,8 @@
             <label for="reasonSelect">Task catagory</label>
             <select id="reasonSelect"></select>
           </div>
+          <button class="button mobile-apply" type="button">Apply filter</button>
+          <button class="button secondary icon-button screenshot-button" id="screenshotButton" type="button" aria-label="Download table PNG" title="Download table PNG"><span class="camera-icon"></span></button>
           <button class="button" id="refreshButton" type="button">Refresh</button>
         </div>
       </section>
@@ -54,18 +58,19 @@
             <thead>
               <tr>
                 <th class="small">Sn</th>
+                <th>Window</th>
                 <th>User ID</th>
                 <th>Name</th>
                 <th>Mobile No</th>
-                <th>Address</th>
-                <th>Pon No</th>
                 <th>Task catagory</th>
+                <th>SLA time</th>
                 <th class="date-col">Complaint time</th>
                 <th>Task status</th>
                 <th>Assigned team</th>
-                <th>SLA time</th>
+                <th>Pon No</th>
                 <th>Action</th>
                 <th>Remark</th>
+                <th>Address</th>
               </tr>
             </thead>
             <tbody id="taskBody"></tbody>
@@ -101,11 +106,11 @@
                 <th>User ID</th>
                 <th>Name</th>
                 <th>Task catagory</th>
-                <th>Assigned team</th>
+                <th>SLA time</th>
                 <th>Picked At</th>
+                <th>Assigned team</th>
                 <th>Closed At</th>
                 <th>Time Taken</th>
-                <th>SLA time</th>
               </tr>
             </thead>
             <tbody id="performanceBody"></tbody>

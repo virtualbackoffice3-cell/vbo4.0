@@ -13,6 +13,7 @@
   --focus: #2563eb;
   --danger: #b42318;
   --warning: #b54708;
+  --drawer-width: min(86vw, 330px);
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 10px 24px rgba(16, 24, 40, 0.06);
 }
 
@@ -79,6 +80,11 @@ select {
   flex-wrap: wrap;
   gap: 12px;
   justify-content: flex-end;
+}
+
+.menu-toggle,
+.drawer-close {
+  display: none;
 }
 
 .compact-controls {
@@ -252,6 +258,74 @@ select {
   min-height: 40px;
   padding: 8px 14px;
   transition: background-color 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease, transform 0.08s ease;
+}
+
+.menu-toggle,
+.drawer-close {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 800;
+  justify-content: center;
+  min-height: 38px;
+  padding: 8px 12px;
+}
+
+.menu-toggle {
+  gap: 4px;
+  padding: 8px 10px;
+  width: 42px;
+}
+
+.menu-toggle span {
+  background: currentColor;
+  border-radius: 999px;
+  display: block;
+  height: 2px;
+  width: 18px;
+}
+
+.button.mobile-apply {
+  display: none;
+}
+
+.icon-button {
+  min-width: 40px;
+  padding: 8px;
+}
+
+.camera-icon {
+  border: 2px solid currentColor;
+  border-radius: 5px;
+  display: inline-block;
+  height: 15px;
+  position: relative;
+  width: 20px;
+}
+
+.camera-icon::before {
+  background: currentColor;
+  border-radius: 2px 2px 0 0;
+  content: "";
+  height: 4px;
+  left: 4px;
+  position: absolute;
+  top: -6px;
+  width: 8px;
+}
+
+.camera-icon::after {
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  content: "";
+  height: 5px;
+  left: 5px;
+  position: absolute;
+  top: 3px;
+  width: 5px;
 }
 
 .button:hover {
@@ -840,63 +914,387 @@ th.small {
 }
 
 @media (max-width: 760px) {
-  .shell {
-    padding: 8px;
+  body {
+    font-size: 12px;
+    padding-bottom: 14px;
   }
 
-  .topbar,
-  .panel-head {
-    align-items: stretch;
-    flex-direction: column;
+  body.drawer-open {
+    overflow: hidden;
+  }
+
+  body.drawer-open::after {
+    content: none;
+  }
+
+  .shell {
+    padding: 6px;
   }
 
   .topbar {
-    padding: 12px;
+    align-items: center;
   }
 
-  .controls {
-    justify-content: stretch;
+  .panel-head {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .topbar {
+    background: linear-gradient(135deg, #ffffff 0%, #effaf7 100%);
+    gap: 8px;
+    justify-content: space-between;
+    padding: 8px 9px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+
+  .title h1 {
+    font-size: 17px;
+  }
+
+  .title p {
+    display: none;
+  }
+
+  .menu-toggle,
+  .drawer-close {
+    display: inline-flex;
+  }
+
+  .button.mobile-apply {
+    display: inline-flex;
+    order: 50;
+  }
+
+  #csvButton {
+    order: 60;
+  }
+
+  #screenshotButton {
+    order: 55;
+  }
+
+  #refreshButton {
+    order: 70;
+  }
+
+  .menu-toggle {
+    flex-direction: column;
+    min-height: 36px;
+  }
+
+  .topbar > .controls {
+    align-content: start;
+    background: #fff;
+    border-left: 1px solid var(--line);
+    box-shadow: -12px 0 28px rgba(16, 24, 40, 0.18);
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 10px;
+    inset: 0 0 0 auto;
+    justify-content: start;
+    overflow-y: auto;
+    padding: 12px;
+    pointer-events: auto;
+    position: fixed;
+    transform: translateX(102%);
+    transition: transform 0.18s ease;
+    width: var(--drawer-width);
+    z-index: 90;
+  }
+
+  body.drawer-open .topbar > .controls {
+    transform: translateX(0);
+  }
+
+  .topbar > .controls::before {
+    color: #0b1220;
+    content: "Filters";
+    font-size: 16px;
+    font-weight: 850;
+    line-height: 1.2;
+  }
+
+  .drawer-close {
+    position: absolute;
+    right: 10px;
+    top: 8px;
   }
 
   .controls .field,
-  .controls .button {
+  .controls .button,
+  .controls .multi-filter {
     width: 100%;
   }
 
   .compact-controls .field input,
-  .compact-controls .field select {
+  .compact-controls .field select,
+  .compact-controls .field .multi-filter {
     min-width: 0;
     width: 100%;
   }
 
-  .title h1 {
-    font-size: 19px;
+  .panel {
+    border-radius: 7px;
+    margin-top: 6px;
+  }
+
+  .panel-head {
+    gap: 7px;
+    padding: 7px 8px;
+  }
+
+  .panel-head strong {
+    font-size: 13px;
+  }
+
+  .panel-head .compact-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .panel-head .compact-controls .field:first-child:last-child,
+  .panel-head .compact-controls .field:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+  .field {
+    gap: 4px;
+  }
+
+  .field label {
+    font-size: 11px;
+  }
+
+  .field input,
+  .field select,
+  .field textarea,
+  .multi-filter-button,
+  .button {
+    border-radius: 6px;
+    min-height: 34px;
+    padding: 6px 8px;
+  }
+
+  .nice-select {
+    min-height: 32px;
+    padding: 5px 28px 5px 9px;
+  }
+
+  .tabbar {
+    background: var(--bg);
+    gap: 4px;
+    margin-top: 6px;
+    position: sticky;
+    top: 53px;
+    z-index: 45;
+  }
+
+  .tab {
+    border-radius: 6px;
+    flex: 1 0 auto;
+    min-height: 34px;
+    padding: 6px 10px;
   }
 
   table {
-    min-width: 1060px;
+    min-width: 700px;
+  }
+
+  #tasksPanel table {
+    min-width: 780px;
+  }
+
+  #teamPanel table {
+    min-width: 0;
   }
 
   th,
   td {
-    padding: 9px 10px;
+    font-size: 11px;
+    line-height: 1.18;
+    max-width: none;
+    overflow: hidden;
+    overflow-wrap: normal;
+    padding: 5px 5px;
+    white-space: normal;
+    word-break: normal;
+  }
+
+  th {
+    line-height: 1.05;
+  }
+
+  #tasksPanel th:nth-child(1),
+  #tasksPanel td:nth-child(1) {
+    width: 28px;
+  }
+
+  #tasksPanel th:nth-child(2),
+  #tasksPanel td:nth-child(2) {
+    width: 56px;
+  }
+
+  #tasksPanel th:nth-child(3),
+  #tasksPanel td:nth-child(3) {
+    width: 66px;
+  }
+
+  #tasksPanel th:nth-child(4),
+  #tasksPanel td:nth-child(4) {
+    width: 76px;
+  }
+
+  #tasksPanel th:nth-child(5),
+  #tasksPanel td:nth-child(5) {
+    width: 74px;
+  }
+
+  #tasksPanel th:nth-child(6),
+  #tasksPanel td:nth-child(6) {
+    width: 76px;
+  }
+
+  #tasksPanel th:nth-child(7),
+  #tasksPanel td:nth-child(7) {
+    min-width: 64px;
+    width: 64px;
+  }
+
+  #tasksPanel th:nth-child(8),
+  #tasksPanel td:nth-child(8) {
+    width: 66px;
+  }
+
+  #tasksPanel th:nth-child(9),
+  #tasksPanel td:nth-child(9) {
+    width: 68px;
+  }
+
+  #tasksPanel th:nth-child(10),
+  #tasksPanel td:nth-child(10) {
+    width: 82px;
+  }
+
+  #tasksPanel th:nth-child(11),
+  #tasksPanel td:nth-child(11) {
+    width: 62px;
+  }
+
+  #tasksPanel th:nth-child(12),
+  #tasksPanel td:nth-child(12) {
+    width: 68px;
+  }
+
+  #tasksPanel th:nth-child(13),
+  #tasksPanel td:nth-child(13) {
+    width: 94px;
   }
 
   .table-wrap {
-    max-height: calc(100vh - 198px);
+    max-height: calc(100vh - 150px);
+  }
+
+  .fixed-scrollbar {
+    display: none;
+  }
+
+  td.small,
+  th.small {
+    width: 34px;
+  }
+
+  .date-col {
+    min-width: 66px;
+    width: 66px;
+  }
+
+  .reason {
+    max-width: 76px;
+    min-width: 70px;
+  }
+
+  .address {
+    max-width: 92px;
+  }
+
+  #tasksPanel th:nth-child(14),
+  #tasksPanel td:nth-child(14),
+  #tasksPanel th:nth-child(15),
+  #tasksPanel td:nth-child(15) {
+    display: none;
+  }
+
+  #tasksPanel th:nth-child(1),
+  #tasksPanel td:nth-child(1) {
+    left: 0;
+    position: sticky;
+    z-index: 3;
+  }
+
+  #tasksPanel th:nth-child(1) {
+    z-index: 5;
+  }
+
+  #tasksPanel td:nth-child(1) {
+    background: inherit;
   }
 
   .team-picker {
-    min-width: 150px;
+    min-width: 94px;
   }
 
   .task-select {
-    min-width: 88px;
+    min-width: 68px;
+  }
+
+  .team-box {
+    min-height: 32px;
+    padding: 4px 6px;
+  }
+
+  .chip,
+  .pill {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+
+  .breach-timer {
+    display: block;
+    font-size: 11px;
+    gap: 3px;
+    line-height: 1.05;
+    max-height: 2.1em;
+    overflow: hidden;
+    min-width: 48px;
+    white-space: normal;
+  }
+
+  .user-id-cell {
+    display: -webkit-box;
+    line-height: 1.18;
+    max-height: 2.36em;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .remark-box {
+    min-width: 92px;
+  }
+
+  .remark-box textarea {
+    min-height: 34px;
   }
 
   .team-editor {
     align-items: stretch;
     flex-direction: column;
+    padding: 10px;
   }
 
   .team-editor .field,

@@ -34,6 +34,7 @@ const state = {
 const els = {
   clientSelect: document.getElementById("clientSelect"),
   reasonSelect: document.getElementById("reasonSelect"),
+  screenshotButton: document.getElementById("screenshotButton"),
   refreshButton: document.getElementById("refreshButton"),
   panelTitle: document.getElementById("panelTitle"),
   taskBody: document.getElementById("taskBody"),
@@ -103,6 +104,32 @@ function setupTableScrollBars() {
   activeWrap.classList.add("active-scroll");
   scrollSizer.style.width = `${Math.max(activeWrap.scrollWidth, activeWrap.clientWidth)}px`;
   fixedScroll.scrollLeft = activeWrap.scrollLeft;
+}
+
+function setupMobileDrawer() {
+  const menuToggle = document.querySelector(".menu-toggle");
+  const drawerClose = document.querySelector(".drawer-close");
+  const drawer = document.querySelector(".topbar > .controls");
+  const mobileApply = document.querySelector(".mobile-apply");
+  if (!menuToggle || !drawerClose || !drawer) {
+    return;
+  }
+  const closeDrawer = () => document.body.classList.remove("drawer-open");
+  menuToggle.addEventListener("click", (event) => {
+    event.stopPropagation();
+    document.body.classList.add("drawer-open");
+  });
+  drawerClose.addEventListener("click", closeDrawer);
+  if (mobileApply) {
+    mobileApply.addEventListener("click", closeDrawer);
+  }
+  drawer.addEventListener("click", (event) => event.stopPropagation());
+  document.addEventListener("click", (event) => {
+    if (document.body.classList.contains("drawer-open") && !drawer.contains(event.target) && event.target !== menuToggle) {
+      closeDrawer();
+    }
+  });
+  els.viewTabs.forEach((tab) => tab.addEventListener("click", closeDrawer));
 }
 
 function toast(message) {
@@ -186,6 +213,15 @@ function cleanText(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
+function formatUserId(value) {
+  return cleanText(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/_/g, "_<wbr>");
+}
+
 function shortText(value, limit = 16) {
   const text = cleanText(value);
   if (text.length <= limit) {
@@ -245,7 +281,7 @@ function formatCreatedAt(value) {
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const hour12 = parsed.hour % 12 || 12;
   const ampm = parsed.hour >= 12 ? "PM" : "AM";
-  return `${parsed.day} ${months[parsed.month - 1]} ${hour12}:${String(parsed.minute).padStart(2, "0")} ${ampm}`;
+  return `${parsed.day} ${months[parsed.month - 1]}<br>${hour12}:${String(parsed.minute).padStart(2, "0")} ${ampm}`;
 }
 
 function formatMinutes(totalMinutes) {
@@ -256,6 +292,10 @@ function formatMinutes(totalMinutes) {
     return `${rest} Min`;
   }
   return `${hours} Hrs ${rest} Min`;
+}
+
+function formatMinutesTwoLine(totalMinutes) {
+  return formatMinutes(totalMinutes).replace(" Hrs ", " Hrs<br>");
 }
 
 function minutesBetween(startValue, endValue) {
@@ -352,9 +392,9 @@ function updateBreachTimerNode(node) {
   });
   node.classList.toggle("breached", info.breached);
   node.classList.toggle("safe", !info.breached);
-  node.textContent = info.breached
+  node.innerHTML = info.breached
     ? "\u23f1 Breached"
-    : `\u23f1 ${formatMinutes(info.remaining)}`;
+    : formatMinutesTwoLine(info.remaining);
 }
 
 function updateBreachTimers() {
@@ -368,6 +408,124 @@ function slaStatus(row, endValue) {
   }
   const used = workingMinutesBetween(row.created_at, endValue);
   return `${info.breached ? "Breached" : "Within SLA"} (${formatMinutes(used)})`;
+}
+
+function tableCellText(cell) {
+  const textarea = cell.querySelector("textarea");
+  if (textarea) {
+    return cleanText(textarea.value || cell.textContent);
+  }
+  const select = cell.querySelector("select");
+  if (select) {
+    return cleanText(select.selectedOptions[0]?.textContent || select.value);
+  }
+  const input = cell.querySelector("input");
+  if (input && input.type !== "checkbox") {
+    return cleanText(input.value);
+  }
+  return cleanText(cell.textContent);
+}
+
+function wrapCanvasText(ctx, text, maxWidth) {
+  const words = cleanText(text).split(" ");
+  const lines = [];
+  let line = "";
+  words.forEach((word) => {
+    const testLine = line ? `${line} ${word}` : word;
+    if (ctx.measureText(testLine).width <= maxWidth || !line) {
+      line = testLine;
+      return;
+    }
+    lines.push(line);
+    line = word;
+  });
+  if (line) {
+    lines.push(line);
+  }
+  return lines.length ? lines : [""];
+}
+
+function downloadTablePng() {
+  const panel = document.querySelector(".panel:not(.hidden)");
+  const table = panel?.querySelector("table");
+  if (!table) {
+    toast("No table found");
+    return;
+  }
+  const headers = Array.from(table.tHead?.rows[0]?.cells || []).map((cell) => tableCellText(cell));
+  const bodyRows = Array.from(table.tBodies[0]?.rows || []).map((row) => Array.from(row.cells).map(tableCellText));
+  if (!headers.length || !bodyRows.length) {
+    toast("No table data");
+    return;
+  }
+
+  const scale = Math.max(2, Math.min(3, window.devicePixelRatio || 2));
+  const measureCanvas = document.createElement("canvas");
+  const measureCtx = measureCanvas.getContext("2d");
+  measureCtx.font = "13px Segoe UI, Arial";
+  const columns = headers.map((header, index) => {
+    const values = [header, ...bodyRows.map((row) => row[index] || "")];
+    const longestWord = values.flatMap((value) => cleanText(value).split(" ")).reduce((max, word) => Math.max(max, measureCtx.measureText(word).width), 0);
+    const longestText = values.reduce((max, value) => Math.max(max, measureCtx.measureText(cleanText(value)).width), 0);
+    return Math.ceil(Math.min(210, Math.max(64, longestWord + 24, Math.min(longestText + 24, 150))));
+  });
+  const tableWidth = columns.reduce((sum, width) => sum + width, 0);
+  const rowLines = bodyRows.map((row) => row.map((text, index) => wrapCanvasText(measureCtx, text, columns[index] - 16)));
+  const rowHeights = rowLines.map((lines) => Math.max(34, Math.max(...lines.map((lineSet) => lineSet.length)) * 17 + 16));
+  const headerHeight = 38;
+  const titleHeight = 42;
+  const canvasWidth = tableWidth + 2;
+  const canvasHeight = titleHeight + headerHeight + rowHeights.reduce((sum, height) => sum + height, 0) + 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.ceil(canvasWidth * scale);
+  canvas.height = Math.ceil(canvasHeight * scale);
+  const ctx = canvas.getContext("2d");
+  ctx.scale(scale, scale);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  ctx.fillStyle = "#101828";
+  ctx.font = "700 16px Segoe UI, Arial";
+  ctx.fillText(cleanText(panel.querySelector(".panel-head strong")?.textContent || document.title), 12, 26);
+
+  let x = 1;
+  let y = titleHeight;
+  ctx.font = "700 12px Segoe UI, Arial";
+  headers.forEach((header, index) => {
+    ctx.fillStyle = "#f5f8fb";
+    ctx.fillRect(x, y, columns[index], headerHeight);
+    ctx.strokeStyle = "#d5dde8";
+    ctx.strokeRect(x, y, columns[index], headerHeight);
+    ctx.fillStyle = "#253249";
+    wrapCanvasText(ctx, header, columns[index] - 16).slice(0, 2).forEach((line, lineIndex) => {
+      ctx.fillText(line, x + 8, y + 15 + lineIndex * 14);
+    });
+    x += columns[index];
+  });
+  y += headerHeight;
+
+  ctx.font = "12px Segoe UI, Arial";
+  bodyRows.forEach((row, rowIndex) => {
+    x = 1;
+    const height = rowHeights[rowIndex];
+    row.forEach((cell, columnIndex) => {
+      ctx.fillStyle = rowIndex % 2 ? "#fbfdff" : "#ffffff";
+      ctx.fillRect(x, y, columns[columnIndex], height);
+      ctx.strokeStyle = "#e7edf4";
+      ctx.strokeRect(x, y, columns[columnIndex], height);
+      ctx.fillStyle = "#101828";
+      rowLines[rowIndex][columnIndex].forEach((line, lineIndex) => {
+        ctx.fillText(line, x + 8, y + 18 + lineIndex * 17);
+      });
+      x += columns[columnIndex];
+    });
+    y += height;
+  });
+
+  const link = document.createElement("a");
+  link.download = `${cleanText(panel.id || "table")}-${Date.now()}.png`;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+  toast("PNG downloaded");
 }
 
 function reasonPriority(reason) {
@@ -668,7 +826,7 @@ function render() {
   els.statusText.textContent = "";
   els.taskBody.innerHTML = "";
   if (!rows.length) {
-    els.taskBody.innerHTML = `<tr><td colspan="13" class="cell-muted">No tasks found</td></tr>`;
+    els.taskBody.innerHTML = `<tr><td colspan="14" class="cell-muted">No tasks found</td></tr>`;
     setupTableScrollBars();
     return;
   }
@@ -723,18 +881,19 @@ function render() {
 
     tr.innerHTML = `
       <td class="small">${index + 1}</td>
-      <td>${valueOf(row, "user_id")}</td>
+      <td>${row.client || state.client}</td>
+      <td><span class="user-id-cell">${formatUserId(valueOf(row, "user_id"))}</span></td>
       <td>${valueOf(row, "name")}</td>
       <td>${valueOf(row, "Phone", "phone", "mobile")}</td>
-      <td class="address"></td>
-      <td>${valueOf(row, "pon")}</td>
       <td class="reason">${valueOf(row, "reason")}</td>
+      <td></td>
       <td class="date-col">${formatCreatedAt(valueOf(row, "created_at"))}</td>
       <td></td>
       <td></td>
+      <td>${valueOf(row, "pon")}</td>
       <td></td>
       <td></td>
-      <td></td>
+      <td class="address"></td>
     `;
     const address = valueOf(row, "address");
     if (address) {
@@ -743,11 +902,11 @@ function render() {
       addressLink.type = "button";
       addressLink.textContent = shortText(address);
       addressLink.addEventListener("click", () => showAddress(address));
-      tr.children[4].appendChild(addressLink);
+      tr.children[13].appendChild(addressLink);
     }
     tr.children[8].appendChild(taskControl);
     tr.children[9].appendChild(teamControl);
-    tr.children[10].appendChild(timerControl);
+    tr.children[6].appendChild(timerControl);
     tr.children[11].appendChild(saveButton);
     tr.children[12].appendChild(remarkControl);
     els.taskBody.appendChild(tr);
@@ -824,14 +983,14 @@ function renderPerformance() {
       <tr>
         <td class="small">${index + 1}</td>
         <td>${row.client}</td>
-        <td>${valueOf(row, "user_id")}</td>
+        <td><span class="user-id-cell">${formatUserId(valueOf(row, "user_id"))}</span></td>
         <td>${valueOf(row, "name")}</td>
         <td class="reason">${valueOf(row, "reason")}</td>
-        <td>${valueOf(row, "takenby")}</td>
+        <td>${slaStatus(row, row.log_timestamp)}</td>
         <td>${formatCreatedAt(valueOf(row, "actiontime"))}</td>
+        <td>${valueOf(row, "takenby")}</td>
         <td>${formatCreatedAt(valueOf(row, "log_timestamp"))}</td>
         <td>${formatMinutes(takenMinutes)}</td>
-        <td>${slaStatus(row, row.log_timestamp)}</td>
       </tr>
     `;
   }).join("");
@@ -990,6 +1149,7 @@ els.addressModal.addEventListener("click", (event) => {
   }
 });
 
+els.screenshotButton.addEventListener("click", downloadTablePng);
 els.refreshButton.addEventListener("click", () => {
   loadTasks();
 });
@@ -1053,6 +1213,7 @@ document.addEventListener("click", (event) => {
 
 setupDefaultPerformanceDates();
 setupTableScrollBars();
+setupMobileDrawer();
 window.setInterval(updateBreachTimers, 60000);
 loadTeamConfig().finally(requireEmployeeName);
 

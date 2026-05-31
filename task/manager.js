@@ -36,6 +36,7 @@ const els = {
   teamFilter: document.getElementById("teamFilter"),
   slaFilter: document.getElementById("slaFilter"),
   searchInput: document.getElementById("searchInput"),
+  screenshotButton: document.getElementById("screenshotButton"),
   csvButton: document.getElementById("csvButton"),
   refreshButton: document.getElementById("refreshButton"),
   panelTitle: document.getElementById("panelTitle"),
@@ -116,6 +117,32 @@ function setupTableScrollBars() {
   fixedScroll.scrollLeft = activeWrap.scrollLeft;
 }
 
+function setupMobileDrawer() {
+  const menuToggle = document.querySelector(".menu-toggle");
+  const drawerClose = document.querySelector(".drawer-close");
+  const drawer = document.querySelector(".topbar > .controls");
+  const mobileApply = document.querySelector(".mobile-apply");
+  if (!menuToggle || !drawerClose || !drawer) {
+    return;
+  }
+  const closeDrawer = () => document.body.classList.remove("drawer-open");
+  menuToggle.addEventListener("click", (event) => {
+    event.stopPropagation();
+    document.body.classList.add("drawer-open");
+  });
+  drawerClose.addEventListener("click", closeDrawer);
+  if (mobileApply) {
+    mobileApply.addEventListener("click", closeDrawer);
+  }
+  drawer.addEventListener("click", (event) => event.stopPropagation());
+  document.addEventListener("click", (event) => {
+    if (document.body.classList.contains("drawer-open") && !drawer.contains(event.target) && event.target !== menuToggle) {
+      closeDrawer();
+    }
+  });
+  els.viewTabs.forEach((tab) => tab.addEventListener("click", closeDrawer));
+}
+
 function toast(message) {
   els.toast.textContent = message;
   els.toast.classList.add("show");
@@ -185,6 +212,10 @@ function escapeHtml(value) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function formatUserId(value) {
+  return escapeHtml(value).replace(/_/g, "_<wbr>");
 }
 
 function shortText(value, limit = 16) {
@@ -276,7 +307,7 @@ function formatCreatedAt(value) {
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const hour12 = parsed.hour % 12 || 12;
   const ampm = parsed.hour >= 12 ? "PM" : "AM";
-  return `${parsed.day} ${months[parsed.month - 1]} ${hour12}:${String(parsed.minute).padStart(2, "0")} ${ampm}`;
+  return `${parsed.day} ${months[parsed.month - 1]}<br>${hour12}:${String(parsed.minute).padStart(2, "0")} ${ampm}`;
 }
 
 function formatMinutes(totalMinutes) {
@@ -287,6 +318,10 @@ function formatMinutes(totalMinutes) {
     return `${rest} Min`;
   }
   return `${hours} Hrs ${rest} Min`;
+}
+
+function formatMinutesTwoLine(totalMinutes) {
+  return formatMinutes(totalMinutes).replace(" Hrs ", " Hrs<br>");
 }
 
 function minutesBetween(startValue, endValue) {
@@ -391,9 +426,9 @@ function updateSlaTimerNode(node) {
   });
   node.classList.toggle("breached", info.breached);
   node.classList.toggle("safe", !info.breached);
-  node.textContent = info.breached
+  node.innerHTML = info.breached
     ? "\u23f1 Breached"
-    : `\u23f1 ${formatMinutes(info.remaining)}`;
+    : formatMinutesTwoLine(info.remaining);
 }
 
 function updateSlaTimers() {
@@ -500,7 +535,13 @@ function renderReasonMultiFilter(container, reasons, selectedSet, onChange) {
     const button = event.target.closest(".multi-filter-button");
     if (button) {
       event.preventDefault();
-      container.classList.toggle("open");
+      const willOpen = !container.classList.contains("open");
+      document.querySelectorAll(".multi-filter.open").forEach((filter) => {
+        if (filter !== container) {
+          filter.classList.remove("open");
+        }
+      });
+      container.classList.toggle("open", willOpen);
       return;
     }
     const option = event.target.closest(".multi-filter-option");
@@ -516,8 +557,8 @@ function renderReasonMultiFilter(container, reasons, selectedSet, onChange) {
     } else {
       selectedSet.add(value);
     }
+    container.classList.remove("open");
     renderReasonMultiFilter(container, reasons, selectedSet, onChange);
-    container.classList.add("open");
     onChange();
   };
 }
@@ -823,18 +864,18 @@ function render() {
     tr.innerHTML = `
       <td class="small">${index + 1}</td>
       <td>${row.client || state.client}</td>
-      <td>${valueOf(row, "user_id")}</td>
+      <td><span class="user-id-cell">${formatUserId(valueOf(row, "user_id"))}</span></td>
       <td>${valueOf(row, "name")}</td>
       <td>${valueOf(row, "Phone", "phone", "mobile")}</td>
-      <td class="address"></td>
-      <td>${valueOf(row, "pon")}</td>
       <td class="reason">${valueOf(row, "reason")}</td>
+      <td></td>
       <td class="date-col">${formatCreatedAt(valueOf(row, "created_at"))}</td>
       <td></td>
       <td></td>
+      <td>${valueOf(row, "pon")}</td>
       <td></td>
       <td></td>
-      <td></td>
+      <td class="address"></td>
     `;
 
     const address = valueOf(row, "address");
@@ -844,14 +885,14 @@ function render() {
       addressLink.type = "button";
       addressLink.textContent = shortText(address);
       addressLink.addEventListener("click", () => showAddress(address));
-      tr.children[5].appendChild(addressLink);
+      tr.children[13].appendChild(addressLink);
     }
 
-    tr.children[9].appendChild(taskSelect);
-    tr.children[10].appendChild(teamPicker);
-    tr.children[11].appendChild(slaControl);
-    tr.children[12].appendChild(saveButton);
-    tr.children[13].appendChild(remarkControl);
+    tr.children[8].appendChild(taskSelect);
+    tr.children[9].appendChild(teamPicker);
+    tr.children[6].appendChild(slaControl);
+    tr.children[11].appendChild(saveButton);
+    tr.children[12].appendChild(remarkControl);
     els.taskBody.appendChild(tr);
   });
   setupTableScrollBars();
@@ -991,17 +1032,17 @@ function renderUnallocated() {
     tr.innerHTML = `
       <td class="small">${index + 1}</td>
       <td>${row.client}</td>
-      <td>${valueOf(row, "user_id")}</td>
+      <td><span class="user-id-cell">${formatUserId(valueOf(row, "user_id"))}</span></td>
       <td>${valueOf(row, "name")}</td>
       <td class="reason">${valueOf(row, "reason")}</td>
-      <td class="date-col">${formatCreatedAt(valueOf(row, "created_at"))}</td>
-      <td class="date-col">${formatCreatedAt(valueOf(row, "log_timestamp"))}</td>
       <td>${slaStatus(row, row.log_timestamp)}</td>
+      <td class="date-col">${formatCreatedAt(valueOf(row, "created_at"))}</td>
       <td></td>
       <td></td>
+      <td class="date-col">${formatCreatedAt(valueOf(row, "log_timestamp"))}</td>
     `;
-    tr.children[8].appendChild(teamPicker);
-    tr.children[9].appendChild(saveButton);
+    tr.children[7].appendChild(teamPicker);
+    tr.children[8].appendChild(saveButton);
     els.unallocatedBody.appendChild(tr);
   });
   setupTableScrollBars();
@@ -1028,14 +1069,14 @@ function showPerformanceDetails(index, mode = "all") {
       <tr>
         <td class="small">${itemIndex + 1}</td>
         <td>${item.client}</td>
-        <td>${valueOf(item, "user_id")}</td>
+        <td><span class="user-id-cell">${formatUserId(valueOf(item, "user_id"))}</span></td>
         <td>${valueOf(item, "name")}</td>
         <td class="reason">${valueOf(item, "reason")}</td>
-        <td>${valueOf(item, "takenby")}</td>
+        <td>${sla}</td>
         <td>${formatCreatedAt(valueOf(item, "actiontime"))}</td>
+        <td>${valueOf(item, "takenby")}</td>
         <td>${formatCreatedAt(valueOf(item, "log_timestamp"))}</td>
         <td>${formatMinutes(takenMinutes)}</td>
-        <td>${sla}</td>
       </tr>
     `;
   }).join("");
@@ -1341,6 +1382,124 @@ function csvCell(value) {
   return `"${text.replace(/"/g, '""')}"`;
 }
 
+function tableCellText(cell) {
+  const textarea = cell.querySelector("textarea");
+  if (textarea) {
+    return cleanText(textarea.value || cell.textContent);
+  }
+  const select = cell.querySelector("select");
+  if (select) {
+    return cleanText(select.selectedOptions[0]?.textContent || select.value);
+  }
+  const input = cell.querySelector("input");
+  if (input && input.type !== "checkbox") {
+    return cleanText(input.value);
+  }
+  return cleanText(cell.textContent);
+}
+
+function wrapCanvasText(ctx, text, maxWidth) {
+  const words = cleanText(text).split(" ");
+  const lines = [];
+  let line = "";
+  words.forEach((word) => {
+    const testLine = line ? `${line} ${word}` : word;
+    if (ctx.measureText(testLine).width <= maxWidth || !line) {
+      line = testLine;
+      return;
+    }
+    lines.push(line);
+    line = word;
+  });
+  if (line) {
+    lines.push(line);
+  }
+  return lines.length ? lines : [""];
+}
+
+function downloadTablePng() {
+  const panel = document.querySelector(".panel:not(.hidden)");
+  const table = panel?.querySelector("table");
+  if (!table) {
+    toast("No table found");
+    return;
+  }
+  const headers = Array.from(table.tHead?.rows[0]?.cells || []).map((cell) => tableCellText(cell));
+  const bodyRows = Array.from(table.tBodies[0]?.rows || []).map((row) => Array.from(row.cells).map(tableCellText));
+  if (!headers.length || !bodyRows.length) {
+    toast("No table data");
+    return;
+  }
+
+  const scale = Math.max(2, Math.min(3, window.devicePixelRatio || 2));
+  const measureCanvas = document.createElement("canvas");
+  const measureCtx = measureCanvas.getContext("2d");
+  measureCtx.font = "13px Segoe UI, Arial";
+  const columns = headers.map((header, index) => {
+    const values = [header, ...bodyRows.map((row) => row[index] || "")];
+    const longestWord = values.flatMap((value) => cleanText(value).split(" ")).reduce((max, word) => Math.max(max, measureCtx.measureText(word).width), 0);
+    const longestText = values.reduce((max, value) => Math.max(max, measureCtx.measureText(cleanText(value)).width), 0);
+    return Math.ceil(Math.min(210, Math.max(64, longestWord + 24, Math.min(longestText + 24, 150))));
+  });
+  const tableWidth = columns.reduce((sum, width) => sum + width, 0);
+  const rowLines = bodyRows.map((row) => row.map((text, index) => wrapCanvasText(measureCtx, text, columns[index] - 16)));
+  const rowHeights = rowLines.map((lines) => Math.max(34, Math.max(...lines.map((lineSet) => lineSet.length)) * 17 + 16));
+  const headerHeight = 38;
+  const titleHeight = 42;
+  const canvasWidth = tableWidth + 2;
+  const canvasHeight = titleHeight + headerHeight + rowHeights.reduce((sum, height) => sum + height, 0) + 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.ceil(canvasWidth * scale);
+  canvas.height = Math.ceil(canvasHeight * scale);
+  const ctx = canvas.getContext("2d");
+  ctx.scale(scale, scale);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  ctx.fillStyle = "#101828";
+  ctx.font = "700 16px Segoe UI, Arial";
+  ctx.fillText(cleanText(panel.querySelector(".panel-head strong")?.textContent || document.title), 12, 26);
+
+  let x = 1;
+  let y = titleHeight;
+  ctx.font = "700 12px Segoe UI, Arial";
+  headers.forEach((header, index) => {
+    ctx.fillStyle = "#f5f8fb";
+    ctx.fillRect(x, y, columns[index], headerHeight);
+    ctx.strokeStyle = "#d5dde8";
+    ctx.strokeRect(x, y, columns[index], headerHeight);
+    ctx.fillStyle = "#253249";
+    wrapCanvasText(ctx, header, columns[index] - 16).slice(0, 2).forEach((line, lineIndex) => {
+      ctx.fillText(line, x + 8, y + 15 + lineIndex * 14);
+    });
+    x += columns[index];
+  });
+  y += headerHeight;
+
+  ctx.font = "12px Segoe UI, Arial";
+  bodyRows.forEach((row, rowIndex) => {
+    x = 1;
+    const height = rowHeights[rowIndex];
+    row.forEach((cell, columnIndex) => {
+      ctx.fillStyle = rowIndex % 2 ? "#fbfdff" : "#ffffff";
+      ctx.fillRect(x, y, columns[columnIndex], height);
+      ctx.strokeStyle = "#e7edf4";
+      ctx.strokeRect(x, y, columns[columnIndex], height);
+      ctx.fillStyle = "#101828";
+      rowLines[rowIndex][columnIndex].forEach((line, lineIndex) => {
+        ctx.fillText(line, x + 8, y + 18 + lineIndex * 17);
+      });
+      x += columns[columnIndex];
+    });
+    y += height;
+  });
+
+  const link = document.createElement("a");
+  link.download = `${cleanText(panel.id || "table")}-${Date.now()}.png`;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+  toast("PNG downloaded");
+}
+
 function downloadCsv() {
   let filename = "tasks.csv";
   let headers = [];
@@ -1433,6 +1592,7 @@ els.searchInput.addEventListener("input", () => {
 });
 els.closedFrom.addEventListener("change", renderUnallocated);
 els.closedTo.addEventListener("change", renderUnallocated);
+els.screenshotButton.addEventListener("click", downloadTablePng);
 els.csvButton.addEventListener("click", downloadCsv);
 els.refreshButton.addEventListener("click", () => {
   if (state.view === "performance") {
@@ -1503,5 +1663,6 @@ setupDefaultPerformanceDates();
 setupDefaultClosedDates();
 setupTeamWindowInput();
 setupTableScrollBars();
+setupMobileDrawer();
 window.setInterval(updateSlaTimers, 60000);
 loadTeamConfig().finally(requireManagerName);
