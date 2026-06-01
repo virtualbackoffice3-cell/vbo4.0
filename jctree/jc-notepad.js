@@ -176,7 +176,7 @@
                     <button id="jcDeleteBoxBtn" type="button">Delete JC</button>
                     <button id="jcDownloadCsvBtn" type="button">Download CSV</button>
                     <button id="jcShowMapBtn" type="button" title="Show visible JCs on map"><span class="map-btn-icon"></span><span>Map</span></button>
-                    <input id="jcSearchInput" type="search" placeholder="Search JC, OTDR, After JC, Area...">
+                    <input id="jcSearchInput" type="search" placeholder="Search JC, OTDR, After JC, Area, User...">
                 </div>
                 <div class="row" id="jcRow"></div>
                 <div class="jc-note-inner-modal" id="jcJcModal">
@@ -928,6 +928,48 @@
         return null;
     }
 
+    function getPartialPonMismatchUsers(coreData) {
+        if (normalizePonMode(coreData && coreData.ponMode) !== "partial") return [];
+        const expectedPon = normalizePonValue(coreData && coreData.oltpon);
+        if (!expectedPon) return [];
+        return String(coreData && coreData.partialpon || "")
+            .split(",")
+            .map((item) => normalizeMacValue(item))
+            .filter(Boolean)
+            .map((macAddress) => {
+                const userInfo = getUserStatusByMac(macAddress);
+                if (!userInfo) return null;
+                const actualPon = normalizePonValue(userInfo.pon_number);
+                if (!actualPon || actualPon === expectedPon) return null;
+                return {
+                    mac_address: userInfo.mac_address || macAddress,
+                    normalized_mac_address: getMacMatchKey(macAddress),
+                    actualPon: userInfo.pon_number || actualPon,
+                    expectedPon: expectedPon,
+                    user: userInfo
+                };
+            })
+            .filter(Boolean);
+    }
+
+    function getJcPartialPonMismatchCount(boxData) {
+        return [...(boxData && boxData.inputWires || []), ...(boxData && boxData.outputWires || [])]
+            .reduce((total, wire) => total + (wire.coreDetails || []).reduce((sum, core) => sum + getPartialPonMismatchUsers(core).length, 0), 0);
+    }
+
+    function getJcPartialPonMismatchCores(boxData) {
+        const result = [];
+        [...(boxData && boxData.inputWires || []), ...(boxData && boxData.outputWires || [])].forEach((wire) => {
+            (wire.coreDetails || []).forEach((core) => {
+                const mismatches = getPartialPonMismatchUsers(core);
+                if (mismatches.length) {
+                    result.push({ core, mismatches });
+                }
+            });
+        });
+        return result;
+    }
+
     function getCoreHealthMeta(coreData) {
         if (normalizePonMode(coreData && coreData.ponMode) === "partial") {
             return getPartialPonStats(coreData);
@@ -1054,6 +1096,10 @@
         return "";
     }
 
+    function getUserSearchText(userdb, netsense) {
+        return Object.values(userdb || {}).concat(Object.values(netsense || {})).join(" ");
+    }
+
     async function fetchWindowPonStats(windowName) {
         const normalizedWindow = String(windowName || "").trim().toUpperCase();
         if (!normalizedWindow) {
@@ -1094,7 +1140,9 @@
                     pon_number: netsense.pon_number || "",
                     window_name: netsense.window_name || "",
                     mac_address: userdb.mac_address || netsense.mac_address || "",
-                    power: netsense.rxPower ?? netsense.txPower ?? ""
+                    normalized_mac_address: normalizedMac,
+                    power: netsense.rxPower ?? netsense.txPower ?? "",
+                    _searchText: getUserSearchText(userdb, netsense)
                 };
             }
             if (serviceStatus !== "active" || !ponValue) return;
@@ -1111,8 +1159,10 @@
                     address: userdb.address || "",
                 power: netsense.rxPower ?? netsense.txPower ?? "",
                 status: netsense.status || "",
+                pon_number: netsense.pon_number || "",
                 mac_address: userdb.mac_address || netsense.mac_address || "",
-                    normalized_mac_address: normalizedMac
+                    normalized_mac_address: normalizedMac,
+                    _searchText: getUserSearchText(userdb, netsense)
                 });
             ponStats[ponValue].activeUsers += 1;
             if (String(netsense.status || "").trim().toUpperCase() === "UP") {
@@ -1156,6 +1206,7 @@
                 previousJc: String(node.previousJc || "").trim(),
                 otdrDistance: String(node.otdrDistance || "").trim(),
                 healthMeta: getJcHealthMeta(node),
+                mismatchCount: getJcPartialPonMismatchCount(node),
                 lat: Number(node.lat),
                 lng: Number(node.lng)
             }))
@@ -1168,6 +1219,7 @@
             ? `${String(node.jcName || "JC")}<br><span class="map-marker-otdr">(${String(node.otdrDistance)})</span>`
             : String(node && node.jcName || "JC");
         const previousHtml = node && node.previousJc ? `After ${String(node.previousJc)}` : "";
+        const mismatchCount = Number(node && node.mismatchCount || 0);
         return `
             <div class="map-jc-marker ${mode === "preview" ? "is-preview" : "is-dot"}">
                 <div class="map-jc-dot map-jc-dot-${healthMeta.level}" title="${String(node && node.jcName || "JC")}"></div>
@@ -1178,6 +1230,7 @@
                         <div class="map-jc-side right"></div>
                     </div>
                     <div class="map-jc-health"><span class="core-led ${healthMeta.level}"></span><span>${healthMeta.label}</span></div>
+                    ${mismatchCount ? `<div class="map-jc-mismatch">! ${mismatchCount}</div>` : ""}
                     ${previousHtml ? `<div class="map-jc-after">${previousHtml}</div>` : ""}
                 </div>
             </div>
@@ -1188,8 +1241,8 @@
         return window.L.divIcon({
             className: "jc-map-div-icon",
             html: createMapMarkerHtml(node, mode),
-            iconSize: mode === "preview" ? [118, 92] : [24, 24],
-            iconAnchor: mode === "preview" ? [59, 70] : [12, 12],
+            iconSize: mode === "preview" ? [118, 112] : [24, 24],
+            iconAnchor: mode === "preview" ? [59, 82] : [12, 12],
             popupAnchor: [0, -64]
         });
     }
@@ -2038,6 +2091,22 @@
         ].join(" ");
     }
 
+    function getCoreUserSearchText(core) {
+        return getUsersForCore(core)
+            .map((user) => [
+                user && user.name,
+                user && user.user_id,
+                user && user.mobile,
+                user && user.address,
+                user && user.mac_address,
+                user && user.normalized_mac_address,
+                user && user.power,
+                user && user.status,
+                user && user._searchText
+            ].join(" "))
+            .join(" ");
+    }
+
     function getCoreSearchText(core) {
         return [
             core && core.coreColor,
@@ -2048,7 +2117,8 @@
             core && core.ponMode,
             core && core.partialpon,
             core && core.power,
-            core && core.remark
+            core && core.remark,
+            getCoreUserSearchText(core)
         ].join(" ");
     }
 
@@ -2544,35 +2614,153 @@
                     mobile: user.mobile || "",
                     address: user.address || "",
                     mac_address: user.mac_address || "",
+                    normalized_mac_address: user.normalized_mac_address || "",
                     power: user.power ?? "",
-                    status: user.status || ""
+                    status: user.status || "",
+                    pon_number: user.pon_number || "",
+                    _searchText: user._searchText || ""
                 }));
         }
         return (state.ponUserMap[normalizePonValue(coreData && coreData.oltpon)] || []).slice();
     }
 
-    function showCoreUsers(coreData) {
+    function removeMacFromPartialPon(partialpon, normalizedMac) {
+        return String(partialpon || "")
+            .split(",")
+            .map((item) => normalizeMacValue(item))
+            .filter(Boolean)
+            .filter((macAddress) => getMacMatchKey(macAddress) !== normalizedMac)
+            .join(",");
+    }
+
+    async function removePartialPonMismatchUser(coreData, normalizedMac) {
+        if (!coreData || !coreData.cuid || !normalizedMac) return;
+        const confirmed = await askModalConfirm("Remove wrong user", "Remove this user from selected partial PON core?", "Remove");
+        if (!confirmed) return;
+        const nextPartialPon = removeMacFromPartialPon(coreData.partialpon, normalizedMac);
+        try {
+            setBusy(true);
+            await updateCore(coreData.cuid, {
+                corecolorandnumber: coreData.coreColor || coreData.coreColorAndNumber || "",
+                joint: coreData.joint || "",
+                tube: coreData.tube || "",
+                pon_mode: coreData.ponMode || "full",
+                oltpon: coreData.oltpon || "",
+                partialpon: nextPartialPon,
+                power: coreData.power || "",
+                remark: coreData.remark || ""
+            });
+            closeUsersModal();
+            await refreshAndReopenWireModal(
+                state.selectedFiber ? state.selectedFiber.dataset.wireUuid || "" : "",
+                state.selectedFiber ? state.selectedFiber.dataset.side || "" : "",
+                state.selectedFiber ? state.selectedFiber.dataset.juid || "" : ""
+            );
+        } catch (error) {
+            showError(error);
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    function renderMismatchUserCard(item, coreData) {
+        const user = item && item.user ? item.user : {};
+        const normalizedMac = item && item.normalized_mac_address || getMacMatchKey(user.normalized_mac_address || user.mac_address);
+        return `
+            <div class="jc-user-card is-mismatch">
+                <div class="jc-user-row"><span>User Name</span><strong>${escapeHtml(user.name || "-")}</strong></div>
+                <div class="jc-user-row"><span>User ID</span><strong>${escapeHtml(user.user_id || "-")}</strong></div>
+                <div class="jc-user-row"><span>Mobile</span><strong>${escapeHtml(user.mobile || "-")}</strong></div>
+                <div class="jc-user-row"><span>Address</span><strong>${escapeHtml(user.address || "-")}</strong></div>
+                <div class="jc-user-row"><span>MAC Address</span><strong>${escapeHtml(user.mac_address || item.mac_address || "-")}</strong></div>
+                <div class="jc-user-row"><span>Actual PON</span><strong>${escapeHtml(user.pon_number || item.actualPon || "-")}</strong></div>
+                <div class="jc-user-row"><span>Expected PON</span><strong>${escapeHtml(item.expectedPon || "-")}</strong></div>
+                <div class="jc-user-row"><span>Core</span><strong>${escapeHtml(coreData && (coreData.coreColor || coreData.coreColorAndNumber) || "-")}</strong></div>
+                <button type="button" class="jc-user-remove-mismatch" data-mismatch-mac="${escapeHtml(normalizedMac)}">Remove</button>
+            </div>
+        `;
+    }
+
+    function bindMismatchRemoveButtons(coreData) {
+        if (!elements.usersList) return;
+        elements.usersList.querySelectorAll(".jc-user-remove-mismatch").forEach((button) => {
+            button.addEventListener("click", (event) => {
+                event.stopPropagation();
+                removePartialPonMismatchUser(coreData, button.dataset.mismatchMac || "");
+            });
+        });
+    }
+
+    function showCoreUsers(coreData, onlyMismatch = false) {
         const users = getUsersForCore(coreData);
+        const mismatches = getPartialPonMismatchUsers(coreData);
+        const mismatchMap = new Map(mismatches.map((item) => [item.normalized_mac_address, item]));
         if (elements.usersModalTitle) {
             elements.usersModalTitle.textContent = coreData && coreData.oltpon ? getPonOptionLabel(coreData.oltpon, coreData.ponMode || "full") : "Users";
         }
         if (elements.usersModalSub) {
-            elements.usersModalSub.textContent = `${users.length} user${users.length === 1 ? "" : "s"} loaded`;
+            const mismatchCount = mismatchMap.size;
+            elements.usersModalSub.textContent = onlyMismatch
+                ? `${mismatchCount} wrong PON user${mismatchCount === 1 ? "" : "s"}`
+                : `${users.length} user${users.length === 1 ? "" : "s"} loaded${mismatchCount ? ` | ${mismatchCount} wrong PON` : ""}`;
         }
         if (elements.usersList) {
-            if (!users.length) {
+            if (onlyMismatch) {
+                if (!mismatches.length) {
+                    elements.usersList.innerHTML = `<div class="jc-users-empty">No wrong PON users found.</div>`;
+                } else {
+                    elements.usersList.innerHTML = mismatches.map((item) => renderMismatchUserCard(item, coreData)).join("");
+                    bindMismatchRemoveButtons(coreData);
+                }
+            } else if (!users.length) {
                 elements.usersList.innerHTML = `<div class="jc-users-empty">No users found.</div>`;
             } else {
-                elements.usersList.innerHTML = users.map((user) => `
-                    <div class="jc-user-card ${String(user.status || "").trim().toUpperCase() === "DOWN" ? "is-down" : String(user.status || "").trim().toUpperCase() === "UP" ? "is-up" : ""}">
+                elements.usersList.innerHTML = users.map((user) => {
+                    const normalizedMac = getMacMatchKey(user.normalized_mac_address || user.mac_address);
+                    const mismatch = mismatchMap.get(normalizedMac);
+                    return `
+                    <div class="jc-user-card ${mismatch ? "is-mismatch" : String(user.status || "").trim().toUpperCase() === "DOWN" ? "is-down" : String(user.status || "").trim().toUpperCase() === "UP" ? "is-up" : ""}">
                         <div class="jc-user-row"><span>User Name</span><strong>${escapeHtml(user.name || "-")}</strong></div>
                         <div class="jc-user-row"><span>User ID</span><strong>${escapeHtml(user.user_id || "-")}</strong></div>
                         <div class="jc-user-row"><span>Mobile</span><strong>${escapeHtml(user.mobile || "-")}</strong></div>
                         <div class="jc-user-row"><span>Address</span><strong>${escapeHtml(user.address || "-")}</strong></div>
                         <div class="jc-user-row"><span>MAC Address</span><strong>${escapeHtml(user.mac_address || "-")}</strong></div>
+                        <div class="jc-user-row"><span>Actual PON</span><strong>${escapeHtml(user.pon_number || "-")}</strong></div>
                         <div class="jc-user-row"><span>Power</span><strong>${escapeHtml(formatPowerValue(user.power))}</strong></div>
+                        ${mismatch ? `<button type="button" class="jc-user-remove-mismatch" data-mismatch-mac="${escapeHtml(normalizedMac)}">Remove</button>` : ""}
                     </div>
-                `).join("");
+                `;
+                }).join("");
+                bindMismatchRemoveButtons(coreData);
+            }
+        }
+        elements.usersModal?.classList.add("show");
+    }
+
+    function showJcMismatchUsers(boxData) {
+        const items = getJcPartialPonMismatchCores(boxData);
+        const mismatchCount = items.reduce((total, item) => total + item.mismatches.length, 0);
+        if (elements.usersModalTitle) {
+            elements.usersModalTitle.textContent = boxData && boxData.jcName ? `${boxData.jcName} wrong users` : "Wrong PON users";
+        }
+        if (elements.usersModalSub) {
+            elements.usersModalSub.textContent = `${mismatchCount} wrong PON user${mismatchCount === 1 ? "" : "s"}`;
+        }
+        if (elements.usersList) {
+            if (!mismatchCount) {
+                elements.usersList.innerHTML = `<div class="jc-users-empty">No wrong PON users found.</div>`;
+            } else {
+                elements.usersList.innerHTML = items.map((item, index) => item.mismatches.map((mismatch) => renderMismatchUserCard(mismatch, item.core).replace(
+                    "jc-user-remove-mismatch",
+                    `jc-user-remove-mismatch" data-core-index="${index}`
+                )).join("")).join("");
+                elements.usersList.querySelectorAll(".jc-user-remove-mismatch").forEach((button) => {
+                    button.addEventListener("click", (event) => {
+                        event.stopPropagation();
+                        const item = items[Number(button.dataset.coreIndex) || 0];
+                        if (item) removePartialPonMismatchUser(item.core, button.dataset.mismatchMac || "");
+                    });
+                });
             }
         }
         elements.usersModal?.classList.add("show");
@@ -3029,6 +3217,7 @@
             const currentCore = (sortedCoreData && sortedCoreData[i - 1]) || {};
             const hasSavedCore = Boolean(currentCore.cuid);
             const healthMeta = getCoreHealthMeta(currentCore);
+            const mismatchCount = getPartialPonMismatchUsers(currentCore).length;
             const tubeStyle = getCoreVisualStyle(currentCore.tube);
             const card = document.createElement("div");
             card.className = "core-card";
@@ -3046,6 +3235,7 @@
                         ${isOutputSide ? "" : `<span class="core-led ${healthMeta.level}" title="${healthMeta.label}"></span>`}
                         <h4>Live Core ${i}</h4>
                         ${isOutputSide ? "" : `<button type="button" class="core-led-label core-users-trigger">${healthMeta.label}</button>`}
+                        ${mismatchCount ? `<button type="button" class="core-mismatch-badge" title="Wrong PON users">! ${mismatchCount}</button>` : ""}
                     </div>
                     <div class="panel-controls">
                         <button type="button" class="delete-core">${hasSavedCore ? "Delete" : "Clear"}</button>
@@ -3110,6 +3300,13 @@
                 usersTrigger.addEventListener("click", (event) => {
                     event.stopPropagation();
                     showCoreUsers(currentCore);
+                });
+            }
+            const mismatchTrigger = card.querySelector(".core-mismatch-badge");
+            if (mismatchTrigger) {
+                mismatchTrigger.addEventListener("click", (event) => {
+                    event.stopPropagation();
+                    showCoreUsers(currentCore, true);
                 });
             }
             if (ponTrigger && ponField && !hasSavedCore) {
@@ -3440,10 +3637,12 @@
         const mapLink = hasLocation ? `https://www.google.com/maps?q=${boxData.lat},${boxData.lng}` : "";
         const previousLabel = String(boxData.previousJc || ROOT_PREVIOUS_JC).trim() || ROOT_PREVIOUS_JC;
         const jcHealthMeta = getJcHealthMeta(boxData);
+        const mismatchCount = getJcPartialPonMismatchCount(boxData);
         const wrapper = document.createElement("div");
         wrapper.className = "jc-wrapper";
         wrapper.innerHTML = `
             ${hasLocation ? `<a class="jc-badge" href="${mapLink}" target="_blank" rel="noopener noreferrer">${createJcBadgeHtml(boxData)}</a>` : `<div class="jc-badge">${createJcBadgeHtml(boxData)}</div>`}
+            ${mismatchCount ? `<button type="button" class="jc-mismatch-badge" title="Wrong PON users">! ${mismatchCount}</button>` : ""}
             <div class="jc-link"></div>
             <div class="jc-health-label">${createJcHealthLabelHtml(jcHealthMeta)}</div>
             <div class="jc-after-label">${createAfterLabelHtml(previousLabel)}</div>
@@ -3521,6 +3720,14 @@
             editButton.addEventListener("click", (event) => {
                 event.stopPropagation();
                 openEditJcModal(container);
+            });
+        }
+        const jcMismatchButton = wrapper.querySelector(".jc-mismatch-badge");
+        if (jcMismatchButton) {
+            jcMismatchButton.addEventListener("click", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                showJcMismatchUsers(boxData);
             });
         }
         
