@@ -705,6 +705,17 @@ function makeTaskSelect(row) {
   return select;
 }
 
+function makeRunningBadge(row) {
+  if (String(row.task || "").trim().toLowerCase() !== "pick") {
+    return null;
+  }
+  const badge = document.createElement("span");
+  badge.className = "running-badge";
+  badge.title = "Technician working";
+  badge.setAttribute("aria-label", "Technician working");
+  return badge;
+}
+
 function makeTeamPicker(row) {
   const selected = splitNames(row.takenby);
   const members = Array.from(new Set([...TEAM_MEMBERS, ...selected].filter(Boolean))).sort();
@@ -864,6 +875,7 @@ function render() {
     const tr = document.createElement("tr");
     tr.classList.add(`task-row-${String(row.task || "Pending").trim().toLowerCase() || "pending"}`);
     const taskSelect = makeTaskSelect(row);
+    const runningBadge = makeRunningBadge(row);
     const teamPicker = makeTeamPicker(row);
     const remarkControl = makeRemarkControl(row);
     const slaControl = makeSlaControl(row);
@@ -901,6 +913,9 @@ function render() {
     }
 
     tr.children[8].appendChild(taskSelect);
+    if (runningBadge) {
+      tr.children[8].appendChild(runningBadge);
+    }
     tr.children[9].appendChild(teamPicker);
     tr.children[6].appendChild(slaControl);
     tr.children[11].appendChild(saveButton);
