@@ -213,6 +213,22 @@ function cleanText(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
+function shouldShowComplaintRow(row) {
+  const createdBy = cleanText(valueOf(row, "createdBy", "CreatedBy", "created_by")).toLowerCase();
+  if (createdBy !== "system") {
+    return true;
+  }
+  const reason = cleanText(row.reason).toLowerCase();
+  return reason.includes("no connectivity") || reason.includes("speed issue");
+}
+
+function getClientRows() {
+  if (state.client === "All") {
+    return CLIENTS.flatMap((client) => state.allRows[client] || []);
+  }
+  return state.allRows[state.client] || [];
+}
+
 function formatUserId(value) {
   return cleanText(value)
     .replace(/&/g, "&amp;")
@@ -267,8 +283,8 @@ function setupDefaultPerformanceDates() {
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
-  els.taskFrom.value = `${year}-${month}-01`;
-  els.taskTo.value = `${year}-${month}-${day}`;
+  els.taskFrom.value = "";
+  els.taskTo.value = "";
   els.perfFrom.value = `${year}-${month}-01`;
   els.perfTo.value = `${year}-${month}-${day}`;
 }
@@ -746,7 +762,8 @@ function makeRemarkControl(row, canEdit) {
 
 function setupReasonFilter() {
   const selected = els.reasonSelect.value || "All";
-  const reasons = Array.from(new Set((state.allRows[state.client] || [])
+  const reasons = Array.from(new Set(getClientRows()
+    .filter(shouldShowComplaintRow)
     .map((row) => cleanText(row.reason))
     .filter(Boolean)))
     .sort((a, b) => {
@@ -784,6 +801,7 @@ function filteredRows() {
   const from = els.taskFrom.value;
   const to = els.taskTo.value;
   return state.rows
+    .filter(shouldShowComplaintRow)
     .filter((row) => reason === "All" || cleanText(row.reason) === reason)
     .filter((row) => {
       const createdDate = dateOnlyValue(row.created_at);
@@ -941,6 +959,9 @@ function getCompletedRows() {
       if (action !== "closed" || task !== "pick") {
         continue;
       }
+      if (!shouldShowComplaintRow(row)) {
+        continue;
+      }
       if (!includesEmployee(row.takenby, state.employeeName)) {
         continue;
       }
@@ -1007,13 +1028,10 @@ async function loadTasks() {
         throw new Error(`${client} HTTP ${response.status}`);
       }
       const data = await response.json();
-      return [client, data.tables?.complaints?.rows || []];
+      return [client, (data.tables?.complaints?.rows || []).map((row) => ({ ...row, client }))];
     }));
     state.allRows = Object.fromEntries(results.map(([client, rows]) => [client, rows]));
-    state.rows = (state.client === "All"
-      ? CLIENTS.flatMap((client) => state.allRows[client] || [])
-      : (state.allRows[state.client] || [])
-    ).slice().sort(compareRows);
+    state.rows = getClientRows().slice().sort(compareRows);
     setupReasonFilter();
     render();
   } catch (error) {
@@ -1120,7 +1138,7 @@ els.employeeNameInput.addEventListener("keydown", (event) => {
 
 els.clientSelect.addEventListener("change", () => {
   state.client = els.clientSelect.value;
-  state.rows = (state.allRows[state.client] || []).slice().sort(compareRows);
+  state.rows = getClientRows().slice().sort(compareRows);
   setupReasonFilter();
   render();
 });

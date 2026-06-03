@@ -470,6 +470,15 @@ function reasonMatches(row, selectedSet) {
   return !selectedSet.size || selectedSet.has(cleanText(row.reason));
 }
 
+function shouldShowComplaintRow(row) {
+  const createdBy = cleanText(valueOf(row, "createdBy", "CreatedBy", "created_by")).toLowerCase();
+  if (createdBy !== "system") {
+    return true;
+  }
+  const reason = cleanText(row.reason).toLowerCase();
+  return reason.includes("no connectivity") || reason.includes("speed issue");
+}
+
 function teamMatches(row, selectedSet) {
   if (!selectedSet.size) {
     return true;
@@ -783,9 +792,11 @@ function setupReasonFilter() {
 
 function getTopFilterSourceRows() {
   if (state.view === "unallocated") {
-    return (state.client === "All" ? CLIENTS : [state.client]).flatMap((client) => getClosedPairsForClient(client));
+    return (state.client === "All" ? CLIENTS : [state.client])
+      .flatMap((client) => getClosedPairsForClient(client))
+      .filter(shouldShowComplaintRow);
   }
-  return state.rows;
+  return state.rows.filter(shouldShowComplaintRow);
 }
 
 function setupTeamFilter() {
@@ -818,6 +829,7 @@ function setupSlaFilter() {
 
 function filteredRows() {
   return state.rows
+    .filter(shouldShowComplaintRow)
     .filter((row) => reasonMatches(row, state.reasonFilter))
     .filter((row) => teamMatches(row, state.teamFilter))
     .filter((row) => slaMatches(row, state.slaFilter))
@@ -906,6 +918,9 @@ function getPerformanceRows() {
 
   getClosedLogRows().forEach((row) => {
     const closedDate = dateOnlyValue(row.log_timestamp);
+    if (!shouldShowComplaintRow(row)) {
+      return;
+    }
     if (from && closedDate && closedDate < from) {
       return;
     }
@@ -995,6 +1010,7 @@ function getUnallocatedRows() {
     rows.push(...getClosedPairsForClient(client));
   }
   return rows
+    .filter(shouldShowComplaintRow)
     .filter((row) => reasonMatches(row, state.reasonFilter))
     .filter((row) => teamMatches(row, state.teamFilter))
     .filter((row) => slaMatches(row, state.slaFilter, row.log_timestamp))
