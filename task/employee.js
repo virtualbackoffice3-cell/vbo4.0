@@ -280,13 +280,14 @@ function dateOnlyValue(value) {
 
 function setupDefaultPerformanceDates() {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  els.taskFrom.value = "";
-  els.taskTo.value = "";
-  els.perfFrom.value = `${year}-${month}-01`;
-  els.perfTo.value = `${year}-${month}-${day}`;
+  const from = new Date(now);
+  from.setDate(now.getDate() - 6);
+  const toValue = now.toISOString().slice(0, 10);
+  const fromValue = from.toISOString().slice(0, 10);
+  els.taskFrom.value = fromValue;
+  els.taskTo.value = toValue;
+  els.perfFrom.value = fromValue;
+  els.perfTo.value = toValue;
 }
 
 function formatCreatedAt(value) {
@@ -982,7 +983,7 @@ function getCompletedRows() {
 
 function renderPerformance() {
   const rows = getCompletedRows();
-  const totalMinutes = rows.reduce((sum, row) => sum + minutesBetween(row.created_at, row.log_timestamp), 0);
+  const totalMinutes = rows.reduce((sum, row) => sum + workingMinutesBetween(row.created_at, row.log_timestamp), 0);
   const avgMinutes = rows.length ? Math.round(totalMinutes / rows.length) : 0;
   const breachedCount = rows.filter((row) => breachInfo(row, row.log_timestamp).breached).length;
   els.performanceTitle.textContent = `Completed Tasks (${rows.length})`;
@@ -998,7 +999,7 @@ function renderPerformance() {
     return;
   }
   els.performanceBody.innerHTML = rows.map((row, index) => {
-    const takenMinutes = minutesBetween(row.created_at, row.log_timestamp);
+    const takenMinutes = workingMinutesBetween(row.created_at, row.log_timestamp);
     const breached = breachInfo(row, row.log_timestamp).breached;
     return `
       <tr>
@@ -1074,7 +1075,8 @@ function switchView(view) {
 }
 
 async function updateComplaint(row, payload) {
-  const response = await fetch(`${API_BASE}/${state.client}/tasks/complaints/${row.id}`, {
+  const client = row.client || state.client;
+  const response = await fetch(`${API_BASE}/${client}/tasks/complaints/${row.id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)

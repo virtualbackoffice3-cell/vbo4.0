@@ -949,7 +949,7 @@ function getPerformanceRows() {
       }
       const item = grouped.get(name);
       item.tasks += 1;
-      item.totalMinutes += minutesBetween(row.created_at, row.log_timestamp);
+      item.totalMinutes += workingMinutesBetween(row.created_at, row.log_timestamp);
       if (breachInfo(row, row.log_timestamp).breached) {
         item.breached += 1;
       }
@@ -1079,7 +1079,7 @@ function showPerformanceDetails(index, mode = "all") {
     return;
   }
   els.performanceDetailBody.innerHTML = details.map((item, itemIndex) => {
-    const takenMinutes = minutesBetween(item.created_at, item.log_timestamp);
+    const takenMinutes = workingMinutesBetween(item.created_at, item.log_timestamp);
     const sla = slaStatus(item, item.log_timestamp);
     return `
       <tr>
