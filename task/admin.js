@@ -711,6 +711,19 @@ function makeRunningBadge(row) {
   return badge;
 }
 
+function makeRunningTaskSelect(isBreached) {
+  const select = document.createElement("select");
+  select.className = "task-select nice-select running-select";
+  if (isBreached) {
+    select.classList.add("breached-running");
+  }
+  select.innerHTML = `
+    <option value="Running" selected hidden>Running</option>
+    <option value="Unpick">Unpick</option>
+  `;
+  return select;
+}
+
 function makeTeamPicker(row) {
   const selected = splitNames(row.takenby);
   const members = Array.from(new Set([...TEAM_MEMBERS, ...selected].filter(Boolean))).sort();
@@ -869,8 +882,8 @@ function render() {
   rows.forEach((row, index) => {
     const tr = document.createElement("tr");
     tr.classList.add(`task-row-${String(row.task || "Pending").trim().toLowerCase() || "pending"}`);
-    const taskSelect = makeTaskSelect(row);
-    const runningBadge = makeRunningBadge(row);
+    const isRunning = String(row.task || "").trim().toLowerCase() === "pick";
+    const taskSelect = isRunning ? makeRunningTaskSelect(breachInfo(row).breached) : makeTaskSelect(row);
     const teamPicker = makeTeamPicker(row);
     const remarkControl = makeRemarkControl(row);
     const slaControl = makeSlaControl(row);
@@ -881,6 +894,10 @@ function render() {
     saveButton.className = "button";
     saveButton.type = "button";
     saveButton.textContent = "OK";
+    saveButton.disabled = isRunning;
+    taskSelect.addEventListener("change", () => {
+      saveButton.disabled = taskSelect.value === "Running";
+    });
     saveButton.addEventListener("click", () => saveRow(row, taskSelect, teamPicker, createdInput));
 
     tr.innerHTML = `
@@ -913,9 +930,6 @@ function render() {
 
     tr.children[14].appendChild(createdInput);
     tr.children[8].appendChild(taskSelect);
-    if (runningBadge) {
-      tr.children[8].appendChild(runningBadge);
-    }
     tr.children[9].appendChild(teamPicker);
     tr.children[6].appendChild(slaControl);
     tr.children[11].appendChild(saveButton);
@@ -1343,6 +1357,10 @@ function switchView(view) {
 }
 
 async function saveRow(row, taskSelect, teamPicker, createdInput) {
+  if (taskSelect.value === "Running") {
+    toast("Select Unpick first");
+    return;
+  }
   const payload = {
     _admin: true,
     task: taskSelect.value,

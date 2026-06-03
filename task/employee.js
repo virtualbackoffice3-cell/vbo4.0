@@ -176,7 +176,9 @@ function isPendingOrUnpick(row) {
 }
 
 function isMine(row) {
-  return String(row.usermail || "").trim().toLowerCase() === state.employeeName.toLowerCase();
+  const employeeName = state.employeeName.toLowerCase();
+  return String(row.usermail || "").trim().toLowerCase() === employeeName
+    || includesEmployee(row.takenby, state.employeeName);
 }
 
 function nowLucknow() {
@@ -852,7 +854,7 @@ function render() {
 
   rows.forEach((row, index) => {
     const currentTask = normalizeTask(row.task);
-    const canUnpickMine = isPick(row) && isMine(row);
+    const canUnpickMine = isPick(row);
     const canEdit = canUnpickMine || isPendingOrUnpick(row);
     const tr = document.createElement("tr");
     tr.classList.add(`task-row-${currentTask.toLowerCase()}`);
