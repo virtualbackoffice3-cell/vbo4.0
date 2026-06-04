@@ -1488,7 +1488,13 @@ async function renderTable() {
         <button class="mark-btn"><i class="fa-solid fa-thumbtack"></i></button>
         <button class="remove-btn"><i class="fas fa-trash"></i></button>
       </td>
-      <td>${r.Location || ""}</td>
+      <td>
+  <button class="addressLink" 
+          onclick="openAddressModal('${escapeHtml(r.Location || "")}')" 
+          style="background:none; border:none; color:var(--accent); cursor:pointer; text-decoration:underline; font:inherit;">
+    ${escapeHtml((r.Location || "").substring(0, 10))}${(r.Location || "").length > 10 ? '...' : ''}
+  </button>
+</td>
       <td>${statusEmoji}</td>
     `;
 
