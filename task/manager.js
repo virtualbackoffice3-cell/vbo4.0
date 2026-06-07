@@ -12,7 +12,7 @@ let TEAM_MEMBERS = [
 ];
 
 const state = {
-  client: DEFAULT_CLIENT,
+  client: "All",
   managerName: "",
   view: "tasks",
   rows: [],
@@ -790,7 +790,7 @@ function makeRemarkControl(row) {
   const button = document.createElement("button");
   button.className = "button secondary";
   button.type = "button";
-  button.textContent = "Save";
+  button.textContent = "Save remarks";
   button.addEventListener("click", () => saveRemark(row, input));
   wrapper.appendChild(input);
   wrapper.appendChild(meta);
@@ -867,9 +867,129 @@ function filteredRows() {
     .sort(compareRows);
 }
 
-function showAddress(address) {
-  els.addressText.textContent = cleanText(address) || "NA";
+function showAddress(row) {
+  const data = typeof row === "object" && row ? row : { address: row };
+  const fields = [
+    ["Name", valueOf(data, "name", "Name")],
+    ["Address", valueOf(data, "address", "Location")]
+  ];
+  els.addressText.innerHTML = "";
+  fields.forEach(([label, value]) => {
+    const item = document.createElement("div");
+    item.className = "info-row";
+    const strong = document.createElement("strong");
+    strong.textContent = `${label}:`;
+    const span = document.createElement("span");
+    span.textContent = cleanText(value) || "NA";
+    item.appendChild(strong);
+    item.appendChild(span);
+    els.addressText.appendChild(item);
+  });
+  if (data.id) {
+    const removeButton = makeRemoveComplaintButton(data);
+    removeButton.classList.add("info-remove-btn");
+    els.addressText.appendChild(removeButton);
+  }
   els.addressModal.classList.add("open");
+}
+
+function makeInfoButton(row) {
+  const button = document.createElement("button");
+  button.className = "info-btn";
+  button.type = "button";
+  button.title = "User info";
+  button.textContent = "i";
+  button.addEventListener("click", () => showAddress(row));
+  return button;
+}
+
+function makeRemoveComplaintButton(row) {
+  const button = document.createElement("button");
+  button.className = "remove-btn";
+  button.type = "button";
+  button.title = "Remove complaint";
+  button.innerHTML = '<i class="fa-solid fa-trash" aria-hidden="true"></i>';
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    removeComplaint(row, button);
+  });
+  return button;
+}
+
+function confirmRemoveComplaint(row) {
+  return new Promise((resolve) => {
+    let modal = document.getElementById("removeConfirmModal");
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "removeConfirmModal";
+      modal.className = "modal-backdrop confirm-backdrop";
+      modal.innerHTML = `
+        <div class="modal confirm-modal">
+          <h2>Remove Complaint?</h2>
+          <div class="confirm-user" id="removeConfirmUser"></div>
+          <div class="modal-actions">
+            <button class="button secondary" id="cancelRemoveComplaint" type="button">Cancel</button>
+            <button class="remove-btn confirm-remove-btn" id="confirmRemoveComplaint" type="button"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+    const user = modal.querySelector("#removeConfirmUser");
+    user.textContent = `${cleanText(valueOf(row, "user_id")) || "NA"} - ${cleanText(valueOf(row, "name")) || "NA"}`;
+    const close = (answer) => {
+      modal.classList.remove("open");
+      resolve(answer);
+    };
+    modal.querySelector("#cancelRemoveComplaint").onclick = () => close(false);
+    modal.querySelector("#confirmRemoveComplaint").onclick = () => close(true);
+    modal.onclick = (event) => {
+      if (event.target === modal) {
+        close(false);
+      }
+    };
+    modal.classList.add("open");
+  });
+}
+
+async function removeComplaint(row, button) {
+  if (!(await confirmRemoveComplaint(row))) {
+    return;
+  }
+  const originalHTML = button.innerHTML;
+  button.disabled = true;
+  button.textContent = "...";
+  const payload = {
+    complaint_id: row.id || row.complaint_id || "",
+    user_id: valueOf(row, "user_id"),
+    name: valueOf(row, "name"),
+    address: valueOf(row, "address"),
+    reason: valueOf(row, "reason"),
+    additional_detail: valueOf(row, "additional_detail"),
+    Mode: valueOf(row, "Mode"),
+    Power: valueOf(row, "Power", "power", "rxPower"),
+    Phone: valueOf(row, "Phone", "phone", "mobile"),
+    Team: valueOf(row, "Team", "takenby"),
+    pon: valueOf(row, "pon")
+  };
+  try {
+    const response = await fetch(`${API_BASE}/${row.client || state.client}/delete_complain`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || (data.status !== "ok" && data.status !== "skipped")) {
+      throw new Error(data.message || data.detail || `HTTP ${response.status}`);
+    }
+    toast("Complaint removed successfully");
+    els.addressModal.classList.remove("open");
+    await loadTasks();
+  } catch (error) {
+    toast(`Remove failed: ${error.message}`);
+    button.disabled = false;
+    button.innerHTML = originalHTML;
+  }
 }
 
 function render() {
@@ -879,7 +999,7 @@ function render() {
   els.taskBody.innerHTML = "";
 
   if (!rows.length) {
-    els.taskBody.innerHTML = `<tr><td colspan="14" class="cell-muted">No rows found</td></tr>`;
+    els.taskBody.innerHTML = `<tr><td colspan="12" class="cell-muted">No rows found</td></tr>`;
     setupTableScrollBars();
     return;
   }
@@ -895,10 +1015,10 @@ function render() {
     const saveButton = document.createElement("button");
     saveButton.className = "button";
     saveButton.type = "button";
-    saveButton.textContent = "OK";
-    saveButton.disabled = isRunning;
+    saveButton.textContent = "Assign team";
+    saveButton.classList.toggle("assign-disabled", isRunning);
     taskSelect.addEventListener("change", () => {
-      saveButton.disabled = taskSelect.value === "Running";
+      saveButton.classList.toggle("assign-disabled", taskSelect.value === "Running");
     });
     saveButton.addEventListener("click", () => saveRow(row, taskSelect, teamPicker));
 
@@ -906,34 +1026,26 @@ function render() {
       <td class="small">${index + 1}</td>
       <td>${row.client || state.client}</td>
       <td><span class="user-id-cell">${formatUserId(valueOf(row, "user_id"))}</span></td>
-      <td>${valueOf(row, "name")}</td>
       <td>${valueOf(row, "Phone", "phone", "mobile")}</td>
       <td class="reason">${valueOf(row, "reason")}</td>
       <td></td>
       <td class="date-col">${formatCreatedAt(valueOf(row, "created_at"))}</td>
       <td></td>
       <td></td>
-      <td>${valueOf(row, "pon")}</td>
+      <td>${valueOf(row, "Power", "power", "rxPower")}</td>
       <td></td>
-      <td></td>
-      <td class="address"></td>
+      <td class="address action-cell"></td>
     `;
 
-    const address = valueOf(row, "address");
-    if (address) {
-      const addressLink = document.createElement("button");
-      addressLink.className = "link-button address-link";
-      addressLink.type = "button";
-      addressLink.textContent = shortText(address);
-      addressLink.addEventListener("click", () => showAddress(address));
-      tr.children[13].appendChild(addressLink);
-    }
+    tr.children[11].appendChild(makeInfoButton(row));
+    tr.children[11].appendChild(makeRemoveComplaintButton(row));
 
-    tr.children[8].appendChild(taskSelect);
-    tr.children[9].appendChild(teamPicker);
-    tr.children[6].appendChild(slaControl);
-    tr.children[11].appendChild(saveButton);
-    tr.children[12].appendChild(remarkControl);
+    tr.children[7].appendChild(taskSelect);
+    tr.children[8].appendChild(teamPicker);
+    tr.children[8].classList.add("team-action-cell");
+    tr.children[5].appendChild(slaControl);
+    tr.children[8].appendChild(saveButton);
+    tr.children[10].appendChild(remarkControl);
     els.taskBody.appendChild(tr);
   });
   setupTableScrollBars();
@@ -1344,7 +1456,7 @@ function switchView(view) {
 
 async function saveRow(row, taskSelect, teamPicker) {
   if (taskSelect.value === "Running") {
-    toast("Select Unpick first");
+    toast("Task is running. Select Unpick first before assigning team.");
     return;
   }
   const payload = {

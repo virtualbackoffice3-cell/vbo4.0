@@ -754,7 +754,7 @@ function makeRemarkControl(row, canEdit) {
   const button = document.createElement("button");
   button.className = "button secondary";
   button.type = "button";
-  button.textContent = "Save";
+  button.textContent = "Save remarks";
   button.disabled = !canEdit;
   button.addEventListener("click", () => saveRemark(row, input));
   wrapper.appendChild(input);
@@ -820,9 +820,35 @@ function filteredRows() {
     .sort(compareRows);
 }
 
-function showAddress(address) {
-  els.addressText.textContent = cleanText(address) || "NA";
+function showAddress(row) {
+  const data = typeof row === "object" && row ? row : { address: row };
+  const fields = [
+    ["Name", valueOf(data, "name", "Name")],
+    ["Address", valueOf(data, "address", "Location")]
+  ];
+  els.addressText.innerHTML = "";
+  fields.forEach(([label, value]) => {
+    const item = document.createElement("div");
+    item.className = "info-row";
+    const strong = document.createElement("strong");
+    strong.textContent = `${label}:`;
+    const span = document.createElement("span");
+    span.textContent = cleanText(value) || "NA";
+    item.appendChild(strong);
+    item.appendChild(span);
+    els.addressText.appendChild(item);
+  });
   els.addressModal.classList.add("open");
+}
+
+function makeInfoButton(row) {
+  const button = document.createElement("button");
+  button.className = "info-btn";
+  button.type = "button";
+  button.title = "User info";
+  button.textContent = "i";
+  button.addEventListener("click", () => showAddress(row));
+  return button;
 }
 
 function openPickTeamModal(row) {
@@ -847,7 +873,7 @@ function render() {
   els.statusText.textContent = "";
   els.taskBody.innerHTML = "";
   if (!rows.length) {
-    els.taskBody.innerHTML = `<tr><td colspan="14" class="cell-muted">No tasks found</td></tr>`;
+    els.taskBody.innerHTML = `<tr><td colspan="12" class="cell-muted">No tasks found</td></tr>`;
     setupTableScrollBars();
     return;
   }
@@ -904,32 +930,21 @@ function render() {
       <td class="small">${index + 1}</td>
       <td>${row.client || state.client}</td>
       <td><span class="user-id-cell">${formatUserId(valueOf(row, "user_id"))}</span></td>
-      <td>${valueOf(row, "name")}</td>
       <td>${valueOf(row, "Phone", "phone", "mobile")}</td>
       <td class="reason">${valueOf(row, "reason")}</td>
       <td></td>
       <td class="date-col">${formatCreatedAt(valueOf(row, "created_at"))}</td>
       <td></td>
       <td></td>
-      <td>${valueOf(row, "pon")}</td>
+      <td>${valueOf(row, "Power", "power", "rxPower")}</td>
       <td></td>
-      <td></td>
-      <td class="address"></td>
+      <td class="address action-cell"></td>
     `;
-    const address = valueOf(row, "address");
-    if (address) {
-      const addressLink = document.createElement("button");
-      addressLink.className = "link-button address-link";
-      addressLink.type = "button";
-      addressLink.textContent = shortText(address);
-      addressLink.addEventListener("click", () => showAddress(address));
-      tr.children[13].appendChild(addressLink);
-    }
-    tr.children[8].appendChild(taskControl);
-    tr.children[9].appendChild(teamControl);
-    tr.children[6].appendChild(timerControl);
-    tr.children[11].appendChild(saveButton);
-    tr.children[12].appendChild(remarkControl);
+    tr.children[11].appendChild(makeInfoButton(row));
+    tr.children[7].appendChild(taskControl);
+    tr.children[8].appendChild(teamControl);
+    tr.children[5].appendChild(timerControl);
+    tr.children[10].appendChild(remarkControl);
     els.taskBody.appendChild(tr);
   });
   setupTableScrollBars();

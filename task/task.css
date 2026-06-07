@@ -608,6 +608,113 @@ th.small {
   text-decoration: underline;
 }
 
+.action-cell {
+  min-width: 92px;
+  white-space: nowrap;
+}
+
+.info-btn,
+.remove-btn {
+  align-items: center;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  display: inline-flex;
+  font-weight: 900;
+  height: 36px;
+  justify-content: center;
+  line-height: 1;
+  transition: background 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+  width: 36px;
+}
+
+.info-btn {
+  background: var(--accent-soft);
+  border: 1px solid #a7d9d3;
+  color: var(--accent-strong);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 18px;
+  font-style: italic;
+  margin-right: 7px;
+}
+
+.info-btn:hover {
+  background: #d7f0ed;
+  box-shadow: 0 6px 14px rgba(8, 124, 114, 0.14);
+  transform: translateY(-1px);
+}
+
+.remove-btn {
+  background: var(--danger);
+  color: #fff;
+  font-size: 15px;
+}
+
+.remove-btn:hover {
+  background: #cf1322;
+  box-shadow: 0 6px 14px rgba(180, 35, 24, 0.2);
+  transform: translateY(-1px);
+}
+
+.remove-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+  transform: none;
+}
+
+.team-action-cell .button {
+  display: block;
+  margin-top: 7px;
+  max-width: 164px;
+  min-height: 28px;
+  padding: 5px 10px;
+  width: 100%;
+}
+
+.team-action-cell .button.assign-disabled {
+  background: #6fa89e;
+  border-color: #6fa89e;
+  box-shadow: none;
+  cursor: help;
+  opacity: 0.78;
+}
+
+.team-action-cell .button.assign-disabled:hover {
+  background: #6fa89e;
+  border-color: #6fa89e;
+  box-shadow: none;
+  transform: none;
+}
+
+.remark-box .button {
+  min-height: 28px;
+  padding: 5px 10px;
+}
+
+.info-row {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: 126px 1fr;
+  padding: 7px 0;
+}
+
+.info-row + .info-row {
+  border-top: 1px solid var(--line-soft);
+}
+
+.info-row strong {
+  color: var(--muted);
+}
+
+.info-row span {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.info-remove-btn {
+  margin-top: 12px;
+}
+
 .count-button {
   background: transparent;
   border: 0;
@@ -876,6 +983,36 @@ th.small {
   gap: 10px;
   justify-content: flex-end;
   margin-top: 12px;
+}
+
+.confirm-backdrop {
+  background: rgba(15, 23, 42, 0.54);
+  z-index: 12;
+}
+
+.confirm-modal {
+  border: 1px solid var(--line-soft);
+  max-width: 380px;
+}
+
+.confirm-modal .modal-text {
+  color: var(--muted);
+}
+
+.confirm-user {
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--text);
+  font-weight: 800;
+  margin-top: 12px;
+  padding: 10px 12px;
+  word-break: break-word;
+}
+
+.confirm-remove-btn {
+  border-radius: 7px;
+  width: 44px;
 }
 
 .team-picker {
