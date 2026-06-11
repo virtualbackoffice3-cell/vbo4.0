@@ -1024,7 +1024,13 @@ function render() {
       <td class="small">${index + 1}</td>
       <td>${row.client || state.client}</td>
       <td><span class="user-id-cell">${formatUserId(valueOf(row, "user_id"))}</span></td>
-      <td>${valueOf(row, "Phone", "phone", "mobile")}</td>
+      
+<td>${Array.from(new Set([
+  valueOf(row, "Phone"),
+  valueOf(row, "registered_phone"),
+  valueOf(row, "calling_phone")
+].map(v => String(v || "").trim()).filter(Boolean))).join(", ")}</td>
+      
       <td class="reason">${valueOf(row, "reason")}</td>
       <td></td>
       <td class="date-col">${formatCreatedAt(valueOf(row, "created_at"))}</td>
