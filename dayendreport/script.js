@@ -31,6 +31,7 @@ const els = {
   editMeta: document.getElementById("editMeta"),
   editStatus: document.getElementById("editStatus"),
   editRemarks: document.getElementById("editRemarks"),
+  editCallingPhone: document.getElementById("editCallingPhone"),
   saveEdit: document.getElementById("saveEditBtn"),
   cancelEdit: document.getElementById("cancelEditBtn"),
   closeModal: document.getElementById("closeModalBtn"),
@@ -102,6 +103,15 @@ function rowInputDate(value) {
 function shortAddress(value) {
   const address = String(value || "");
   return address.length > 15 ? `${address.slice(0, 15)}...` : address;
+}
+
+function phoneParts(value) {
+  return String(value || "").split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+function displayPhone(row) {
+  const phones = [...phoneParts(row.registered_phone || row.Phone), ...phoneParts(row.calling_phone || row["Calling no"])];
+  return [...new Set(phones)].join(", ");
 }
 
 function isPendingValidation(row) {
@@ -243,7 +253,7 @@ function renderTableRow(row) {
       <td class="markCell">${markCell}</td>
       <td><span class="status ${escapeHtml(status)}">${escapeHtml(status)}</span></td>
       <td class="remarksCell">${escapeHtml(row.remarks)}</td>
-      <td>${escapeHtml(row.Phone)}</td>
+      <td>${escapeHtml(displayPhone(row))}</td>
       <td>${escapeHtml(row.Packagename)}</td>
       <td>
         <button class="addressBtn" type="button" data-address="${escapeHtml(row.Address)}">
@@ -379,7 +389,7 @@ function rowValues(row, includeMark = true) {
     money(row.Amount),
   ];
   if (includeMark) values.push(state.tab === "history" ? row.action || "" : "Mark");
-  values.push(row.payment_status || "Pending", row.remarks, row.Phone, row.Packagename, row.Address);
+  values.push(row.payment_status || "Pending", row.remarks, displayPhone(row), row.Packagename, row.Address);
   return values;
 }
 
@@ -535,13 +545,14 @@ function openEdit(key) {
   els.editMeta.innerHTML = `
     <strong>${escapeHtml(row.UserID || row.username || "")}</strong>
     <span>${escapeHtml(row.Username || "")}</span>
-    <span>${escapeHtml(row.Phone || "")}</span>
+    <span>${escapeHtml(row.registered_phone || row.Phone || "")}</span>
     <span>${escapeHtml(row.Packagename || "")}</span>
     <span>Amount: ${money(row.Amount)}</span>
   `;
   const statusValues = [...els.editStatus.options].map((option) => option.value);
   els.editStatus.value = statusValues.includes(row.payment_status) ? row.payment_status : "Pending";
   setDefaultEditRemark();
+  els.editCallingPhone.value = "";
   els.modal.hidden = false;
 }
 
@@ -598,14 +609,37 @@ function closeDetail() {
 async function saveEdit() {
   if (!state.editing) return;
   const remarks = els.editRemarks.value.trim();
+  const callingPhone = els.editCallingPhone.value.trim();
+  const callingPhones = phoneParts(callingPhone);
   if (!remarks) {
     showToast("Remark required");
     els.editRemarks.focus();
     return;
   }
+  if (!callingPhone) {
+    showToast("Calling no required");
+    els.editCallingPhone.focus();
+    return;
+  }
+  if (!callingPhones.length || callingPhones.some((phone) => !/^\d{10}$/.test(phone))) {
+    showToast("Enter 10 digit calling no");
+    els.editCallingPhone.focus();
+    return;
+  }
 
   els.saveEdit.disabled = true;
   try {
+    const userId = state.editing.UserID || state.editing.username || "";
+    const callingResponse = await fetch(`${API_BASE}/${state.editing._client}/user/calling_phone`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, calling_phone: callingPhone }),
+    });
+    const callingResult = await callingResponse.json();
+    if (!callingResponse.ok || callingResult.status !== "ok") {
+      throw new Error(callingResult.message || "Calling no save failed");
+    }
+
     const response = await fetch(`${API_BASE}/${state.editing._client}/dayendreport/report/${state.editing.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -616,10 +650,10 @@ async function saveEdit() {
     });
     if (!response.ok) throw new Error(await response.text());
     closeEdit();
-    showToast("Report marked");
+    showToast("Record saved!");
     await loadRows();
   } catch (error) {
-    showToast("Update failed");
+    showToast(error.message || "Update failed");
   } finally {
     els.saveEdit.disabled = false;
   }
