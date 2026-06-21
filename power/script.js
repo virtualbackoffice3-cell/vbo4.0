@@ -10,6 +10,7 @@ let viewMode = "cards"; // cards | table
 
 let powerRows = [];
 let eventRows = [];
+let userInfoByWindow = {};
 
 let powerUsers = [];
 let eventUsers = [];
@@ -97,6 +98,114 @@ function safeParseDate(s) {
 }
 function norm(s) { return String(s || "").trim().toLowerCase(); }
 function setHeadingCount(count) { userCount.textContent = `(${count})`; }
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function getRegisteredPhone(r) {
+  return r.registered_phone || r.primary_phone || r.Phone || r["Registered no"] || "";
+}
+
+function getCallingPhone(r) {
+  return r.calling_phone || r["Calling no"] || "";
+}
+
+function formatPowerValue(value) {
+  if (value == null || value === "") return "";
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? `${numberValue.toFixed(2)} dBm` : String(value);
+}
+
+function formatPowerNumber(value) {
+  if (value == null || value === "") return "";
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue.toFixed(2) : String(value);
+}
+
+function buildPhoneStack(r) {
+  return `
+    <div class="phoneStack">
+      <div><span>Reg:</span> ${escapeHtml(getRegisteredPhone(r))}</div>
+      <div class="phoneEdit">
+        <span>Call:</span>
+        <input class="callingPhoneInput" value="${escapeHtml(getCallingPhone(r))}" inputmode="tel">
+        <button class="callingPhoneSave" type="button">Save</button>
+      </div>
+    </div>
+  `;
+}
+
+function updateCallingPhoneLocal(source, callingPhone) {
+  const userId = norm(source.user_id || "");
+  const sourceWindow = source._window || source.window_name || "";
+  const lists = [powerRows, eventRows, powerUsers, eventUsers, dayWiseUsers, eventWiseUsers, filtered];
+
+  lists.forEach(list => {
+    list.forEach(row => {
+      if ((row._window || row.window_name || "") === sourceWindow && norm(row.user_id || "") === userId) {
+        row.calling_phone = callingPhone;
+        row["Calling no"] = callingPhone;
+      }
+    });
+  });
+
+  source.calling_phone = callingPhone;
+  source["Calling no"] = callingPhone;
+}
+
+async function saveCallingPhone(r, root) {
+  const input = root.querySelector(".callingPhoneInput");
+  const button = root.querySelector(".callingPhoneSave");
+  if (!input || !button) return;
+
+  const userId = String(r.user_id || "").trim();
+  const windowName = r._window || r.window_name || "";
+  if (!userId || !windowName) {
+    showToast("User ID missing");
+    return;
+  }
+
+  const oldText = button.textContent;
+  button.disabled = true;
+  button.textContent = "Saving";
+
+  try {
+    const response = await fetch(`${baseUrl}/${windowName}/user/calling_phone`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, calling_phone: input.value.trim() })
+    });
+    const result = await response.json();
+    if (!response.ok || result.status !== "ok") {
+      throw new Error(result.message || "Save failed");
+    }
+
+    const savedPhone = result.calling_phone || input.value.trim();
+    updateCallingPhoneLocal(r, savedPhone);
+    input.value = savedPhone;
+    showToast("Calling no saved");
+  } catch (error) {
+    showToast(error.message || "Calling no save failed");
+  } finally {
+    button.disabled = false;
+    button.textContent = oldText;
+  }
+}
+
+function wireCallingPhoneSave(root, r) {
+  const button = root.querySelector(".callingPhoneSave");
+  if (!button) return;
+  button.onclick = (event) => {
+    event.stopPropagation();
+    saveCallingPhone(r, root);
+  };
+}
 
 // ---------------- PON Filter Functions ----------------
 function extractAllPons(data) {
@@ -331,11 +440,76 @@ async function fetchWindowEvent(windowName) {
   }
 }
 
+async function fetchWindowUserInfo(windowName) {
+  const users = [];
+  let page = 1;
+  let hasNext = true;
+
+  while (hasNext) {
+    try {
+      const res = await fetch(`${baseUrl}/${windowName}/userinfo?page=${page}&page_size=500`);
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      users.push(...(data.users || []));
+      hasNext = Boolean(data.pagination && data.pagination.has_next);
+      page += 1;
+    } catch {
+      showToast(`Failed to load userinfo ${windowName}`);
+      break;
+    }
+  }
+
+  return users;
+}
+
+function normalizeMacKey(value) {
+  return String(value || "").replace(/[^a-z0-9]/gi, "").toLowerCase();
+}
+
+function buildUserInfoMap(users) {
+  const byUserId = new Map();
+  const byMac = new Map();
+
+  users.forEach(item => {
+    const userdb = item.userdb || {};
+    const netsense = item.netsense || {};
+    const info = {
+      user_id: userdb.user_id || "",
+      registered_phone: userdb.primary_phone || "",
+      primary_phone: userdb.primary_phone || "",
+      calling_phone: userdb.calling_phone || "",
+      currentPower: netsense.rxPower
+    };
+
+    if (info.user_id) byUserId.set(norm(info.user_id), info);
+    const macKey = normalizeMacKey(userdb.mac_address || netsense.mac_address || "");
+    if (macKey) byMac.set(macKey, info);
+  });
+
+  return { byUserId, byMac };
+}
+
+function mergeUserInfo(rows) {
+  rows.forEach(row => {
+    const windowInfo = userInfoByWindow[row._window || row.window_name || ""];
+    if (!windowInfo) return;
+
+    const info = windowInfo.byUserId.get(norm(row.user_id || "")) ||
+      windowInfo.byMac.get(normalizeMacKey(row.mac_address || ""));
+    if (!info) return;
+
+    row.registered_phone = info.registered_phone || row.registered_phone || row.primary_phone || "";
+    row.primary_phone = row.primary_phone || info.primary_phone || "";
+    row.calling_phone = info.calling_phone || row.calling_phone || "";
+    row.currentPower = row.currentPower ?? info.currentPower;
+  });
+}
+
 // ---------------- Grouping ----------------
 function groupPowerUsers(rows) {
   const map = {};
   rows.forEach(r => {
-    const key = norm(r.user_id || r.mac_address || "");
+    const key = norm(r.user_id || "");
     if (!key) return;
 
     if (!map[key]) {
@@ -346,6 +520,9 @@ function groupPowerUsers(rows) {
         name: r.name || "",
         address: r.address || "",
         primary_phone: r.primary_phone || "",
+        registered_phone: r.registered_phone || r.primary_phone || "",
+        calling_phone: r.calling_phone || "",
+        currentPower: r.currentPower ?? null,
         mac_address: r.mac_address || "",
         window_name: r.window_name || "",
         pon_number: r.pon_number || "",
@@ -364,6 +541,8 @@ function groupPowerUsers(rows) {
   out.forEach(u => {
     u.logs.sort((a, b) => safeParseDate(a.inserted_at) - safeParseDate(b.inserted_at));
     u.last_ts = u.logs.length ? u.logs[u.logs.length - 1].inserted_at : "";
+    const latestLog = u.logs.length ? u.logs[u.logs.length - 1] : null;
+    u.currentPower = latestLog && latestLog.rxPower != null ? latestLog.rxPower : u.currentPower;
 
     // ✅ recent two for gap only
     const n = u.logs.length;
@@ -387,7 +566,7 @@ function groupPowerUsers(rows) {
 function groupEventUsers(rows) {
   const map = {};
   rows.forEach(r => {
-    const key = norm(r.user_id || r.mac_address || "");
+    const key = norm(r.user_id || "");
     if (!key) return;
 
     if (!map[key]) {
@@ -398,6 +577,9 @@ function groupEventUsers(rows) {
         name: r.name || "",
         address: r.address || "",
         primary_phone: r.primary_phone || "",
+        registered_phone: r.registered_phone || r.primary_phone || "",
+        calling_phone: r.calling_phone || "",
+        currentPower: r.currentPower ?? null,
         mac_address: r.mac_address || "",
         window_name: r.window_name || "",
         pon_number: r.pon_number || "",
@@ -427,7 +609,7 @@ function processDayWiseData() {
   
   // Group data by user
   powerRows.forEach(r => {
-    const key = norm(r.user_id || r.mac_address || "");
+    const key = norm(r.user_id || "");
     if (!key) return;
 
     if (!dayWiseMap[key]) {
@@ -438,6 +620,9 @@ function processDayWiseData() {
         name: r.name || "",
         address: r.address || "",
         primary_phone: r.primary_phone || "",
+        registered_phone: r.registered_phone || r.primary_phone || "",
+        calling_phone: r.calling_phone || "",
+        currentPower: r.currentPower ?? null,
         mac_address: r.mac_address || "",
         window_name: r.window_name || "",
         pon_number: r.pon_number || "",
@@ -552,7 +737,7 @@ function processEventWiseData() {
   
   // Group data by user
   powerRows.forEach(r => {
-    const key = norm(r.user_id || r.mac_address || "");
+    const key = norm(r.user_id || "");
     if (!key) return;
 
     if (!eventWiseMap[key]) {
@@ -563,6 +748,9 @@ function processEventWiseData() {
         name: r.name || "",
         address: r.address || "",
         primary_phone: r.primary_phone || "",
+        registered_phone: r.registered_phone || r.primary_phone || "",
+        calling_phone: r.calling_phone || "",
+        currentPower: r.currentPower ?? null,
         mac_address: r.mac_address || "",
         window_name: r.window_name || "",
         pon_number: r.pon_number || "",
@@ -685,6 +873,8 @@ function renderCards() {
     const head = `
       <div class="card-row"><span class="card-label">Window:</span><span class="card-value">${u._window || u.window_name || ""}</span></div>
       <div class="card-row"><span class="card-label">User ID:</span><span class="card-value">${u.user_id || ""}</span></div>
+      <div class="card-row"><span class="card-label">Mobile No:</span>${buildPhoneStack(u)}</div>
+      <div class="card-row"><span class="card-label">Current Power:</span><span class="card-value">${formatPowerValue(u.currentPower)}</span></div>
       <div class="card-row"><span class="card-label">MAC:</span><span class="card-value">${u.mac_address || ""}</span></div>
       <div class="card-row"><span class="card-label">PON:</span><span class="card-value">${u.pon_number || ""}</span></div>
       <div class="card-row"><span class="card-label">Status:</span><span class="card-value">${u.status || ""}</span></div>
@@ -746,6 +936,7 @@ function renderCards() {
       e.stopPropagation();
       openUserPopup(u);
     };
+    wireCallingPhoneSave(card, u);
 
     cardContainer.appendChild(card);
 
@@ -781,9 +972,9 @@ function renderTable() {
       <td>${u._window || ""}</td>
       <td><span class="rowLink">${u.user_id || ""}</span></td>
       <td>${u.name || ""}</td>
-      <td>${u.mac_address || ""}</td>
+      <td>${buildPhoneStack(u)}</td>
+      <td>${formatPowerValue(u.currentPower)}</td>
       <td>${u.pon_number || ""}</td>
-      <td>${u.status || ""}</td>
       <td>${varText}</td>
       <td>${u.last_ts || ""}</td>
     `;
@@ -792,6 +983,7 @@ function renderTable() {
       e.stopPropagation();
       openUserPopup(u);
     };
+    wireCallingPhoneSave(tr, u);
 
     tbody.appendChild(tr);
   });
@@ -909,7 +1101,8 @@ function openUserPopup(u) {
       <div class="modalRow"><b>User ID:</b> ${u.user_id || ""}</div>
       <div class="modalRow"><b>Name:</b> ${u.name || ""}</div>
       <div class="modalRow"><b>Address:</b> ${u.address || ""}</div>
-      <div class="modalRow"><b>Primary Phone:</b> ${u.primary_phone || ""}</div>
+      <div class="modalRow"><b>Phone:</b> Reg ${getRegisteredPhone(u) || ""} / Call ${getCallingPhone(u) || ""}</div>
+      <div class="modalRow"><b>Current Power:</b> ${formatPowerValue(u.currentPower)}</div>
       <div class="modalRow"><b>MAC:</b> ${u.mac_address || ""}</div>
       <div class="modalRow"><b>PON:</b> ${u.pon_number || ""}</div>
       <div class="modalRow"><b>Status:</b> ${u.status || ""}</div>
@@ -1239,56 +1432,58 @@ document.getElementById("btnCsv").onclick = () => {
   let lines = [];
 
   if (mode === "power") {
-    headers = ["Window", "User ID", "Name", "MAC", "PON", "Status", "RecentGap(dBm)", "LastUpdated"];
+    headers = ["Window", "User ID", "Name", "Registered No", "Calling No", "CurrentPower", "PON Number", "RecentGap(dBm)", "LastUpdated"];
     lines = filtered.map(u => [
       u._window || "",
       u.user_id || "",
       u.name || "",
-      u.mac_address || "",
+      getRegisteredPhone(u) || "",
+      getCallingPhone(u) || "",
+      formatPowerNumber(u.currentPower),
       u.pon_number || "",
-      u.status || "",
       (u.varGap == null ? "" : u.varGap),
       u.last_ts || ""
     ]);
   } else if (mode === "daywise") {
-    headers = ["Window", "User ID", "Name", "MAC", "PON", "Status", "PreviousPower", "CurrentPower", `${selectedDays}DayGap(dBm)`, "LastUpdated"];
+    headers = ["Window", "User ID", "Name", "Registered No", "Calling No", "PON Number", "PreviousPower", "CurrentPower", `${selectedDays}DayGap(dBm)`, "LastUpdated"];
     lines = filtered.map(u => [
       u._window || "",
       u.user_id || "",
       u.name || "",
-      u.mac_address || "",
+      getRegisteredPhone(u) || "",
+      getCallingPhone(u) || "",
       u.pon_number || "",
-      u.status || "",
       (u.previousPower == null ? "" : u.previousPower.toFixed(2)),
       (u.currentPower == null ? "" : u.currentPower.toFixed(2)),
       (u.dayGap == null ? "" : u.dayGap),
       u.last_ts || ""
     ]);
   } else if (mode === "eventwise") {
-    headers = ["Window", "User ID", "Name", "MAC", "PON", "Status", "PreviousPower", "CurrentPower", `${selectedEvents}EventGap(dBm)`, "LastUpdated"];
+    headers = ["Window", "User ID", "Name", "Registered No", "Calling No", "PON Number", "PreviousPower", "CurrentPower", `${selectedEvents}EventGap(dBm)`, "LastUpdated"];
     lines = filtered.map(u => [
       u._window || "",
       u.user_id || "",
       u.name || "",
-      u.mac_address || "",
+      getRegisteredPhone(u) || "",
+      getCallingPhone(u) || "",
       u.pon_number || "",
-      u.status || "",
       (u.previousPower == null ? "" : u.previousPower.toFixed(2)),
       (u.currentPower == null ? "" : u.currentPower.toFixed(2)),
       (u.eventGap == null ? "" : u.eventGap),
       u.last_ts || ""
     ]);
   } else {
-    headers = ["Window", "User ID", "Name", "MAC", "PON", "Status", "LastEvent", "LastUpdated"];
+    headers = ["Window", "User ID", "Name", "Registered No", "Calling No", "CurrentPower", "PON Number", "LastEvent", "LastUpdated"];
     lines = filtered.map(u => {
       const last = u.logs.length ? u.logs[u.logs.length - 1] : null;
       return [
         u._window || "",
         u.user_id || "",
         u.name || "",
-        u.mac_address || "",
+        getRegisteredPhone(u) || "",
+        getCallingPhone(u) || "",
+        formatPowerNumber(u.currentPower),
         u.pon_number || "",
-        u.status || "",
         last ? last.downEvent : "",
         u.last_ts || ""
       ];
@@ -1323,18 +1518,35 @@ async function loadAll() {
       // Fetch data from all three windows in parallel
       const powerPromises = WINDOWS.map(window => fetchWindowPower(window));
       const eventPromises = WINDOWS.map(window => fetchWindowEvent(window));
+      const userInfoPromises = WINDOWS.map(window => fetchWindowUserInfo(window));
       
       const allPowerResults = await Promise.all(powerPromises);
       const allEventResults = await Promise.all(eventPromises);
+      const allUserInfoResults = await Promise.all(userInfoPromises);
+      userInfoByWindow = {};
+      WINDOWS.forEach((windowName, index) => {
+        userInfoByWindow[windowName] = buildUserInfoMap(allUserInfoResults[index]);
+      });
       
       // Flatten the arrays
       powerRows = allPowerResults.flat();
       eventRows = allEventResults.flat();
     } else {
       // Single window
-      powerRows = await fetchWindowPower(currentWindow);
-      eventRows = await fetchWindowEvent(currentWindow);
+      const [powerResult, eventResult, userInfoResult] = await Promise.all([
+        fetchWindowPower(currentWindow),
+        fetchWindowEvent(currentWindow),
+        fetchWindowUserInfo(currentWindow)
+      ]);
+      userInfoByWindow = {
+        [currentWindow]: buildUserInfoMap(userInfoResult)
+      };
+      powerRows = powerResult;
+      eventRows = eventResult;
     }
+
+    mergeUserInfo(powerRows);
+    mergeUserInfo(eventRows);
 
     powerUsers = groupPowerUsers(powerRows);
     eventUsers = groupEventUsers(eventRows);
