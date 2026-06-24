@@ -613,6 +613,11 @@ th.small {
   white-space: nowrap;
 }
 
+.power-cell {
+  color: #7f1d1d;
+  font-weight: 800;
+}
+
 .info-btn,
 .remove-btn {
   align-items: center;
