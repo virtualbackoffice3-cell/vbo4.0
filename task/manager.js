@@ -1,6 +1,7 @@
 const CLIENTS = ["AMANWIZ", "MEDANTA", "SEVAI"];
 const DEFAULT_CLIENT = "MEDANTA";
 const API_BASE = window.TASK_API_BASE || "https://app2.vbo.co.in";
+const FORCE_CLOSE_MARKER = "--FC--";
 let TEAM_MEMBERS = [
   "Sujeet kumar",
   "Rohit tiwari",
@@ -469,6 +470,14 @@ function reasonMatches(row, selectedSet) {
   return !selectedSet.size || selectedSet.has(cleanText(row.reason));
 }
 
+function isForceClosedRow(row) {
+  return String(valueOf(row, "address") || "").trimEnd().endsWith(FORCE_CLOSE_MARKER);
+}
+
+function complaintVisibleInView(row) {
+  return state.view === "forceclosed" ? isForceClosedRow(row) : !isForceClosedRow(row);
+}
+
 function shouldShowComplaintRow(row) {
   const createdBy = cleanText(valueOf(row, "createdBy", "CreatedBy", "created_by")).toLowerCase();
   if (createdBy !== "system") {
@@ -859,12 +868,22 @@ function setupSlaFilter() {
 function filteredRows() {
   return state.rows
     .filter(shouldShowComplaintRow)
+    .filter(complaintVisibleInView)
     .filter((row) => reasonMatches(row, state.reasonFilter))
     .filter((row) => teamMatches(row, state.teamFilter))
     .filter((row) => slaMatches(row, state.slaFilter))
     .filter(searchMatches)
     .slice()
     .sort(compareRows);
+}
+
+function forceClosedAddress(address) {
+  const base = String(address || "").replace(/\s*--FC--$/, "").trimEnd();
+  return `${base}${FORCE_CLOSE_MARKER}`;
+}
+
+function openAddress(address) {
+  return String(address || "").replace(/\s*--FC--$/, "").trimEnd();
 }
 
 function showAddress(row) {
@@ -886,6 +905,9 @@ function showAddress(row) {
     els.addressText.appendChild(item);
   });
   if (data.id) {
+    const forceButton = makeForceToggleButton(data);
+    forceButton.classList.add("info-remove-btn");
+    els.addressText.appendChild(forceButton);
     const removeButton = makeRemoveComplaintButton(data);
     removeButton.classList.add("info-remove-btn");
     els.addressText.appendChild(removeButton);
@@ -914,6 +936,43 @@ function makeRemoveComplaintButton(row) {
     removeComplaint(row, button);
   });
   return button;
+}
+
+function makeForceToggleButton(row) {
+  const button = document.createElement("button");
+  button.className = "button secondary";
+  button.type = "button";
+  button.textContent = isForceClosedRow(row) ? "Force open" : "Force close";
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleForceComplaint(row, button);
+  });
+  return button;
+}
+
+async function toggleForceComplaint(row, button) {
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "...";
+  const address = isForceClosedRow(row) ? openAddress(valueOf(row, "address")) : forceClosedAddress(valueOf(row, "address"));
+  try {
+    const response = await fetch(`${API_BASE}/${row.client || state.client}/tasks/complaints/${row.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.detail || `HTTP ${response.status}`);
+    }
+    toast(isForceClosedRow(row) ? "Force open saved" : "Force close saved");
+    els.addressModal.classList.remove("open");
+    await loadTasks();
+  } catch (error) {
+    toast(`Update failed: ${error.message}`);
+    button.disabled = false;
+    button.textContent = originalText;
+  }
 }
 
 function confirmRemoveComplaint(row) {
@@ -994,7 +1053,7 @@ async function removeComplaint(row, button) {
 
 function render() {
   const rows = filteredRows();
-  els.panelTitle.textContent = `Open Complaints (${rows.length})`;
+  els.panelTitle.textContent = `${state.view === "forceclosed" ? "Force Closed Complaints" : "Open Complaints"} (${rows.length})`;
   els.statusText.textContent = "";
   els.taskBody.innerHTML = "";
 
@@ -1034,11 +1093,11 @@ function render() {
 ].map(v => String(v || "").trim()).filter(Boolean))).join(", ")}</td>
       
       <td class="reason">${valueOf(row, "reason")}</td>
+      <td class="power-cell">${valueOf(row, "Power", "power", "rxPower")}</td>
       <td></td>
       <td class="date-col">${formatCreatedAt(valueOf(row, "created_at"))}</td>
       <td></td>
       <td></td>
-      <td>${valueOf(row, "Power", "power", "rxPower")}</td>
       <td></td>
       <td class="address action-cell"></td>
     `;
@@ -1046,11 +1105,11 @@ function render() {
     tr.children[11].appendChild(makeInfoButton(row));
     tr.children[11].appendChild(makeRemoveComplaintButton(row));
 
-    tr.children[7].appendChild(taskSelect);
-    tr.children[8].appendChild(teamPicker);
-    tr.children[8].classList.add("team-action-cell");
-    tr.children[5].appendChild(slaControl);
-    tr.children[8].appendChild(saveButton);
+    tr.children[8].appendChild(taskSelect);
+    tr.children[9].appendChild(teamPicker);
+    tr.children[9].classList.add("team-action-cell");
+    tr.children[6].appendChild(slaControl);
+    tr.children[9].appendChild(saveButton);
     tr.children[10].appendChild(remarkControl);
     els.taskBody.appendChild(tr);
   });
@@ -1343,7 +1402,7 @@ async function deleteTeamMember(memberId) {
 }
 
 async function loadTasks() {
-  els.panelTitle.textContent = "Complaints";
+  els.panelTitle.textContent = state.view === "forceclosed" ? "Force Closed Complaints" : "Open Complaints";
   els.statusText.textContent = "Loading...";
   try {
     if (state.client === "All") {
@@ -1430,7 +1489,8 @@ function switchView(view) {
   const showPerformance = view === "performance";
   const showUnallocated = view === "unallocated";
   const showTeam = view === "team";
-  els.tasksPanel.classList.toggle("hidden", showPerformance || showUnallocated || showTeam);
+  const showTasks = view === "tasks" || view === "forceclosed";
+  els.tasksPanel.classList.toggle("hidden", !showTasks || showPerformance || showUnallocated || showTeam);
   els.performancePanel.classList.toggle("hidden", !showPerformance);
   els.unallocatedPanel.classList.toggle("hidden", !showUnallocated);
   els.teamPanel.classList.toggle("hidden", !showTeam);

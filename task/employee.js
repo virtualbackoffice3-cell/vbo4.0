@@ -1,6 +1,7 @@
 ﻿const CLIENTS = ["AMANWIZ", "MEDANTA", "SEVAI"];
 const DEFAULT_CLIENT = "MEDANTA";
 const API_BASE = window.TASK_API_BASE || "https://app2.vbo.co.in";
+const FORCE_CLOSE_MARKER = "--FC--";
 let EMPLOYEE_WINDOW_MAP = {
   "Sujeet kumar": "MEDANTA",
   "Rohit tiwari": "MEDANTA",
@@ -23,6 +24,7 @@ let TEAM_MEMBERS = [
 const state = {
   client: DEFAULT_CLIENT,
   employeeName: "",
+  view: "tasks",
   rows: [],
   allRows: {},
   allLogs: {},
@@ -767,6 +769,7 @@ function setupReasonFilter() {
   const selected = els.reasonSelect.value || "All";
   const reasons = Array.from(new Set(getClientRows()
     .filter(shouldShowComplaintRow)
+    .filter(complaintVisibleInView)
     .map((row) => cleanText(row.reason))
     .filter(Boolean)))
     .sort((a, b) => {
@@ -798,6 +801,14 @@ function rowSearchText(row) {
   ].join(" ").toLowerCase();
 }
 
+function isForceClosedRow(row) {
+  return String(valueOf(row, "address") || "").trimEnd().endsWith(FORCE_CLOSE_MARKER);
+}
+
+function complaintVisibleInView(row) {
+  return state.view === "forceclosed" ? isForceClosedRow(row) : !isForceClosedRow(row);
+}
+
 function filteredRows() {
   const reason = els.reasonSelect.value || "All";
   const search = cleanText(els.taskSearch.value).toLowerCase();
@@ -805,6 +816,7 @@ function filteredRows() {
   const to = els.taskTo.value;
   return state.rows
     .filter(shouldShowComplaintRow)
+    .filter(complaintVisibleInView)
     .filter((row) => reason === "All" || cleanText(row.reason) === reason)
     .filter((row) => {
       const createdDate = dateOnlyValue(row.created_at);
@@ -869,7 +881,8 @@ function closePickTeamModal() {
 
 function render() {
   const rows = filteredRows();
-  els.panelTitle.textContent = `Complaints (${rows.length})`;
+  const forceClosedView = state.view === "forceclosed";
+  els.panelTitle.textContent = `${forceClosedView ? "Force Closed Complaints" : "Complaints"} (${rows.length})`;
   els.statusText.textContent = "";
   els.taskBody.innerHTML = "";
   if (!rows.length) {
@@ -881,7 +894,7 @@ function render() {
   rows.forEach((row, index) => {
     const currentTask = normalizeTask(row.task);
     const canUnpickMine = isPick(row);
-    const canEdit = canUnpickMine || isPendingOrUnpick(row);
+    const canEdit = !forceClosedView && (canUnpickMine || isPendingOrUnpick(row));
     const tr = document.createElement("tr");
     tr.classList.add(`task-row-${currentTask.toLowerCase()}`);
 
@@ -895,7 +908,7 @@ function render() {
     saveButton.addEventListener("click", () => {
       toast("Task is not editable");
     });
-    const remarkControl = makeRemarkControl(row, isPick(row) && isMine(row));
+    const remarkControl = makeRemarkControl(row, !forceClosedView && isPick(row) && isMine(row));
     const timerControl = makeBreachTimer(row);
 
     if (canEdit && canUnpickMine) {
@@ -938,18 +951,18 @@ function render() {
 ].map(v => String(v || "").trim()).filter(Boolean))).join(", ")}</td>
       
       <td class="reason">${valueOf(row, "reason")}</td>
+      <td class="power-cell">${valueOf(row, "Power", "power", "rxPower")}</td>
       <td></td>
       <td class="date-col">${formatCreatedAt(valueOf(row, "created_at"))}</td>
       <td></td>
       <td></td>
-      <td>${valueOf(row, "Power", "power", "rxPower")}</td>
       <td></td>
       <td class="address action-cell"></td>
     `;
     tr.children[11].appendChild(makeInfoButton(row));
-    tr.children[7].appendChild(taskControl);
-    tr.children[8].appendChild(teamControl);
-    tr.children[5].appendChild(timerControl);
+    tr.children[8].appendChild(taskControl);
+    tr.children[9].appendChild(teamControl);
+    tr.children[6].appendChild(timerControl);
     tr.children[10].appendChild(remarkControl);
     els.taskBody.appendChild(tr);
   });
@@ -1043,7 +1056,7 @@ function renderPerformance() {
 }
 
 async function loadTasks() {
-  els.panelTitle.textContent = "Complaints";
+  els.panelTitle.textContent = state.view === "forceclosed" ? "Force Closed Complaints" : "Complaints";
   els.statusText.textContent = "Loading...";
   try {
     const results = await Promise.all(CLIENTS.map(async (client) => {
@@ -1087,12 +1100,17 @@ async function loadPerformance() {
 }
 
 function switchView(view) {
+  state.view = view;
   const showPerformance = view === "performance";
   els.tasksPanel.classList.toggle("hidden", showPerformance);
   els.performancePanel.classList.toggle("hidden", !showPerformance);
   els.viewTabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.view === view));
   if (showPerformance && !state.performanceLoaded) {
     loadPerformance();
+  }
+  if (!showPerformance) {
+    setupReasonFilter();
+    render();
   }
   window.setTimeout(setupTableScrollBars, 0);
 }
