@@ -7,7 +7,7 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
   color: #102033;
-  background: #f1f5f3;
+  background: #eef3f1;
   font-family: Arial, Helvetica, sans-serif;
 }
 
@@ -15,11 +15,17 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
-  padding: 22px 28px;
+  gap: 14px;
+  padding: 12px 24px;
   background: #ffffff;
   border-bottom: 1px solid #dce6e1;
   width: 100%;
+}
+
+.topActions {
+  display: flex;
+  align-items: end;
+  gap: 12px;
 }
 
 h1,
@@ -29,50 +35,89 @@ p {
 }
 
 h1 {
-  font-size: 26px;
+  font-size: 24px;
+  line-height: 1.15;
 }
 
 .topbar p {
-  margin-top: 6px;
+  margin-top: 3px;
   color: #5d6e7f;
+  font-size: 14px;
 }
 
 main {
-  padding: 18px 24px 28px;
+  padding: 10px 24px 18px;
 }
 
 .toolbar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 1001;
+  width: min(380px, 92vw);
+  height: 100vh;
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) 180px 160px 160px 110px 76px 82px;
-  gap: 12px;
-  align-items: end;
+  grid-template-columns: 1fr;
+  align-content: start;
+  gap: 10px;
   padding: 14px;
   background: #ffffff;
-  border: 1px solid #dce6e1;
-  border-radius: 8px;
+  border-left: 1px solid #dce6e1;
+  border-radius: 0;
+  box-shadow: -14px 0 38px rgba(16, 32, 51, 0.18);
+  transform: translateX(105%);
+  transition: transform 180ms ease;
+}
+
+.toolbar.open {
+  transform: translateX(0);
 }
 
 .toolbar.matrixMode {
-  display: flex;
-  justify-content: flex-end;
+  display: grid;
 }
 
 .toolbar.matrixMode .field,
 .toolbar.matrixMode #refreshBtn,
 .toolbar.matrixMode #csvBtn {
+  display: flex;
+}
+
+.drawerHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #e4ece8;
+}
+
+.drawerHead h2 {
+  color: #20384a;
+  font-size: 18px;
+}
+
+.drawerOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(16, 32, 51, 0.32);
+}
+
+.drawerOverlay[hidden] {
   display: none;
 }
 
 .field,
 .windowBox {
-  min-width: 170px;
+  min-width: 140px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 label {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   color: #52677c;
   text-transform: uppercase;
@@ -93,7 +138,7 @@ textarea {
   border-radius: 6px;
   background: #ffffff;
   color: #102033;
-  padding: 10px 11px;
+  padding: 7px 9px;
 }
 
 .multiSelect {
@@ -155,7 +200,7 @@ button {
   border-radius: 6px;
   background: #0b7a75;
   color: #ffffff;
-  padding: 11px 15px;
+  padding: 8px 12px;
   cursor: pointer;
 }
 
@@ -168,7 +213,7 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 14px 0;
+  margin: 0 0 7px;
 }
 
 .tab {
@@ -185,8 +230,8 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
-  padding: 11px;
+  width: 36px;
+  padding: 8px;
 }
 
 .clockIcon {
@@ -198,8 +243,8 @@ button:disabled {
 .statusBadges {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin: -4px 0 8px;
+  gap: 5px;
+  margin: 0 0 7px;
 }
 
 .statusBadges[hidden] {
@@ -213,7 +258,7 @@ button:disabled {
   border: 1px solid #dce6e1;
   border-radius: 999px;
   background: #ffffff;
-  padding: 4px 7px;
+  padding: 3px 7px;
   color: #34485a;
   font-size: 11px;
   box-shadow: 0 4px 14px rgba(16, 32, 51, 0.04);
@@ -252,7 +297,7 @@ button:disabled {
 .tableWrap {
   position: relative;
   overflow: auto;
-  max-height: calc(100vh - 245px);
+  max-height: calc(100vh - 125px);
   background: #ffffff;
   border: 1px solid #dce6e1;
   border-radius: 8px;
@@ -333,17 +378,18 @@ button:disabled {
 
 table {
   width: 100%;
-  min-width: 1320px;
+  min-width: 1240px;
   border-collapse: collapse;
 }
 
 th,
 td {
-  padding: 11px 12px;
+  padding: 6px 9px;
   border-bottom: 1px solid #e4ece8;
   text-align: left;
-  vertical-align: top;
-  font-size: 14px;
+  vertical-align: middle;
+  font-size: 13px;
+  line-height: 1.18;
 }
 
 th {
@@ -352,8 +398,9 @@ th {
   z-index: 5;
   background: #f7faf8;
   color: #385064;
-  font-size: 12px;
+  font-size: 11px;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .num {
@@ -363,14 +410,15 @@ th {
 
 .status {
   display: inline-flex;
-  min-width: 74px;
+  min-width: 68px;
   justify-content: center;
   border-radius: 999px;
-  padding: 5px 9px;
+  padding: 4px 8px;
   background: #edf2f0;
   color: #34485a;
   font-weight: 700;
-  font-size: 12px;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .status.Done {
@@ -396,7 +444,7 @@ th {
 }
 
 .addressBtn {
-  max-width: 150px;
+  max-width: 130px;
   overflow: hidden;
   border-radius: 4px;
   background: transparent;
@@ -408,7 +456,8 @@ th {
 }
 
 .remarksCell {
-  min-width: 210px;
+  min-width: 170px;
+  max-width: 260px;
 }
 
 .emptyState {
@@ -436,7 +485,7 @@ th {
   z-index: 1000;
   display: grid;
   place-items: center;
-  padding: 20px;
+  padding: 14px;
   background: rgba(16, 32, 51, 0.45);
 }
 
@@ -445,15 +494,15 @@ th {
 }
 
 .modalPanel {
-  width: min(460px, 100%);
+  width: min(420px, 100%);
   display: grid;
-  gap: 12px;
+  gap: 8px;
   border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
-  padding: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  padding: 14px;
   box-shadow: 0 20px 50px rgba(16, 32, 51, 0.25);
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(10px);
 }
 
 .smallPanel {
@@ -461,20 +510,20 @@ th {
 }
 
 .detailPanel {
-  width: min(1120px, 96vw);
-  max-height: 88vh;
+  width: min(1280px, 98vw);
+  max-height: 94vh;
 }
 
 .detailContent {
   overflow: auto;
-  max-height: calc(88vh - 92px);
+  max-height: calc(94vh - 58px);
   border: 1px solid #dce6e1;
   border-radius: 7px;
   background: #ffffff;
 }
 
 .detailTable {
-  min-width: 1080px;
+  min-width: 1160px;
 }
 
 .addressText {
@@ -488,7 +537,32 @@ th {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
+}
+
+.modalHead h2 {
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+#editModal .modalPanel {
+  grid-template-columns: 110px minmax(0, 1fr);
+  align-items: center;
+}
+
+#editModal .modalHead,
+#editModal .miniCard,
+#editModal .modalActions {
+  grid-column: 1 / -1;
+}
+
+#editModal textarea {
+  min-height: 68px;
+  resize: vertical;
+}
+
+#editModal .modalActions {
+  justify-content: flex-end;
 }
 
 .iconBtn,
@@ -497,12 +571,48 @@ th {
   color: #20384a;
 }
 
+.filterToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+}
+
+.hambIcon,
+.hambIcon::before,
+.hambIcon::after {
+  display: block;
+  width: 16px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.hambIcon {
+  position: relative;
+}
+
+.hambIcon::before,
+.hambIcon::after {
+  content: "";
+  position: absolute;
+  left: 0;
+}
+
+.hambIcon::before {
+  top: -5px;
+}
+
+.hambIcon::after {
+  top: 5px;
+}
+
 .iconOnly {
   display: inline-grid;
-  width: 42px;
-  min-width: 42px;
+  width: 36px;
+  min-width: 36px;
   place-items: center;
-  padding: 11px;
+  padding: 8px;
 }
 
 .iconOnly svg {
@@ -513,25 +623,32 @@ th {
 
 .miniCard {
   display: grid;
-  gap: 4px;
-  padding: 12px;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 10px;
+  padding: 9px;
   border-radius: 7px;
   background: #f4f8f6;
   color: #40576b;
+  font-size: 13px;
+}
+
+.miniCard strong {
+  grid-column: 1 / -1;
+  color: #102033;
 }
 
 .editBtn {
   display: inline-grid;
-  width: 38px;
-  height: 34px;
+  width: 32px;
+  height: 28px;
   place-items: center;
   background: #c21d67;
   padding: 0;
 }
 
 .editBtn svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   fill: #ffffff;
 }
 
@@ -553,8 +670,12 @@ th {
     flex-direction: column;
   }
 
+  .topActions {
+    align-items: stretch;
+  }
+
   .toolbar {
-    grid-template-columns: 1fr 1fr;
+    width: min(380px, 94vw);
   }
 
   .searchField {
@@ -567,12 +688,15 @@ th {
     padding: 16px;
   }
 
+  .topActions {
+    flex-direction: column;
+  }
+
   main {
     padding: 12px 10px 20px;
   }
 
   .toolbar {
-    grid-template-columns: 1fr;
     padding: 12px;
   }
 
@@ -585,12 +709,12 @@ th {
   }
 
   .tableWrap {
-    max-height: calc(100vh - 330px);
+    max-height: calc(100vh - 220px);
   }
 
   th,
   td {
-    padding: 10px;
+    padding: 7px 8px;
     font-size: 13px;
   }
 }

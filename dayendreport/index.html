@@ -12,22 +12,33 @@
       <h1>Cash settlement report</h1>
       <p id="summaryText">Loading...</p>
     </div>
-    <div class="windowBox">
-      <label>Window</label>
-      <div class="multiSelect" data-multi="window">
-        <button id="windowSelectBtn" class="multiBtn" type="button">All</button>
-        <div id="windowMenu" class="multiMenu" hidden>
-          <label><input type="checkbox" value="ALL" checked> All</label>
-          <label><input type="checkbox" value="AMANWIZ"> AMANWIZ</label>
-          <label><input type="checkbox" value="MEDANTA"> MEDANTA</label>
-          <label><input type="checkbox" value="SEVAI"> SEVAI</label>
-        </div>
-      </div>
+    <div class="topActions">
+      <button id="filtersBtn" class="ghostBtn filterToggle" type="button" aria-label="Open filters" aria-expanded="false">
+        <span class="hambIcon" aria-hidden="true"></span>
+        Filters
+      </button>
     </div>
   </header>
 
   <main>
+    <div id="drawerOverlay" class="drawerOverlay" hidden></div>
     <section class="toolbar">
+      <div class="drawerHead">
+        <h2>Filters</h2>
+        <button id="closeFiltersBtn" class="iconBtn" type="button" aria-label="Close filters">x</button>
+      </div>
+      <div class="windowBox">
+        <label>Window</label>
+        <div class="multiSelect" data-multi="window">
+          <button id="windowSelectBtn" class="multiBtn" type="button">All</button>
+          <div id="windowMenu" class="multiMenu" hidden>
+            <label><input type="checkbox" value="ALL" checked> All</label>
+            <label><input type="checkbox" value="AMANWIZ"> AMANWIZ</label>
+            <label><input type="checkbox" value="MEDANTA"> MEDANTA</label>
+            <label><input type="checkbox" value="SEVAI"> SEVAI</label>
+          </div>
+        </div>
+      </div>
       <div class="field searchField">
         <label for="searchInput">Search</label>
         <input id="searchInput" type="search" placeholder="Name, phone, package, address...">

@@ -27,6 +27,9 @@ const els = {
   empty: document.getElementById("emptyState"),
   summary: document.getElementById("summaryText"),
   toolbar: document.querySelector(".toolbar"),
+  filtersBtn: document.getElementById("filtersBtn"),
+  closeFilters: document.getElementById("closeFiltersBtn"),
+  drawerOverlay: document.getElementById("drawerOverlay"),
   modal: document.getElementById("editModal"),
   editMeta: document.getElementById("editMeta"),
   editStatus: document.getElementById("editStatus"),
@@ -81,6 +84,18 @@ function showToast(message) {
   showToast.timer = setTimeout(() => {
     els.toast.style.display = "none";
   }, 2200);
+}
+
+function openFilters() {
+  els.toolbar.classList.add("open");
+  els.drawerOverlay.hidden = false;
+  els.filtersBtn.setAttribute("aria-expanded", "true");
+}
+
+function closeFilters() {
+  els.toolbar.classList.remove("open");
+  els.drawerOverlay.hidden = true;
+  els.filtersBtn.setAttribute("aria-expanded", "false");
 }
 
 function formatDate(value) {
@@ -717,6 +732,9 @@ document.querySelectorAll(".tab").forEach((button) => {
 });
 
 els.refresh.addEventListener("click", loadRows);
+els.filtersBtn.addEventListener("click", openFilters);
+els.closeFilters.addEventListener("click", closeFilters);
+els.drawerOverlay.addEventListener("click", closeFilters);
 els.csv.addEventListener("click", downloadCsv);
 els.png.addEventListener("click", downloadPng);
 els.from.addEventListener("change", loadRows);
