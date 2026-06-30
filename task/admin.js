@@ -59,16 +59,12 @@ els.teamPanel = document.getElementById("teamPanel");
 els.viewTabs = Array.from(document.querySelectorAll(".tabbar .tab"));
 els.perfEmployee = document.getElementById("perfEmployee");
 els.perfReason = document.getElementById("perfReason");
-els.perfFrom = document.getElementById("perfFrom");
-els.perfTo = document.getElementById("perfTo");
 els.performanceTitle = document.getElementById("performanceTitle");
 els.performanceSummary = document.getElementById("performanceSummary");
 els.performanceBody = document.getElementById("performanceBody");
 els.unallocatedTitle = document.getElementById("unallocatedTitle");
 els.unallocatedStatus = document.getElementById("unallocatedStatus");
 els.unallocatedBody = document.getElementById("unallocatedBody");
-els.closedFrom = document.getElementById("closedFrom");
-els.closedTo = document.getElementById("closedTo");
 els.teamTitle = document.getElementById("teamTitle");
 els.teamStatus = document.getElementById("teamStatus");
 els.teamNameInput = document.getElementById("teamNameInput");
@@ -138,7 +134,7 @@ function setupMobileDrawer() {
   }
   drawer.addEventListener("click", (event) => event.stopPropagation());
   document.addEventListener("click", (event) => {
-    if (document.body.classList.contains("drawer-open") && !drawer.contains(event.target) && event.target !== menuToggle) {
+    if (document.body.classList.contains("drawer-open") && !drawer.contains(event.target) && !menuToggle.contains(event.target)) {
       closeDrawer();
     }
   });
@@ -150,6 +146,15 @@ function toast(message) {
   els.toast.classList.add("show");
   window.clearTimeout(toast.timer);
   toast.timer = window.setTimeout(() => els.toast.classList.remove("show"), 2400);
+}
+
+function setCountTitle(element, label, count) {
+  element.textContent = "";
+  element.append(document.createTextNode(`${label} `));
+  const badge = document.createElement("span");
+  badge.className = "count-highlight";
+  badge.textContent = `(${count})`;
+  element.appendChild(badge);
 }
 
 async function loadTeamConfig() {
@@ -281,12 +286,6 @@ function fromDateTimeLocal(value) {
 }
 
 function setupDefaultPerformanceDates() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  els.perfFrom.value = `${year}-${month}-01`;
-  els.perfTo.value = `${year}-${month}-${day}`;
 }
 
 function dateInputValue(date) {
@@ -294,11 +293,6 @@ function dateInputValue(date) {
 }
 
 function setupDefaultClosedDates() {
-  const to = new Date();
-  const from = new Date();
-  from.setDate(to.getDate() - 6);
-  els.closedFrom.value = dateInputValue(from);
-  els.closedTo.value = dateInputValue(to);
 }
 
 function formatCreatedAt(value) {
@@ -583,23 +577,7 @@ function renderReasonMultiFilter(container, reasons, selectedSet, onChange) {
 }
 
 function compareRows(a, b) {
-  if (state.client === "All") {
-    const clientDiff = cleanText(a.client).localeCompare(cleanText(b.client));
-    if (clientDiff !== 0) {
-      return clientDiff;
-    }
-  }
-  const priorityDiff = reasonPriority(a.reason) - reasonPriority(b.reason);
-  if (priorityDiff !== 0) {
-    return priorityDiff;
-  }
-  if (reasonPriority(a.reason) === 2) {
-    const reasonDiff = cleanText(a.reason).localeCompare(cleanText(b.reason));
-    if (reasonDiff !== 0) {
-      return reasonDiff;
-    }
-  }
-  return dateSortValue(a.created_at) - dateSortValue(b.created_at);
+  return dateSortValue(b.created_at) - dateSortValue(a.created_at);
 }
 
 function setupClients() {
@@ -1048,7 +1026,7 @@ async function removeComplaint(row, button) {
 
 function render() {
   const rows = filteredRows();
-  els.panelTitle.textContent = `${state.view === "forceclosed" ? "Force Closed Complaints" : "Open Complaints"} (${rows.length})`;
+  setCountTitle(els.panelTitle, state.view === "forceclosed" ? "Force Closed Complaints" : "Open Complaints", rows.length);
   els.statusText.textContent = "";
   els.taskBody.innerHTML = "";
 
@@ -1117,20 +1095,11 @@ function render() {
 }
 
 function getPerformanceRows() {
-  const from = els.perfFrom.value;
-  const to = els.perfTo.value;
   const employee = els.perfEmployee.value || "All";
   const grouped = new Map();
 
   getClosedLogRows().forEach((row) => {
-    const closedDate = dateOnlyValue(row.log_timestamp);
     if (!shouldShowComplaintRow(row)) {
-      return;
-    }
-    if (from && closedDate && closedDate < from) {
-      return;
-    }
-    if (to && closedDate && closedDate > to) {
       return;
     }
     if (!reasonMatches(row, state.performanceReasonFilter)) {
@@ -1179,7 +1148,7 @@ function renderPerformance() {
   const totalMinutes = rows.reduce((sum, row) => sum + row.totalMinutes, 0);
   const totalBreached = rows.reduce((sum, row) => sum + row.breached, 0);
   const avgMinutes = totalTasks ? Math.round(totalMinutes / totalTasks) : 0;
-  els.performanceTitle.textContent = `Performance (${rows.length})`;
+  setCountTitle(els.performanceTitle, "Performance", rows.length);
   els.performanceSummary.innerHTML = `
     <span>Employees: <strong>${rows.length}</strong></span>
     <span>Tasks: <strong>${totalTasks}</strong></span>
@@ -1221,18 +1190,13 @@ function getUnallocatedRows() {
     .filter((row) => teamMatches(row, state.teamFilter))
     .filter((row) => slaMatches(row, state.slaFilter, row.log_timestamp))
     .filter(searchMatches)
-    .filter((row) => {
-      const closedDate = dateOnlyValue(row.log_timestamp);
-      return (!els.closedFrom.value || closedDate >= els.closedFrom.value)
-        && (!els.closedTo.value || closedDate <= els.closedTo.value);
-    })
     .sort((a, b) => dateSortValue(b.log_timestamp) - dateSortValue(a.log_timestamp));
 }
 
 function renderUnallocated() {
   const rows = getUnallocatedRows();
   state.unallocatedRows = rows;
-  els.unallocatedTitle.textContent = `Closed Tasks (${rows.length})`;
+  setCountTitle(els.unallocatedTitle, "Closed Tasks", rows.length);
   els.unallocatedStatus.textContent = "";
   if (!rows.length) {
     els.unallocatedBody.innerHTML = `<tr><td colspan="10" class="cell-muted">No closed tasks found</td></tr>`;
@@ -1287,7 +1251,7 @@ function showPerformanceDetails(index, mode = "all") {
   const details = mode === "breached"
     ? row.details.filter((item) => breachInfo(item, item.log_timestamp).breached)
     : row.details;
-  els.performanceDetailTitle.textContent = `${row.name} - ${mode === "breached" ? "Breached Tasks" : "Completed Tasks"} (${details.length})`;
+  setCountTitle(els.performanceDetailTitle, `${row.name} - ${mode === "breached" ? "Breached Tasks" : "Completed Tasks"}`, details.length);
   state.performanceDetailRows = details;
   if (!details.length) {
     els.performanceDetailBody.innerHTML = `<tr><td colspan="12" class="cell-muted">No tasks found</td></tr>`;
@@ -1327,7 +1291,7 @@ function clearTeamForm() {
 }
 
 function renderTeamConfig() {
-  els.teamTitle.textContent = `Team Members (${state.teamMembers.length})`;
+  setCountTitle(els.teamTitle, "Team Members", state.teamMembers.length);
   els.teamStatus.textContent = "";
   if (!state.teamMembers.length) {
     els.teamBody.innerHTML = `<tr><td colspan="4" class="cell-muted">No team members found</td></tr>`;
@@ -1910,8 +1874,6 @@ els.searchInput.addEventListener("input", () => {
   }
   render();
 });
-els.closedFrom.addEventListener("change", renderUnallocated);
-els.closedTo.addEventListener("change", renderUnallocated);
 els.screenshotButton.addEventListener("click", downloadTablePng);
 els.csvButton.addEventListener("click", downloadCsv);
 els.refreshButton.addEventListener("click", () => {
@@ -1932,8 +1894,6 @@ els.refreshButton.addEventListener("click", () => {
   loadTasks();
 });
 els.perfEmployee.addEventListener("change", renderPerformance);
-els.perfFrom.addEventListener("change", renderPerformance);
-els.perfTo.addEventListener("change", renderPerformance);
 els.performanceBody.addEventListener("click", (event) => {
   const button = event.target.closest(".count-button");
   if (button) {

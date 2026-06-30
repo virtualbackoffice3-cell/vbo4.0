@@ -15,6 +15,10 @@
         <button class="menu-toggle" type="button" aria-label="Open menu"><span></span><span></span><span></span></button>
         <div class="controls">
           <button class="drawer-close" type="button" aria-label="Close menu">Close</button>
+          <section class="tabbar">
+            <button class="tab active" data-view="tasks" type="button">Tasks</button>
+            <button class="tab" data-view="performance" type="button">Performance</button>
+          </section>
           <div class="field">
             <label for="clientSelect">Window</label>
             <select id="clientSelect"></select>
@@ -23,35 +27,23 @@
             <label for="reasonSelect">Task catagory</label>
             <select id="reasonSelect"></select>
           </div>
+          <div class="field">
+            <label for="taskSearch">Task search</label>
+            <input id="taskSearch" type="search" placeholder="User, name, phone...">
+          </div>
+          <div class="field">
+            <label for="perfSearch">Performance search</label>
+            <input id="perfSearch" type="search" placeholder="User, name, phone...">
+          </div>
           <button class="button mobile-apply" type="button">Apply filter</button>
           <button class="button secondary icon-button screenshot-button" id="screenshotButton" type="button" aria-label="Download table PNG" title="Download table PNG"><span class="camera-icon"></span></button>
           <button class="button" id="refreshButton" type="button">Refresh</button>
         </div>
       </section>
 
-      <section class="tabbar">
-        <button class="tab active" data-view="tasks" type="button">Tasks</button>
-        <button class="tab" data-view="forceclosed" type="button">Force closed</button>
-        <button class="tab" data-view="performance" type="button">Performance</button>
-      </section>
-
       <section class="panel" id="tasksPanel">
         <div class="panel-head">
           <strong id="panelTitle">Complaints</strong>
-          <div class="controls compact-controls">
-            <div class="field">
-              <label for="taskSearch">Search</label>
-              <input id="taskSearch" type="search" placeholder="User, name, phone...">
-            </div>
-            <div class="field">
-              <label for="taskFrom">From</label>
-              <input id="taskFrom" type="date">
-            </div>
-            <div class="field">
-              <label for="taskTo">To</label>
-              <input id="taskTo" type="date">
-            </div>
-          </div>
           <span class="status" id="statusText"></span>
         </div>
         <div class="table-wrap">
@@ -80,20 +72,6 @@
       <section class="panel hidden" id="performancePanel">
         <div class="panel-head">
           <strong id="performanceTitle">Completed Tasks (0)</strong>
-          <div class="controls compact-controls">
-            <div class="field">
-              <label for="perfFrom">From</label>
-              <input id="perfFrom" type="date">
-            </div>
-            <div class="field">
-              <label for="perfTo">To</label>
-              <input id="perfTo" type="date">
-            </div>
-            <div class="field">
-              <label for="perfSearch">Search</label>
-              <input id="perfSearch" type="search" placeholder="User, name, phone...">
-            </div>
-          </div>
         </div>
         <div class="summary-strip" id="performanceSummary"></div>
         <div class="table-wrap performance-wrap">

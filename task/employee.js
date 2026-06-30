@@ -61,10 +61,6 @@ els.tasksPanel = document.getElementById("tasksPanel");
 els.performancePanel = document.getElementById("performancePanel");
 els.viewTabs = Array.from(document.querySelectorAll(".tabbar .tab"));
 els.taskSearch = document.getElementById("taskSearch");
-els.taskFrom = document.getElementById("taskFrom");
-els.taskTo = document.getElementById("taskTo");
-els.perfFrom = document.getElementById("perfFrom");
-els.perfTo = document.getElementById("perfTo");
 els.perfSearch = document.getElementById("perfSearch");
 els.performanceTitle = document.getElementById("performanceTitle");
 els.performanceSummary = document.getElementById("performanceSummary");
@@ -127,7 +123,7 @@ function setupMobileDrawer() {
   }
   drawer.addEventListener("click", (event) => event.stopPropagation());
   document.addEventListener("click", (event) => {
-    if (document.body.classList.contains("drawer-open") && !drawer.contains(event.target) && event.target !== menuToggle) {
+    if (document.body.classList.contains("drawer-open") && !drawer.contains(event.target) && !menuToggle.contains(event.target)) {
       closeDrawer();
     }
   });
@@ -139,6 +135,15 @@ function toast(message) {
   els.toast.classList.add("show");
   window.clearTimeout(toast.timer);
   toast.timer = window.setTimeout(() => els.toast.classList.remove("show"), 2400);
+}
+
+function setCountTitle(element, label, count) {
+  element.textContent = "";
+  element.append(document.createTextNode(`${label} `));
+  const badge = document.createElement("span");
+  badge.className = "count-highlight";
+  badge.textContent = `(${count})`;
+  element.appendChild(badge);
 }
 
 async function loadTeamConfig() {
@@ -283,15 +288,6 @@ function dateOnlyValue(value) {
 }
 
 function setupDefaultPerformanceDates() {
-  const now = new Date();
-  const from = new Date(now);
-  from.setDate(now.getDate() - 6);
-  const toValue = now.toISOString().slice(0, 10);
-  const fromValue = from.toISOString().slice(0, 10);
-  els.taskFrom.value = fromValue;
-  els.taskTo.value = toValue;
-  els.perfFrom.value = fromValue;
-  els.perfTo.value = toValue;
 }
 
 function formatCreatedAt(value) {
@@ -561,17 +557,7 @@ function reasonPriority(reason) {
 }
 
 function compareRows(a, b) {
-  const priorityDiff = reasonPriority(a.reason) - reasonPriority(b.reason);
-  if (priorityDiff !== 0) {
-    return priorityDiff;
-  }
-  if (reasonPriority(a.reason) === 2) {
-    const reasonDiff = cleanText(a.reason).localeCompare(cleanText(b.reason));
-    if (reasonDiff !== 0) {
-      return reasonDiff;
-    }
-  }
-  return dateSortValue(a.created_at) - dateSortValue(b.created_at);
+  return dateSortValue(b.created_at) - dateSortValue(a.created_at);
 }
 
 function setupClients() {
@@ -812,22 +798,11 @@ function complaintVisibleInView(row) {
 function filteredRows() {
   const reason = els.reasonSelect.value || "All";
   const search = cleanText(els.taskSearch.value).toLowerCase();
-  const from = els.taskFrom.value;
-  const to = els.taskTo.value;
   return state.rows
     .filter(shouldShowComplaintRow)
     .filter(complaintVisibleInView)
     .filter((row) => reason === "All" || cleanText(row.reason) === reason)
-    .filter((row) => {
-      const createdDate = dateOnlyValue(row.created_at);
-      if (from && createdDate && createdDate < from) {
-        return false;
-      }
-      if (to && createdDate && createdDate > to) {
-        return false;
-      }
-      return !search || rowSearchText(row).includes(search);
-    })
+    .filter((row) => !search || rowSearchText(row).includes(search))
     .slice()
     .sort(compareRows);
 }
@@ -882,7 +857,7 @@ function closePickTeamModal() {
 function render() {
   const rows = filteredRows();
   const forceClosedView = state.view === "forceclosed";
-  els.panelTitle.textContent = `${forceClosedView ? "Force Closed Complaints" : "Complaints"} (${rows.length})`;
+  setCountTitle(els.panelTitle, forceClosedView ? "Force Closed Complaints" : "Complaints", rows.length);
   els.statusText.textContent = "";
   els.taskBody.innerHTML = "";
   if (!rows.length) {
@@ -984,15 +959,12 @@ async function saveRemark(row, input) {
 }
 
 function getCompletedRows() {
-  const from = els.perfFrom.value;
-  const to = els.perfTo.value;
   const search = cleanText(els.perfSearch.value).toLowerCase();
   const rows = [];
   for (const client of CLIENTS) {
     for (const row of state.allLogs[client] || []) {
       const action = cleanText(row.action).toLowerCase();
       const task = cleanText(row.task).toLowerCase();
-      const closedDate = dateOnlyValue(row.log_timestamp);
       if (action !== "closed" || task !== "pick") {
         continue;
       }
@@ -1000,12 +972,6 @@ function getCompletedRows() {
         continue;
       }
       if (!includesEmployee(row.takenby, state.employeeName)) {
-        continue;
-      }
-      if (from && closedDate && closedDate < from) {
-        continue;
-      }
-      if (to && closedDate && closedDate > to) {
         continue;
       }
       if (search && !rowSearchText({ ...row, client }).includes(search)) {
@@ -1022,7 +988,7 @@ function renderPerformance() {
   const totalMinutes = rows.reduce((sum, row) => sum + workingMinutesBetween(row.created_at, row.log_timestamp), 0);
   const avgMinutes = rows.length ? Math.round(totalMinutes / rows.length) : 0;
   const breachedCount = rows.filter((row) => breachInfo(row, row.log_timestamp).breached).length;
-  els.performanceTitle.textContent = `Completed Tasks (${rows.length})`;
+  setCountTitle(els.performanceTitle, "Completed Tasks", rows.length);
   els.performanceSummary.innerHTML = `
     <span>Total: <strong>${rows.length}</strong></span>
     <span>Avg: <strong>${formatMinutes(avgMinutes)}</strong></span>
@@ -1191,10 +1157,6 @@ els.reasonSelect.addEventListener("change", () => {
 });
 
 els.taskSearch.addEventListener("input", render);
-els.taskFrom.addEventListener("change", render);
-els.taskTo.addEventListener("change", render);
-els.perfFrom.addEventListener("change", renderPerformance);
-els.perfTo.addEventListener("change", renderPerformance);
 els.perfSearch.addEventListener("input", renderPerformance);
 els.viewTabs.forEach((tab) => {
   tab.addEventListener("click", () => switchView(tab.dataset.view));
