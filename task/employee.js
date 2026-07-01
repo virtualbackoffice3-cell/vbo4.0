@@ -650,6 +650,20 @@ function makeTaskPill(task) {
   return span;
 }
 
+function makeTaskStatusDisplay(task, isBreached) {
+  const isRunning = String(task || "").trim().toLowerCase() === "pick";
+  const span = document.createElement("span");
+  span.className = "task-select nice-select status-display";
+  span.textContent = isRunning ? "Running" : "Pending";
+  if (isRunning) {
+    span.classList.add("running-select");
+    if (isBreached) {
+      span.classList.add("breached-running");
+    }
+  }
+  return span;
+}
+
 function makeRunningTaskSelect(isBreached) {
   const select = makeTaskSelect("Running", ["Running", "Unpick"]);
   const runningOption = select.querySelector("option[value='Running']");
@@ -873,7 +887,7 @@ function render() {
     const tr = document.createElement("tr");
     tr.classList.add(`task-row-${currentTask.toLowerCase()}`);
 
-    let taskControl = makeTaskPill(currentTask);
+    let taskControl = makeTaskStatusDisplay(row.task, breachInfo(row).breached);
     let teamControl = document.createElement("span");
     teamControl.textContent = renderTeamText(row);
     let saveButton = document.createElement("button");
@@ -886,28 +900,8 @@ function render() {
     const remarkControl = makeRemarkControl(row, !forceClosedView && isPick(row) && isMine(row));
     const timerControl = makeBreachTimer(row);
 
-    if (canEdit && canUnpickMine) {
-      const unpickSelect = makeRunningTaskSelect(breachInfo(row).breached);
-      saveButton = document.createElement("span");
-      saveButton.className = "cell-muted";
-      saveButton.textContent = "-";
-      unpickSelect.addEventListener("change", () => {
-        const isUnpick = unpickSelect.value === "Unpick";
-        unpickSelect.classList.toggle("running-select", !isUnpick);
-        unpickSelect.classList.toggle("breached-running", !isUnpick && breachInfo(row).breached);
-        if (isUnpick) {
-          saveRow(row, unpickSelect, null);
-        }
-      });
-      taskControl = unpickSelect;
-    } else if (canEdit) {
-      taskControl = makeActionSelect(currentTask, ["Pick"]);
+    if (canEdit && !canUnpickMine) {
       teamControl = makeTeamPicker(row);
-      taskControl.addEventListener("change", () => {
-        if (taskControl.value === "Pick") {
-          openPickTeamModal(row);
-        }
-      });
       saveButton = document.createElement("span");
       saveButton.className = "cell-muted";
       saveButton.type = "button";
