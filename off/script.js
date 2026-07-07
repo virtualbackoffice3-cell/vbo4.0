@@ -240,19 +240,73 @@ function fadeOutAndRemove(el) {
 /* ===============================
    ✅ API Fetchers
 ================================= */
+function normalizeLastStatusKey(value, alnumOnly = false) {
+  const text = String(value || "").trim().toLowerCase();
+  return alnumOnly ? text.replace(/[^a-z0-9]/g, "") : text;
+}
+
+function addLastStatusKey(map, prefix, value, row, alnumOnly = false) {
+  const normalized = normalizeLastStatusKey(value, alnumOnly);
+  if (normalized && !map.has(`${prefix}:${normalized}`)) {
+    map.set(`${prefix}:${normalized}`, row);
+  }
+}
+
+async function fetchLastStatusMap(windowName) {
+  try {
+    const res = await fetch(`${baseUrl}/${windowName}/lidownusers`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const map = new Map();
+
+    (data.drop_users || []).forEach(row => {
+      addLastStatusKey(map, "user", row.user_id, row);
+      addLastStatusKey(map, "mac", row.mac_address, row, true);
+      addLastStatusKey(map, "serial", row.serial_number, row, true);
+    });
+
+    return map;
+  } catch (err) {
+    return new Map();
+  }
+}
+
+function getLastStatusMatch(row, statusMap) {
+  const keys = [
+    `user:${normalizeLastStatusKey(row.Users || row.user_id)}`,
+    `mac:${normalizeLastStatusKey(row.MAC || row.mac_address, true)}`,
+    `serial:${normalizeLastStatusKey(row.Serial || row.serial_number, true)}`
+  ];
+  return keys.map(key => statusMap.get(key)).find(Boolean) || null;
+}
+
+function mergeLastStatus(row, statusMap) {
+  const match = getLastStatusMatch(row, statusMap);
+  if (!match) return row;
+  return {
+    ...row,
+    down_time: match.down_time || row.down_time || row.Drops || "",
+    downEvent: match.downEvent || row.downEvent || "",
+    downEventType: match.downEventType || match.downEventtype || row.downEventType || ""
+  };
+}
+
 async function fetchWindowData(windowName) {
   const url = `${baseUrl}/${windowName}/complains`;
   try {
-    const res = await fetch(url);
+    const [res, lastStatusMap] = await Promise.all([
+      fetch(url),
+      fetchLastStatusMap(windowName)
+    ]);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    return (data.rows || []).map(row => prepareRow({ 
+    return (data.rows || []).map(row => prepareRow(mergeLastStatus({
       ...row, 
       down_list: row.down_list || "",
       _complaint_id: row.ComplaintID || row.id || "",
       _window: windowName, 
       _runtime_timestamp: data.runtime_timestamp || "" 
-    }));
+    }, lastStatusMap)));
   } catch (err) {
     showToast(`Failed to load ${windowName}`);
     return [];
@@ -277,6 +331,9 @@ function buildSearchText(row) {
     row.additional_detail,
     row.Team,
     row.Mode,
+    row.down_time,
+    row.downEvent,
+    row.downEventType,
     row["User status"]
   ].map(v => String(v || "").toLowerCase()).join(" ");
 }
@@ -634,6 +691,35 @@ function setHeadingCountAndTimestamp(count, runtimeTs) {
 function safeParseDate(s) {
   const d = new Date(s || "");
   return isNaN(d.getTime()) ? new Date(0) : d;
+}
+
+function formatStatusDate(value) {
+  const rawValue = String(value || "").trim();
+  if (!rawValue || rawValue === "-") return "";
+
+  const date = new Date(rawValue.replace(" ", "T"));
+  if (isNaN(date.getTime())) return rawValue;
+
+  const day = date.getDate();
+  const month = date.toLocaleString("en-US", { month: "short" });
+  const time = date.toLocaleString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true
+  });
+  return `${day} ${month} ${time}`;
+}
+
+function getLastStatusText(row) {
+  const time = formatStatusDate(row.down_time || row.Drops || "");
+  const eventName = String(row.downEvent || "").trim();
+  const eventType = String(row.downEventType || row.downEventtype || "").trim();
+  const eventPart = eventName && eventType
+    ? `${eventName} (${eventType})`
+    : eventName || (eventType ? `(${eventType})` : "");
+
+  if (time && eventPart) return `${time} / ${eventPart}`;
+  return time || eventPart || "-";
 }
 
 function pageOrder(pageId) {
@@ -1209,7 +1295,7 @@ async function renderCards() {
 }
 
 function renderSingleCard(r, index, container) {
-  let downCount = r.downusers || 0;
+  const lastStatusText = getLastStatusText(r);
 
   const card = document.createElement("div");
   card.className = "complaint-card";
@@ -1255,7 +1341,7 @@ function renderSingleCard(r, index, container) {
       <div class="card-row"><span class="card-label">PON:</span><span class="card-value">${r.PON || ""}</span></div>
       <div class="card-row"><span class="card-label">Location:</span><button class="card-value addressLink" type="button" title="${escapeHtml(r.Location || "")}">${r.Location || ""}</button></div>
       <div class="card-row"><span class="card-label">Power:</span><span class="card-value">${r.Power?.toFixed(2) || ""}</span></div>
-      <div class="card-row"><span class="card-label">Down users:</span><span class="card-value">${downCount}</span></div>
+      <div class="card-row"><span class="card-label">Last status:</span><span class="card-value">${escapeHtml(lastStatusText)}</span></div>
       <div class="card-row"><span class="card-label">MAC / Serial:</span><span class="card-value">${r.MAC || ""} / ${r.Serial || ""}</span></div>
       <div class="card-row"><span class="card-label">Task catagory:</span>${buildRemarkSelect(remarkValue)}</div>
       <div class="card-row"><span class="card-label">Remarks:</span>${buildAdditionalDetailInput(remarkValue, r.additional_detail || "")}</div>
@@ -1432,7 +1518,7 @@ async function renderTable() {
       }
     }
 
-    let downCount = r.downusers || 0;
+    const lastStatusText = getLastStatusText(r);
 
     const tr = document.createElement("tr");
     const statusEmoji = r["User status"] === "UP" ? '📶' : r["User status"] === "DOWN" ? '📵' : '💀';
@@ -1465,7 +1551,7 @@ async function renderTable() {
       </td>
       <td>${r.Name || ""}</td>
       <td>${r.MAC || ""}<br><small>${r.Serial || ""}</small></td>
-      <td>${downCount}</td>
+      <td>${escapeHtml(lastStatusText)}</td>
       <td>
         ${buildRemarkSelect(remarkValue)}
         ${buildAdditionalDetailInput(remarkValue, r.additional_detail || "")}
@@ -1712,7 +1798,12 @@ document.getElementById("btnComplains").onclick = async () => {
       allData = (data.rows || []).map(r => ({ ...r, _window: currentWindow }));
     }
 
-    rawRows = allData.map(r => prepareRow({
+    const statusMapsByWindow = {};
+    await Promise.all([...new Set(allData.map(r => r._window).filter(Boolean))].map(async windowName => {
+      statusMapsByWindow[windowName] = await fetchLastStatusMap(windowName);
+    }));
+
+    rawRows = allData.map(r => prepareRow(mergeLastStatus({
       ...r,
       Users: r.user_id,
       Name: r.name,
@@ -1726,7 +1817,7 @@ document.getElementById("btnComplains").onclick = async () => {
       downusers: r.downusers || 0,
       _complaint_id: r.id,
       _complain_open: true
-    }));
+    }, statusMapsByWindow[r._window] || new Map())));
 
     showToast(rawRows.length ? `${rawRows.length} complaints loaded` : "No complaints found");
 
