@@ -942,7 +942,7 @@ function updateCounts(payloads, activeWindows) {
 }
 
 async function fetchWindowData(activeWindow) {
-  const response = await fetch(`${API_BASE_URL}/${encodeURIComponent(activeWindow)}/lidownusers`);
+  const response = await fetch(`${API_BASE_URL}/${encodeURIComponent(activeWindow)}/lidownusers`, { cache: "no-store" });
   const payload = await response.json();
 
   if (!response.ok) {
