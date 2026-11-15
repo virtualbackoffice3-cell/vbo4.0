@@ -19,6 +19,7 @@ const state = {
   rows: [],
   allLogs: {},
   performanceLoaded: false,
+  performanceFilterMode: "range",
   performanceRows: [],
   performanceDetailRows: [],
   unallocatedLoaded: false,
@@ -59,6 +60,12 @@ els.teamPanel = document.getElementById("teamPanel");
 els.viewTabs = Array.from(document.querySelectorAll(".tabbar .tab"));
 els.perfEmployee = document.getElementById("perfEmployee");
 els.perfReason = document.getElementById("perfReason");
+els.perfFrom = document.getElementById("perfFrom");
+els.perfTo = document.getElementById("perfTo");
+els.perfMonth = document.getElementById("perfMonth");
+els.perfDateFields = document.getElementById("perfDateFields");
+els.perfMonthField = document.getElementById("perfMonthField");
+els.performanceModeButtons = Array.from(document.querySelectorAll("[data-performance-mode]"));
 els.performanceTitle = document.getElementById("performanceTitle");
 els.performanceSummary = document.getElementById("performanceSummary");
 els.performanceBody = document.getElementById("performanceBody");
@@ -286,10 +293,71 @@ function fromDateTimeLocal(value) {
 }
 
 function setupDefaultPerformanceDates() {
+  if (!els.perfMonth) {
+    return;
+  }
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  els.perfMonth.innerHTML = months.map((month, index) => {
+    const year = resolvePerformanceMonth(index + 1).from.slice(0, 4);
+    return `<option value="${index + 1}">${month} ${year} (0 tasks)</option>`;
+  }).join("");
+  els.perfMonth.value = String(new Date().getMonth() + 1);
+  syncPerformanceFilterMode();
 }
 
 function dateInputValue(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function resolvePerformanceMonth(monthValue, today = new Date()) {
+  const monthIndex = Number(monthValue) - 1;
+  if (!Number.isInteger(monthIndex) || monthIndex < 0 || monthIndex > 11) {
+    return null;
+  }
+  const year = monthIndex > today.getMonth() ? today.getFullYear() - 1 : today.getFullYear();
+  return {
+    from: dateInputValue(new Date(year, monthIndex, 1)),
+    to: dateInputValue(new Date(year, monthIndex + 1, 0))
+  };
+}
+
+function performanceDateMatches(row) {
+  const monthRange = state.performanceFilterMode === "month" ? resolvePerformanceMonth(els.perfMonth?.value) : null;
+  const from = monthRange?.from || els.perfFrom?.value || "";
+  const to = monthRange?.to || els.perfTo?.value || "";
+  if (!from && !to) {
+    return true;
+  }
+  const closedDate = dateOnlyValue(row.log_timestamp);
+  return Boolean(closedDate) && (!from || closedDate >= from) && (!to || closedDate <= to);
+}
+
+function applyPerformanceMonthShortcut() {
+  renderPerformance();
+}
+
+function syncPerformanceFilterMode() {
+  const monthMode = state.performanceFilterMode === "month";
+  els.perfDateFields?.classList.toggle("hidden", monthMode);
+  els.perfMonthField?.classList.toggle("hidden", !monthMode);
+  els.performanceModeButtons.forEach((button) => {
+    const active = button.dataset.performanceMode === state.performanceFilterMode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+}
+
+function setPerformanceFilterMode(mode) {
+  if (mode !== "range" && mode !== "month") {
+    return;
+  }
+  state.performanceFilterMode = mode;
+  if (mode === "month") {
+    els.perfFrom.value = "";
+    els.perfTo.value = "";
+  }
+  syncPerformanceFilterMode();
+  renderPerformance();
 }
 
 function setupDefaultClosedDates() {
@@ -580,6 +648,11 @@ function compareRows(a, b) {
   return dateSortValue(b.created_at) - dateSortValue(a.created_at);
 }
 
+function compareRowsWithUnallocatedFirst(a, b) {
+  const allocationOrder = Number(splitNames(a.takenby).length > 0) - Number(splitNames(b.takenby).length > 0);
+  return allocationOrder || compareRows(a, b);
+}
+
 function setupClients() {
   els.clientSelect.innerHTML = ["All", ...CLIENTS].map((client) => `<option value="${client}">${client}</option>`).join("");
   els.clientSelect.value = state.client;
@@ -721,6 +794,48 @@ function makeTeamPicker(row) {
   box.type = "button";
   const menu = document.createElement("div");
   menu.className = "team-menu";
+  menu.setAttribute("popover", "manual");
+
+  function positionMenu() {
+    const boxRect = box.getBoundingClientRect();
+    const viewportGap = 8;
+    const preferredHeight = 300;
+    const menuWidth = Math.max(190, boxRect.width);
+    const spaceAbove = boxRect.top - viewportGap;
+    const spaceBelow = window.innerHeight - boxRect.bottom - viewportGap;
+    const openAbove = spaceAbove >= Math.min(preferredHeight, spaceBelow) || spaceAbove > spaceBelow;
+    const availableHeight = Math.max(96, Math.min(preferredHeight, (openAbove ? spaceAbove : spaceBelow) - 4));
+    const left = Math.min(
+      Math.max(viewportGap, boxRect.left),
+      Math.max(viewportGap, window.innerWidth - menuWidth - viewportGap)
+    );
+
+    menu.style.left = `${left}px`;
+    menu.style.width = `${menuWidth}px`;
+    menu.style.maxHeight = `${availableHeight}px`;
+    if (openAbove) {
+      menu.style.top = "auto";
+      menu.style.bottom = `${window.innerHeight - boxRect.top + 4}px`;
+    } else {
+      menu.style.top = `${boxRect.bottom + 4}px`;
+      menu.style.bottom = "auto";
+    }
+  }
+
+  function closeMenu() {
+    wrapper.classList.remove("open");
+    if (typeof menu.hidePopover === "function" && menu.matches(":popover-open")) {
+      menu.hidePopover();
+    }
+  }
+
+  function openMenu() {
+    wrapper.classList.add("open");
+    if (typeof menu.showPopover === "function" && !menu.matches(":popover-open")) {
+      menu.showPopover();
+    }
+    positionMenu();
+  }
 
   function drawBox() {
     box.innerHTML = selected.length
@@ -731,11 +846,32 @@ function makeTeamPicker(row) {
   function drawMenu() {
     menu.innerHTML = members.map((name) => {
       const checked = selected.includes(name) ? "checked" : "";
-      return `<label><input type="checkbox" value="${name}" ${checked}> ${name}</label>`;
-    }).join("");
+      return `<label><input type="checkbox" value="${escapeHtml(name)}" ${checked}><span>${escapeHtml(name)}</span></label>`;
+    }).join("") + `<button class="team-menu-done" type="button">Done</button>`;
   }
 
-  box.addEventListener("click", () => wrapper.classList.toggle("open"));
+  box.addEventListener("click", () => {
+    const willOpen = !wrapper.classList.contains("open");
+    document.querySelectorAll(".team-picker.open").forEach((picker) => {
+      if (picker !== wrapper) {
+        if (typeof picker.closeTeamMenu === "function") {
+          picker.closeTeamMenu();
+        } else {
+          picker.classList.remove("open");
+        }
+      }
+    });
+    if (willOpen) {
+      openMenu();
+    } else {
+      closeMenu();
+    }
+  });
+  menu.addEventListener("click", (event) => {
+    if (event.target.closest(".team-menu-done")) {
+      closeMenu();
+    }
+  });
   menu.addEventListener("change", (event) => {
     const input = event.target;
     if (!input.matches("input[type='checkbox']")) {
@@ -756,6 +892,7 @@ function makeTeamPicker(row) {
   drawMenu();
   wrapper.appendChild(box);
   wrapper.appendChild(menu);
+  wrapper.closeTeamMenu = closeMenu;
   wrapper.getValues = () => selected.slice();
   return wrapper;
 }
@@ -847,7 +984,7 @@ function filteredRows() {
     .filter((row) => slaMatches(row, state.slaFilter))
     .filter(searchMatches)
     .slice()
-    .sort(compareRows);
+    .sort(compareRowsWithUnallocatedFirst);
 }
 
 function forceClosedAddress(address) {
@@ -1031,7 +1168,10 @@ function render() {
   els.taskBody.innerHTML = "";
 
   if (!rows.length) {
-    els.taskBody.innerHTML = `<tr><td colspan="13" class="cell-muted">No rows found</td></tr>`;
+    const emptyMessage = state.view === "forceclosed"
+      ? "No force-closed complaints match these filters"
+      : "No open complaints match these filters";
+    els.taskBody.innerHTML = `<tr><td colspan="13" class="cell-muted">${emptyMessage}</td></tr>`;
     setupTableScrollBars();
     return;
   }
@@ -1089,17 +1229,27 @@ function render() {
     tr.children[6].appendChild(slaControl);
     tr.children[9].appendChild(saveButton);
     tr.children[10].appendChild(remarkControl);
+    window.TaskMobileCards?.decorate(tr, { index: index + 1, status: row.task, team: row.takenby });
     els.taskBody.appendChild(tr);
   });
   setupTableScrollBars();
 }
 
-function getPerformanceRows() {
+function getPerformanceRows(ignoreDate = false) {
   const employee = els.perfEmployee.value || "All";
   const grouped = new Map();
 
   getClosedLogRows().forEach((row) => {
     if (!shouldShowComplaintRow(row)) {
+      return;
+    }
+    if (state.client !== "All" && row.client !== state.client) {
+      return;
+    }
+    if (!searchMatches(row)) {
+      return;
+    }
+    if (!ignoreDate && !performanceDateMatches(row)) {
       return;
     }
     if (!reasonMatches(row, state.performanceReasonFilter)) {
@@ -1141,7 +1291,33 @@ function getPerformanceRows() {
     .sort((a, b) => b.tasks - a.tasks || a.name.localeCompare(b.name));
 }
 
+function updatePerformanceMonthOptions() {
+  if (!els.perfMonth) {
+    return;
+  }
+  const selected = els.perfMonth.value || String(new Date().getMonth() + 1);
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const ranges = months.map((_, index) => resolvePerformanceMonth(index + 1));
+  const counts = Array(12).fill(0);
+  getPerformanceRows(true).forEach((employeeRow) => {
+    employeeRow.details.forEach((detail) => {
+      const closedDate = dateOnlyValue(detail.log_timestamp);
+      const monthIndex = ranges.findIndex((range) => closedDate && closedDate >= range.from && closedDate <= range.to);
+      if (monthIndex >= 0) {
+        counts[monthIndex] += 1;
+      }
+    });
+  });
+  els.perfMonth.innerHTML = months.map((month, index) => {
+    const count = counts[index];
+    const year = ranges[index].from.slice(0, 4);
+    return `<option value="${index + 1}">${month} ${year} (${count} ${count === 1 ? "task" : "tasks"})</option>`;
+  }).join("");
+  els.perfMonth.value = selected;
+}
+
 function renderPerformance() {
+  updatePerformanceMonthOptions();
   const rows = getPerformanceRows();
   state.performanceRows = rows;
   const totalTasks = rows.reduce((sum, row) => sum + row.tasks, 0);
@@ -1157,7 +1333,9 @@ function renderPerformance() {
     <span>Breached: <strong>${totalBreached}</strong></span>
   `;
   if (!rows.length) {
-    els.performanceBody.innerHTML = `<tr><td colspan="7" class="cell-muted">No performance data found</td></tr>`;
+    const invalidRange = state.performanceFilterMode === "range" && els.perfFrom.value && els.perfTo.value && els.perfFrom.value > els.perfTo.value;
+    const emptyMessage = invalidRange ? "From date cannot be after To date" : "No completed tasks for the selected period";
+    els.performanceBody.innerHTML = `<tr><td colspan="7" class="cell-muted">${emptyMessage}</td></tr>`;
     setupTableScrollBars();
     return;
   }
@@ -1199,7 +1377,7 @@ function renderUnallocated() {
   setCountTitle(els.unallocatedTitle, "Closed Tasks", rows.length);
   els.unallocatedStatus.textContent = "";
   if (!rows.length) {
-    els.unallocatedBody.innerHTML = `<tr><td colspan="10" class="cell-muted">No closed tasks found</td></tr>`;
+    els.unallocatedBody.innerHTML = `<tr><td colspan="10" class="cell-muted">No closed complaints match these filters</td></tr>`;
     setupTableScrollBars();
     return;
   }
@@ -1254,7 +1432,7 @@ function showPerformanceDetails(index, mode = "all") {
   setCountTitle(els.performanceDetailTitle, `${row.name} - ${mode === "breached" ? "Breached Tasks" : "Completed Tasks"}`, details.length);
   state.performanceDetailRows = details;
   if (!details.length) {
-    els.performanceDetailBody.innerHTML = `<tr><td colspan="12" class="cell-muted">No tasks found</td></tr>`;
+    els.performanceDetailBody.innerHTML = `<tr><td colspan="12" class="cell-muted">No completed task details available</td></tr>`;
     els.performanceDetailModal.classList.add("open");
     return;
   }
@@ -1294,7 +1472,7 @@ function renderTeamConfig() {
   setCountTitle(els.teamTitle, "Team Members", state.teamMembers.length);
   els.teamStatus.textContent = "";
   if (!state.teamMembers.length) {
-    els.teamBody.innerHTML = `<tr><td colspan="4" class="cell-muted">No team members found</td></tr>`;
+    els.teamBody.innerHTML = `<tr><td colspan="4" class="cell-muted">No team members added yet</td></tr>`;
     setupTableScrollBars();
     return;
   }
@@ -1650,6 +1828,10 @@ function csvCell(value) {
 }
 
 function tableCellText(cell) {
+  const desktopRowNumber = cell.querySelector(".desktop-row-number");
+  if (desktopRowNumber) {
+    return cleanText(desktopRowNumber.textContent);
+  }
   const textarea = cell.querySelector("textarea");
   if (textarea) {
     return cleanText(textarea.value || cell.textContent);
@@ -1688,7 +1870,7 @@ function downloadTablePng() {
   const panel = document.querySelector(".panel:not(.hidden)");
   const table = panel?.querySelector("table");
   if (!table) {
-    toast("No table found");
+    toast("No table available to export");
     return;
   }
   const headers = Array.from(table.tHead?.rows[0]?.cells || []).map((cell) => tableCellText(cell));
@@ -1893,7 +2075,19 @@ els.refreshButton.addEventListener("click", () => {
   }
   loadTasks();
 });
+window.addEventListener("task:complaint-created", () => {
+  state.performanceLoaded = false;
+  state.unallocatedLoaded = false;
+  switchView("tasks");
+  loadTasks();
+});
 els.perfEmployee.addEventListener("change", renderPerformance);
+els.perfFrom.addEventListener("change", renderPerformance);
+els.perfTo.addEventListener("change", renderPerformance);
+els.perfMonth.addEventListener("change", applyPerformanceMonthShortcut);
+els.performanceModeButtons.forEach((button) => {
+  button.addEventListener("click", () => setPerformanceFilterMode(button.dataset.performanceMode));
+});
 els.performanceBody.addEventListener("click", (event) => {
   const button = event.target.closest(".count-button");
   if (button) {
@@ -1935,7 +2129,11 @@ els.performanceDetailModal.addEventListener("click", (event) => {
 document.addEventListener("click", (event) => {
   document.querySelectorAll(".team-picker.open").forEach((picker) => {
     if (!picker.contains(event.target)) {
-      picker.classList.remove("open");
+      if (typeof picker.closeTeamMenu === "function") {
+        picker.closeTeamMenu();
+      } else {
+        picker.classList.remove("open");
+      }
     }
   });
   document.querySelectorAll(".multi-filter.open").forEach((filter) => {

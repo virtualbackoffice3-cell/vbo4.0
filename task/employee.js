@@ -29,6 +29,7 @@ const state = {
   allRows: {},
   allLogs: {},
   performanceLoaded: false,
+  performanceFilterMode: "range",
   pendingUnpick: null,
   pendingPick: null
 };
@@ -62,6 +63,12 @@ els.performancePanel = document.getElementById("performancePanel");
 els.viewTabs = Array.from(document.querySelectorAll(".tabbar .tab"));
 els.taskSearch = document.getElementById("taskSearch");
 els.perfSearch = document.getElementById("perfSearch");
+els.perfFrom = document.getElementById("perfFrom");
+els.perfTo = document.getElementById("perfTo");
+els.perfMonth = document.getElementById("perfMonth");
+els.perfDateFields = document.getElementById("perfDateFields");
+els.perfMonthField = document.getElementById("perfMonthField");
+els.performanceModeButtons = Array.from(document.querySelectorAll("[data-performance-mode]"));
 els.performanceTitle = document.getElementById("performanceTitle");
 els.performanceSummary = document.getElementById("performanceSummary");
 els.performanceBody = document.getElementById("performanceBody");
@@ -222,6 +229,15 @@ function cleanText(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function shouldShowComplaintRow(row) {
   const createdBy = cleanText(valueOf(row, "createdBy", "CreatedBy", "created_by")).toLowerCase();
   if (createdBy !== "system") {
@@ -288,6 +304,71 @@ function dateOnlyValue(value) {
 }
 
 function setupDefaultPerformanceDates() {
+  if (!els.perfMonth) {
+    return;
+  }
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  els.perfMonth.innerHTML = months.map((month, index) => {
+    const year = resolvePerformanceMonth(index + 1).from.slice(0, 4);
+    return `<option value="${index + 1}">${month} ${year} (0 tasks)</option>`;
+  }).join("");
+  els.perfMonth.value = String(new Date().getMonth() + 1);
+  syncPerformanceFilterMode();
+}
+
+function dateInputValue(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function resolvePerformanceMonth(monthValue, today = new Date()) {
+  const monthIndex = Number(monthValue) - 1;
+  if (!Number.isInteger(monthIndex) || monthIndex < 0 || monthIndex > 11) {
+    return null;
+  }
+  const year = monthIndex > today.getMonth() ? today.getFullYear() - 1 : today.getFullYear();
+  return {
+    from: dateInputValue(new Date(year, monthIndex, 1)),
+    to: dateInputValue(new Date(year, monthIndex + 1, 0))
+  };
+}
+
+function performanceDateMatches(row) {
+  const monthRange = state.performanceFilterMode === "month" ? resolvePerformanceMonth(els.perfMonth?.value) : null;
+  const from = monthRange?.from || els.perfFrom?.value || "";
+  const to = monthRange?.to || els.perfTo?.value || "";
+  if (!from && !to) {
+    return true;
+  }
+  const closedDate = dateOnlyValue(row.log_timestamp);
+  return Boolean(closedDate) && (!from || closedDate >= from) && (!to || closedDate <= to);
+}
+
+function applyPerformanceMonthShortcut() {
+  renderPerformance();
+}
+
+function syncPerformanceFilterMode() {
+  const monthMode = state.performanceFilterMode === "month";
+  els.perfDateFields?.classList.toggle("hidden", monthMode);
+  els.perfMonthField?.classList.toggle("hidden", !monthMode);
+  els.performanceModeButtons.forEach((button) => {
+    const active = button.dataset.performanceMode === state.performanceFilterMode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+}
+
+function setPerformanceFilterMode(mode) {
+  if (mode !== "range" && mode !== "month") {
+    return;
+  }
+  state.performanceFilterMode = mode;
+  if (mode === "month") {
+    els.perfFrom.value = "";
+    els.perfTo.value = "";
+  }
+  syncPerformanceFilterMode();
+  renderPerformance();
 }
 
 function formatCreatedAt(value) {
@@ -428,6 +509,10 @@ function slaStatus(row, endValue) {
 }
 
 function tableCellText(cell) {
+  const desktopRowNumber = cell.querySelector(".desktop-row-number");
+  if (desktopRowNumber) {
+    return cleanText(desktopRowNumber.textContent);
+  }
   const textarea = cell.querySelector("textarea");
   if (textarea) {
     return cleanText(textarea.value || cell.textContent);
@@ -466,7 +551,7 @@ function downloadTablePng() {
   const panel = document.querySelector(".panel:not(.hidden)");
   const table = panel?.querySelector("table");
   if (!table) {
-    toast("No table found");
+    toast("No table available to export");
     return;
   }
   const headers = Array.from(table.tHead?.rows[0]?.cells || []).map((cell) => tableCellText(cell));
@@ -624,6 +709,10 @@ function includesEmployee(value, employeeName) {
   return splitNames(value).some((name) => cleanText(name).toLowerCase() === target);
 }
 
+function isAllocatedToCurrentEmployee(row) {
+  return includesEmployee(row.takenby, state.employeeName);
+}
+
 function makeTaskSelect(current, options) {
   const select = document.createElement("select");
   select.className = "task-select nice-select";
@@ -689,6 +778,48 @@ function makeTeamPicker(row) {
   box.type = "button";
   const menu = document.createElement("div");
   menu.className = "team-menu";
+  menu.setAttribute("popover", "manual");
+
+  function positionMenu() {
+    const boxRect = box.getBoundingClientRect();
+    const viewportGap = 8;
+    const preferredHeight = 300;
+    const menuWidth = Math.max(190, boxRect.width);
+    const spaceAbove = boxRect.top - viewportGap;
+    const spaceBelow = window.innerHeight - boxRect.bottom - viewportGap;
+    const openAbove = spaceAbove >= Math.min(preferredHeight, spaceBelow) || spaceAbove > spaceBelow;
+    const availableHeight = Math.max(96, Math.min(preferredHeight, (openAbove ? spaceAbove : spaceBelow) - 4));
+    const left = Math.min(
+      Math.max(viewportGap, boxRect.left),
+      Math.max(viewportGap, window.innerWidth - menuWidth - viewportGap)
+    );
+
+    menu.style.left = `${left}px`;
+    menu.style.width = `${menuWidth}px`;
+    menu.style.maxHeight = `${availableHeight}px`;
+    if (openAbove) {
+      menu.style.top = "auto";
+      menu.style.bottom = `${window.innerHeight - boxRect.top + 4}px`;
+    } else {
+      menu.style.top = `${boxRect.bottom + 4}px`;
+      menu.style.bottom = "auto";
+    }
+  }
+
+  function closeMenu() {
+    wrapper.classList.remove("open");
+    if (typeof menu.hidePopover === "function" && menu.matches(":popover-open")) {
+      menu.hidePopover();
+    }
+  }
+
+  function openMenu() {
+    wrapper.classList.add("open");
+    if (typeof menu.showPopover === "function" && !menu.matches(":popover-open")) {
+      menu.showPopover();
+    }
+    positionMenu();
+  }
 
   function drawBox() {
     box.innerHTML = selected.length
@@ -700,11 +831,32 @@ function makeTeamPicker(row) {
     menu.innerHTML = members.map((name) => {
       const checked = selected.includes(name) ? "checked" : "";
       const locked = name.toLowerCase() === state.employeeName.toLowerCase() ? "disabled" : "";
-      return `<label><input type="checkbox" value="${name}" ${checked} ${locked}> ${name}</label>`;
-    }).join("");
+      return `<label><input type="checkbox" value="${escapeHtml(name)}" ${checked} ${locked}><span>${escapeHtml(name)}</span></label>`;
+    }).join("") + `<button class="team-menu-done" type="button">Done</button>`;
   }
 
-  box.addEventListener("click", () => wrapper.classList.toggle("open"));
+  box.addEventListener("click", () => {
+    const willOpen = !wrapper.classList.contains("open");
+    document.querySelectorAll(".team-picker.open").forEach((picker) => {
+      if (picker !== wrapper) {
+        if (typeof picker.closeTeamMenu === "function") {
+          picker.closeTeamMenu();
+        } else {
+          picker.classList.remove("open");
+        }
+      }
+    });
+    if (willOpen) {
+      openMenu();
+    } else {
+      closeMenu();
+    }
+  });
+  menu.addEventListener("click", (event) => {
+    if (event.target.closest(".team-menu-done")) {
+      closeMenu();
+    }
+  });
   menu.addEventListener("change", (event) => {
     const input = event.target;
     if (!input.matches("input[type='checkbox']")) {
@@ -734,6 +886,7 @@ function makeTeamPicker(row) {
   drawMenu();
   wrapper.appendChild(box);
   wrapper.appendChild(menu);
+  wrapper.closeTeamMenu = closeMenu;
   wrapper.getValues = () => selected.slice();
   return wrapper;
 }
@@ -770,6 +923,7 @@ function setupReasonFilter() {
   const reasons = Array.from(new Set(getClientRows()
     .filter(shouldShowComplaintRow)
     .filter(complaintVisibleInView)
+    .filter(isAllocatedToCurrentEmployee)
     .map((row) => cleanText(row.reason))
     .filter(Boolean)))
     .sort((a, b) => {
@@ -815,6 +969,7 @@ function filteredRows() {
   return state.rows
     .filter(shouldShowComplaintRow)
     .filter(complaintVisibleInView)
+    .filter(isAllocatedToCurrentEmployee)
     .filter((row) => reason === "All" || cleanText(row.reason) === reason)
     .filter((row) => !search || rowSearchText(row).includes(search))
     .slice()
@@ -875,7 +1030,10 @@ function render() {
   els.statusText.textContent = "";
   els.taskBody.innerHTML = "";
   if (!rows.length) {
-    els.taskBody.innerHTML = `<tr><td colspan="12" class="cell-muted">No tasks found</td></tr>`;
+    const emptyMessage = forceClosedView
+      ? "No allocated force-closed complaints match these filters"
+      : "No allocated complaints match these filters";
+    els.taskBody.innerHTML = `<tr><td colspan="12" class="cell-muted">${emptyMessage}</td></tr>`;
     setupTableScrollBars();
     return;
   }
@@ -933,6 +1091,7 @@ function render() {
     tr.children[9].appendChild(teamControl);
     tr.children[6].appendChild(timerControl);
     tr.children[10].appendChild(remarkControl);
+    window.TaskMobileCards?.decorate(tr, { index: index + 1, status: row.task, team: row.takenby });
     els.taskBody.appendChild(tr);
   });
   setupTableScrollBars();
@@ -952,7 +1111,7 @@ async function saveRemark(row, input) {
   }
 }
 
-function getCompletedRows() {
+function getCompletedRows(ignoreDate = false) {
   const search = cleanText(els.perfSearch.value).toLowerCase();
   const rows = [];
   for (const client of CLIENTS) {
@@ -968,6 +1127,9 @@ function getCompletedRows() {
       if (!includesEmployee(row.takenby, state.employeeName)) {
         continue;
       }
+      if (!ignoreDate && !performanceDateMatches(row)) {
+        continue;
+      }
       if (search && !rowSearchText({ ...row, client }).includes(search)) {
         continue;
       }
@@ -977,7 +1139,31 @@ function getCompletedRows() {
   return rows.sort((a, b) => dateSortValue(b.log_timestamp) - dateSortValue(a.log_timestamp));
 }
 
+function updatePerformanceMonthOptions() {
+  if (!els.perfMonth) {
+    return;
+  }
+  const selected = els.perfMonth.value || String(new Date().getMonth() + 1);
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const ranges = months.map((_, index) => resolvePerformanceMonth(index + 1));
+  const counts = Array(12).fill(0);
+  getCompletedRows(true).forEach((row) => {
+    const closedDate = dateOnlyValue(row.log_timestamp);
+    const monthIndex = ranges.findIndex((range) => closedDate && closedDate >= range.from && closedDate <= range.to);
+    if (monthIndex >= 0) {
+      counts[monthIndex] += 1;
+    }
+  });
+  els.perfMonth.innerHTML = months.map((month, index) => {
+    const count = counts[index];
+    const year = ranges[index].from.slice(0, 4);
+    return `<option value="${index + 1}">${month} ${year} (${count} ${count === 1 ? "task" : "tasks"})</option>`;
+  }).join("");
+  els.perfMonth.value = selected;
+}
+
 function renderPerformance() {
+  updatePerformanceMonthOptions();
   const rows = getCompletedRows();
   const totalMinutes = rows.reduce((sum, row) => sum + workingMinutesBetween(row.created_at, row.log_timestamp), 0);
   const avgMinutes = rows.length ? Math.round(totalMinutes / rows.length) : 0;
@@ -990,7 +1176,9 @@ function renderPerformance() {
     <span>Breached: <strong>${breachedCount}</strong></span>
   `;
   if (!rows.length) {
-    els.performanceBody.innerHTML = `<tr><td colspan="10" class="cell-muted">No completed tasks found</td></tr>`;
+    const invalidRange = state.performanceFilterMode === "range" && els.perfFrom.value && els.perfTo.value && els.perfFrom.value > els.perfTo.value;
+    const emptyMessage = invalidRange ? "From date cannot be after To date" : "No completed tasks for the selected period";
+    els.performanceBody.innerHTML = `<tr><td colspan="10" class="cell-muted">${emptyMessage}</td></tr>`;
     setupTableScrollBars();
     return;
   }
@@ -1152,6 +1340,12 @@ els.reasonSelect.addEventListener("change", () => {
 
 els.taskSearch.addEventListener("input", render);
 els.perfSearch.addEventListener("input", renderPerformance);
+els.perfFrom.addEventListener("change", renderPerformance);
+els.perfTo.addEventListener("change", renderPerformance);
+els.perfMonth.addEventListener("change", applyPerformanceMonthShortcut);
+els.performanceModeButtons.forEach((button) => {
+  button.addEventListener("click", () => setPerformanceFilterMode(button.dataset.performanceMode));
+});
 els.viewTabs.forEach((tab) => {
   tab.addEventListener("click", () => switchView(tab.dataset.view));
 });
@@ -1223,7 +1417,11 @@ els.pickTeamModal.addEventListener("click", (event) => {
 document.addEventListener("click", (event) => {
   document.querySelectorAll(".team-picker.open").forEach((picker) => {
     if (!picker.contains(event.target)) {
-      picker.classList.remove("open");
+      if (typeof picker.closeTeamMenu === "function") {
+        picker.closeTeamMenu();
+      } else {
+        picker.classList.remove("open");
+      }
     }
   });
 });

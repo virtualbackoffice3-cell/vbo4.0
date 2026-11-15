@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Task Desk - Employee</title>
-    <link rel="stylesheet" href="task.css">
+    <link rel="stylesheet" href="task.css?v=20261115-8">
   </head>
   <body>
     <main class="shell">
@@ -24,7 +24,7 @@
             <select id="clientSelect"></select>
           </div>
           <div class="field">
-            <label for="reasonSelect">Task catagory</label>
+            <label for="reasonSelect">Task category</label>
             <select id="reasonSelect"></select>
           </div>
           <div class="field">
@@ -54,7 +54,7 @@
                 <th>Window</th>
                 <th>User ID</th>
                 <th>Mobile No</th>
-                <th>Task catagory</th>
+                <th>Task category</th>
                 <th>Power</th>
                 <th>SLA time</th>
                 <th class="date-col">Complaint time</th>
@@ -72,6 +72,28 @@
       <section class="panel hidden" id="performancePanel">
         <div class="panel-head">
           <strong id="performanceTitle">Completed Tasks (0)</strong>
+          <div class="performance-filter-bar">
+            <div class="performance-filter-mode" role="group" aria-label="Performance period">
+              <button class="performance-mode-button active" data-performance-mode="range" type="button">Date range</button>
+              <button class="performance-mode-button" data-performance-mode="month" type="button">Month</button>
+            </div>
+            <div class="performance-filter-fields" id="perfDateFields">
+              <div class="field">
+                <label for="perfFrom">From</label>
+                <input id="perfFrom" type="date">
+              </div>
+              <div class="field">
+                <label for="perfTo">To</label>
+                <input id="perfTo" type="date">
+              </div>
+            </div>
+            <div class="performance-filter-fields hidden" id="perfMonthField">
+              <div class="field">
+                <label for="perfMonth">Month</label>
+                <select id="perfMonth"></select>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="summary-strip" id="performanceSummary"></div>
         <div class="table-wrap performance-wrap">
@@ -82,7 +104,7 @@
                 <th>Window</th>
                 <th>User ID</th>
                 <th>Name</th>
-                <th>Task catagory</th>
+                <th>Task category</th>
                 <th>SLA time</th>
                 <th>Picked At</th>
                 <th>Assigned team</th>
@@ -148,6 +170,7 @@
     </div>
 
     <div class="toast" id="toast"></div>
-    <script src="employee.js"></script>
+    <script src="mobile-cards.js?v=20261115-2"></script>
+    <script src="employee.js?v=20261115-5"></script>
   </body>
 </html>

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Task Desk - Admin</title>
-    <link rel="stylesheet" href="task.css">
+    <link rel="stylesheet" href="task.css?v=20261115-8">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   </head>
   <body>
@@ -13,7 +13,10 @@
         <div class="title">
           <h1>Task Desk Admin</h1>
         </div>
-        <button class="menu-toggle" type="button" aria-label="Open menu"><span></span><span></span><span></span></button>
+        <div class="topbar-actions">
+          <button class="new-complaint-button" id="newComplaintButton" type="button" aria-label="New complaint" title="New complaint">+</button>
+          <button class="menu-toggle" type="button" aria-label="Open menu"><span></span><span></span><span></span></button>
+        </div>
         <div class="controls">
           <button class="drawer-close" type="button" aria-label="Close menu">Close</button>
           <section class="tabbar">
@@ -28,7 +31,7 @@
             <select id="clientSelect"></select>
           </div>
           <div class="field">
-            <label for="reasonSelect">Task catagory</label>
+            <label for="reasonSelect">Task category</label>
             <div id="reasonSelect" class="multi-filter"></div>
           </div>
           <div class="field">
@@ -48,7 +51,7 @@
             <select id="perfEmployee"></select>
           </div>
           <div class="field">
-            <label for="perfReason">Performance catagory</label>
+            <label for="perfReason">Performance category</label>
             <div id="perfReason" class="multi-filter"></div>
           </div>
           <button class="button mobile-apply" type="button">Apply filter</button>
@@ -71,7 +74,7 @@
                 <th>Window</th>
                 <th>User ID</th>
                 <th>Mobile No</th>
-                <th>Task catagory</th>
+                <th>Task category</th>
                 <th>Power</th>
                 <th>SLA time</th>
                 <th class="date-col">Complaint time</th>
@@ -90,6 +93,28 @@
       <section class="panel hidden" id="performancePanel">
         <div class="panel-head">
           <strong id="performanceTitle">Performance (0)</strong>
+          <div class="performance-filter-bar">
+            <div class="performance-filter-mode" role="group" aria-label="Performance period">
+              <button class="performance-mode-button active" data-performance-mode="range" type="button">Date range</button>
+              <button class="performance-mode-button" data-performance-mode="month" type="button">Month</button>
+            </div>
+            <div class="performance-filter-fields" id="perfDateFields">
+              <div class="field">
+                <label for="perfFrom">From</label>
+                <input id="perfFrom" type="date">
+              </div>
+              <div class="field">
+                <label for="perfTo">To</label>
+                <input id="perfTo" type="date">
+              </div>
+            </div>
+            <div class="performance-filter-fields hidden" id="perfMonthField">
+              <div class="field">
+                <label for="perfMonth">Month</label>
+                <select id="perfMonth"></select>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="summary-strip" id="performanceSummary"></div>
         <div class="table-wrap performance-wrap">
@@ -123,7 +148,7 @@
                 <th>Window</th>
                 <th>User ID</th>
                 <th>Name</th>
-                <th>Task catagory</th>
+                <th>Task category</th>
                 <th>SLA time</th>
                 <th>Complaint time</th>
                 <th>Assigned team</th>
@@ -203,7 +228,7 @@
                 <th>Window</th>
                 <th>User ID</th>
                 <th>Name</th>
-                <th>Task catagory</th>
+                <th>Task category</th>
                 <th>SLA time</th>
                 <th>Complaint time</th>
                 <th>Picked At</th>
@@ -223,6 +248,8 @@
     </div>
 
     <div class="toast" id="toast"></div>
-    <script src="admin.js"></script>
+    <script src="complaint-create.js?v=20261115-3"></script>
+    <script src="mobile-cards.js?v=20261115-2"></script>
+    <script src="admin.js?v=20261115-6"></script>
   </body>
 </html>
