@@ -22,6 +22,8 @@
   let searchTimer = null;
   let toastTimer = null;
   const openComplaintCache = new Map();
+  const taskRowsCache = new Map();
+  let teamMembersPromise = null;
   const cardUsers = new WeakMap();
 
   function cleanText(value) {
@@ -48,6 +50,41 @@
 
   function defaultTeam(windowName) {
     return `Team${windowName.charAt(0)}${windowName.slice(1).toLowerCase()}`;
+  }
+
+  function splitNames(value) {
+    return cleanText(value)
+      .split(",")
+      .map((name) => cleanText(name))
+      .filter(Boolean);
+  }
+
+  function nowLucknow() {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false
+    }).formatToParts(new Date()).reduce((acc, part) => {
+      acc[part.type] = part.value;
+      return acc;
+    }, {});
+    return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
+  }
+
+  function isAdminPage() {
+    return /admin/i.test(document.title);
+  }
+
+  function currentActor() {
+    if (isAdminPage()) {
+      return "Admin";
+    }
+    return cleanText(localStorage.getItem("taskManagerName")) || "Manager";
   }
 
   function normalizeUser(row, windowName) {
@@ -200,19 +237,78 @@
       : '<i class="fa-solid fa-thumbtack" aria-hidden="true"></i> Create complaint';
   }
 
-  async function getOpenComplaints(user) {
+  function getTaskRows(windowName, force = false) {
+    if (force) {
+      taskRowsCache.delete(windowName);
+    }
+    if (taskRowsCache.has(windowName)) {
+      return taskRowsCache.get(windowName);
+    }
+    const request = fetch(`${API_BASE}/${windowName}/tasks`, { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        return data.tables?.complaints?.rows || [];
+      })
+      .catch((error) => {
+        taskRowsCache.delete(windowName);
+        throw error;
+      });
+    taskRowsCache.set(windowName, request);
+    window.setTimeout(() => taskRowsCache.delete(windowName), 30000);
+    return request;
+  }
+
+  function getTeamMembers(force = false) {
+    if (force) {
+      teamMembersPromise = null;
+    }
+    if (teamMembersPromise) {
+      return teamMembersPromise;
+    }
+    teamMembersPromise = fetch(`${API_BASE}/team-config`, { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        return (data.members || []).map((member) => cleanText(member.name)).filter(Boolean);
+      })
+      .catch((error) => {
+        teamMembersPromise = null;
+        throw error;
+      });
+    return teamMembersPromise;
+  }
+
+  async function getOpenComplaints(user, force = false) {
     const cacheKey = `${user.window}|${user.userId}`;
+    if (force) {
+      openComplaintCache.delete(cacheKey);
+      taskRowsCache.delete(user.window);
+    }
     if (openComplaintCache.has(cacheKey)) {
       return openComplaintCache.get(cacheKey);
     }
-    const request = fetch(`${API_BASE}/${user.window}/heroesocr_user_complaints/${encodeURIComponent(user.userId)}`, {
-      cache: "no-store"
-    }).then(async (response) => {
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      const data = await response.json();
-      return (data.rows || []).filter((row) => cleanText(row.status).toLowerCase() === "open");
+    const request = Promise.all([
+      fetch(`${API_BASE}/${user.window}/heroesocr_user_complaints/${encodeURIComponent(user.userId)}`, {
+        cache: "no-store"
+      }).then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        return (data.rows || []).filter((row) => cleanText(row.status).toLowerCase() === "open");
+      }),
+      getTaskRows(user.window).catch(() => [])
+    ]).then(([complaints, taskRows]) => {
+      const taskById = new Map(taskRows.map((row) => [String(row.id || row.complaint_id || ""), row]));
+      return complaints.map((complaint) => {
+        const taskRow = taskById.get(String(complaint.id || complaint.complaint_id || ""));
+        return taskRow ? { ...complaint, ...taskRow } : complaint;
+      });
     }).catch((error) => {
       openComplaintCache.delete(cacheKey);
       throw error;
@@ -235,6 +331,232 @@
     nameHolder.appendChild(badge);
   }
 
+  function clearOpenComplaintState(card) {
+    card.classList.remove("complaint-state-blink");
+    card.querySelector(".complaint-open-badge")?.remove();
+    const holder = card.querySelector(".complaint-existing");
+    if (holder) {
+      holder.innerHTML = "";
+      holder.classList.add("hidden");
+    }
+  }
+
+  function complaintDeletePayload(row) {
+    return {
+      complaint_id: row.id || row.complaint_id || "",
+      user_id: valueOf(row, "user_id"),
+      name: valueOf(row, "name"),
+      address: valueOf(row, "address"),
+      reason: valueOf(row, "reason"),
+      additional_detail: valueOf(row, "additional_detail"),
+      Mode: valueOf(row, "Mode"),
+      Power: valueOf(row, "Power", "power", "rxPower"),
+      Phone: valueOf(row, "Phone", "phone", "mobile"),
+      Team: valueOf(row, "Team", "takenby"),
+      pon: valueOf(row, "pon")
+    };
+  }
+
+  async function refreshOpenComplaintState(card, user) {
+    clearOpenComplaintState(card);
+    try {
+      const openComplaints = await getOpenComplaints(user, true);
+      if (!card.isConnected || !openComplaints.length) {
+        return;
+      }
+      addOpenComplaintBadge(card);
+      renderOpenComplaints(card, user, openComplaints);
+      if (user.status === "UP") {
+        card.classList.add("complaint-state-blink");
+      }
+    } catch (error) {
+      notify(`Complaint status refresh failed: ${error.message}`);
+    }
+  }
+
+  async function removeOpenComplaint(card, user, row, button) {
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = "Removing...";
+    try {
+      const response = await fetch(`${API_BASE}/${user.window}/delete_complain`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(complaintDeletePayload(row))
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || (data.status !== "ok" && data.status !== "skipped")) {
+        throw new Error(data.message || data.detail || `HTTP ${response.status}`);
+      }
+      notify("Complaint removed successfully", true);
+      await refreshOpenComplaintState(card, user);
+      window.dispatchEvent(new CustomEvent("task:complaint-created", {
+        detail: { window: user.window, userId: user.userId }
+      }));
+    } catch (error) {
+      notify(`Remove failed: ${error.message}`);
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
+
+  async function saveComplaintAssignment(card, user, row, panel, button) {
+    const selected = Array.from(panel.querySelectorAll('input[type="checkbox"]:checked'))
+      .map((input) => cleanText(input.value))
+      .filter(Boolean);
+    if (!selected.length) {
+      notify("Select minimum 1 team member");
+      return;
+    }
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.textContent = "Saving...";
+    const payload = {
+      task: cleanText(row.task) || "Pending",
+      actiontime: nowLucknow(),
+      unpickremark: row.unpickremark || "",
+      usermail: currentActor(),
+      takenby: selected.join(",")
+    };
+    if (isAdminPage()) {
+      payload._admin = true;
+      payload.created_at = row.created_at || "";
+    }
+    try {
+      const complaintId = row.id || row.complaint_id;
+      const response = await fetch(`${API_BASE}/${user.window}/tasks/complaints/${complaintId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.detail || data.message || `HTTP ${response.status}`);
+      }
+      notify("Team assigned successfully", true);
+      await refreshOpenComplaintState(card, user);
+      window.dispatchEvent(new CustomEvent("task:complaint-created", {
+        detail: { window: user.window, userId: user.userId }
+      }));
+    } catch (error) {
+      notify(`Assignment failed: ${error.message}`);
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
+
+  async function openAssignmentPanel(card, user, row, panel) {
+    if (panel.dataset.loaded === "1") {
+      panel.classList.toggle("hidden");
+      return;
+    }
+    panel.classList.remove("hidden");
+    panel.innerHTML = '<span class="complaint-action-loading">Loading team...</span>';
+    try {
+      const selected = splitNames(row.takenby);
+      const members = Array.from(new Set([...(await getTeamMembers()), ...selected])).sort();
+      if (!members.length) {
+        throw new Error("No team members configured");
+      }
+      panel.innerHTML = `
+        <div class="complaint-assignment-options">
+          ${members.map((name) => `
+            <label><input type="checkbox" value="${escapeHtml(name)}" ${selected.includes(name) ? "checked" : ""}><span>${escapeHtml(name)}</span></label>
+          `).join("")}
+        </div>
+        <div class="complaint-assignment-footer">
+          <button class="complaint-action-cancel" type="button">Cancel</button>
+          <button class="complaint-assignment-save" type="button">Save team</button>
+        </div>
+      `;
+      panel.dataset.loaded = "1";
+      panel.querySelector(".complaint-action-cancel").addEventListener("click", () => panel.classList.add("hidden"));
+      const saveButton = panel.querySelector(".complaint-assignment-save");
+      saveButton.addEventListener("click", () => saveComplaintAssignment(card, user, row, panel, saveButton));
+    } catch (error) {
+      panel.innerHTML = `<span class="complaint-action-error">Team load failed: ${escapeHtml(error.message)}</span>`;
+    }
+  }
+
+  function renderOpenComplaints(card, user, openComplaints) {
+    const holder = card.querySelector(".complaint-existing");
+    if (!holder) {
+      return;
+    }
+    const allocationGroups = openComplaints.map((row) => splitNames(row.takenby));
+    const allocatedCount = allocationGroups.filter((names) => names.length).length;
+    const unallocatedCount = openComplaints.length - allocatedCount;
+    const firstTask = cleanText(openComplaints[0]?.task) || "Pending";
+    const allocationSummary = openComplaints.length === 1
+      ? (allocationGroups[0].length ? `Allocated: ${allocationGroups[0].join(", ")}` : "Unallocated")
+      : [
+        allocatedCount ? `${allocatedCount} allocated` : "",
+        unallocatedCount ? `${unallocatedCount} unallocated` : ""
+      ].filter(Boolean).join(" · ");
+    holder.innerHTML = `
+      <button class="complaint-existing-title" type="button" aria-expanded="false">
+        <span class="complaint-existing-title-main"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Open complaint${openComplaints.length === 1 ? "" : "s"} (${openComplaints.length})</span>
+        <span class="complaint-existing-title-meta">${escapeHtml(allocationSummary)}${openComplaints.length === 1 ? ` · ${escapeHtml(firstTask)}` : ""} <i class="fa-solid fa-chevron-down" aria-hidden="true"></i></span>
+      </button>
+      <div class="complaint-existing-body hidden"></div>
+    `;
+    const toggle = holder.querySelector(".complaint-existing-title");
+    const body = holder.querySelector(".complaint-existing-body");
+    toggle.addEventListener("click", () => {
+      const expanded = toggle.getAttribute("aria-expanded") !== "true";
+      toggle.setAttribute("aria-expanded", String(expanded));
+      toggle.classList.toggle("expanded", expanded);
+      body.classList.toggle("hidden", !expanded);
+    });
+    openComplaints.forEach((row) => {
+      const assignedNames = splitNames(row.takenby);
+      const task = cleanText(row.task) || "Pending";
+      const isRunning = task.toLowerCase() === "pick";
+      const item = document.createElement("div");
+      item.className = "complaint-existing-item";
+      item.innerHTML = `
+        <div class="complaint-existing-summary">
+          <strong>${escapeHtml(cleanText(row.reason) || "Reason not provided")}</strong>
+          <span class="complaint-allocation ${assignedNames.length ? "allocated" : "unallocated"}">
+            <i class="fa-solid ${assignedNames.length ? "fa-user-check" : "fa-user-clock"}" aria-hidden="true"></i>
+            ${assignedNames.length ? `Allocated: ${escapeHtml(assignedNames.join(", "))}` : "Unallocated"}
+          </span>
+          <span class="complaint-task-badge">${escapeHtml(task)}</span>
+        </div>
+        <div class="complaint-existing-actions"></div>
+        <div class="complaint-assignment-panel hidden"></div>
+        <div class="complaint-remove-panel hidden">
+          <span>Remove this complaint?</span>
+          <button class="complaint-action-cancel" type="button">Cancel</button>
+          <button class="complaint-remove-confirm" type="button">Yes, remove</button>
+        </div>
+      `;
+      const actions = item.querySelector(".complaint-existing-actions");
+      const complaintId = row.id || row.complaint_id;
+      if (complaintId && !isRunning) {
+        const assignButton = document.createElement("button");
+        assignButton.className = "complaint-assign-toggle";
+        assignButton.type = "button";
+        assignButton.innerHTML = `<i class="fa-solid fa-users" aria-hidden="true"></i> ${assignedNames.length ? "Change team" : "Assign"}`;
+        const assignmentPanel = item.querySelector(".complaint-assignment-panel");
+        assignButton.addEventListener("click", () => openAssignmentPanel(card, user, row, assignmentPanel));
+        actions.appendChild(assignButton);
+      }
+      const removeButton = document.createElement("button");
+      removeButton.className = "complaint-remove-toggle";
+      removeButton.type = "button";
+      removeButton.innerHTML = '<i class="fa-solid fa-trash" aria-hidden="true"></i> Remove';
+      const removePanel = item.querySelector(".complaint-remove-panel");
+      removeButton.addEventListener("click", () => removePanel.classList.remove("hidden"));
+      removePanel.querySelector(".complaint-action-cancel").addEventListener("click", () => removePanel.classList.add("hidden"));
+      const confirmButton = removePanel.querySelector(".complaint-remove-confirm");
+      confirmButton.addEventListener("click", () => removeOpenComplaint(card, user, row, confirmButton));
+      actions.appendChild(removeButton);
+      body.appendChild(item);
+    });
+    holder.classList.remove("hidden");
+  }
+
   async function decorateOpenComplaintState(card, user) {
     try {
       const openComplaints = await getOpenComplaints(user);
@@ -242,6 +564,7 @@
         return;
       }
       addOpenComplaintBadge(card);
+      renderOpenComplaints(card, user, openComplaints);
       if (user.status === "UP") {
         card.classList.add("complaint-state-blink");
       }
@@ -291,7 +614,6 @@
     const category = card.querySelector(".complaint-category");
     const detail = card.querySelector(".complaint-additional-detail");
     const callingPhone = card.querySelector(".complaint-calling-phone");
-    const team = card.querySelector(".complaint-service-team");
     const mode = card.querySelector(".complaint-mode");
     const warning = card.querySelector(".complaint-duplicate-warning");
     if (!category.value) {
@@ -327,12 +649,12 @@
       address: user.address,
       reason: category.value,
       additional_detail: category.value === "Other" ? cleanText(detail.value) : "",
-      Mode: mode.value,
+      Mode: category.value === "Other" ? mode.value : "Auto",
       Power: user.power,
       Phone: phone || user.registeredPhone,
       registered_phone: user.registeredPhone,
       calling_phone: phone,
-      Team: team.value,
+      Team: defaultTeam(user.window),
       pon: user.pon
     };
 
@@ -387,6 +709,7 @@
         <div class="complaint-fact-wide"><span>MAC / Serial</span><strong>${escapeHtml([user.mac, user.serial].filter(Boolean).join(" / ") || "-")}</strong></div>
         <div class="complaint-fact-wide"><span>Last status</span><strong>${escapeHtml(user.lastStatus || "-")}</strong></div>
       </div>
+      <div class="complaint-existing hidden" aria-live="polite"></div>
       <div class="complaint-create-fields">
         <label>Calling No.
           <input class="complaint-calling-phone" type="tel" inputmode="tel" value="${escapeHtml(user.callingPhone || "")}" placeholder="Calling number">
@@ -397,15 +720,8 @@
         <label class="complaint-detail-field hidden">Remarks
           <input class="complaint-additional-detail" type="text" placeholder="Describe the issue">
         </label>
-        <label>Service team
-          <select class="complaint-service-team">
-            <option>TeamAmanwiz</option>
-            <option>TeamMedanta</option>
-            <option>TeamSevai</option>
-          </select>
-        </label>
-        <label>Mode
-          <select class="complaint-mode"><option>Manual</option><option>Auto</option></select>
+        <label class="complaint-mode-field hidden">Mode
+          <select class="complaint-mode"><option>Auto</option><option>Manual</option></select>
         </label>
       </div>
       <div class="complaint-duplicate-warning hidden"></div>
@@ -414,14 +730,17 @@
       </div>
     `;
     cardUsers.set(card, user);
-    card.querySelector(".complaint-service-team").value = defaultTeam(user.window);
     const category = card.querySelector(".complaint-category");
     const detailField = card.querySelector(".complaint-detail-field");
+    const modeField = card.querySelector(".complaint-mode-field");
+    const mode = card.querySelector(".complaint-mode");
     category.addEventListener("change", () => {
       const showDetail = category.value === "Other";
       detailField.classList.toggle("hidden", !showDetail);
+      modeField.classList.toggle("hidden", !showDetail);
       if (!showDetail) {
         detailField.querySelector("input").value = "";
+        mode.value = "Auto";
       }
     });
     card.querySelector(".complaint-create-submit").addEventListener("click", () => createComplaint(card, user));

@@ -1330,6 +1330,239 @@ body.complaint-modal-open .fixed-scrollbar {
   line-height: 1;
 }
 
+.complaint-existing {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(180, 35, 24, 0.3);
+  border-radius: 7px;
+  margin: 7px 10px 2px;
+  overflow: hidden;
+}
+
+.complaint-existing-title {
+  align-items: center;
+  background: #fff4e5;
+  border: 0;
+  color: #8a4b00;
+  cursor: pointer;
+  display: flex;
+  font-size: 11px;
+  font-weight: 800;
+  gap: 6px;
+  justify-content: space-between;
+  padding: 6px 8px;
+  text-align: left;
+  width: 100%;
+}
+
+.complaint-existing-title-main,
+.complaint-existing-title-meta {
+  align-items: center;
+  display: inline-flex;
+  gap: 5px;
+  min-width: 0;
+}
+
+.complaint-existing-title-main {
+  flex: none;
+}
+
+.complaint-existing-title-meta {
+  font-size: 10px;
+  font-weight: 700;
+  justify-content: flex-end;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.complaint-existing-title-meta .fa-chevron-down {
+  flex: none;
+  transition: transform 0.16s ease;
+}
+
+.complaint-existing-title.expanded .fa-chevron-down {
+  transform: rotate(180deg);
+}
+
+.complaint-existing-item {
+  border-top: 1px solid #f0d8d4;
+  padding: 7px 8px;
+}
+
+.complaint-existing-summary {
+  align-items: center;
+  display: grid;
+  gap: 4px 7px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.complaint-existing-summary > strong {
+  font-size: 11px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.complaint-allocation {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 800;
+  gap: 4px;
+  grid-column: 1;
+  justify-self: start;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 3px 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.complaint-allocation.allocated {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.complaint-allocation.unallocated {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.complaint-task-badge {
+  background: #eef2f6;
+  border-radius: 999px;
+  color: #475467;
+  font-size: 9px;
+  font-weight: 800;
+  grid-column: 2;
+  grid-row: 1;
+  padding: 2px 6px;
+}
+
+.complaint-existing-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.complaint-existing-actions button,
+.complaint-assignment-footer button,
+.complaint-remove-panel button {
+  border: 1px solid #cfd8e3;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 750;
+  min-height: 27px;
+  padding: 4px 8px;
+}
+
+.complaint-assign-toggle,
+.complaint-assignment-save {
+  background: #087c72;
+  border-color: #087c72 !important;
+  color: #fff;
+}
+
+.complaint-remove-toggle,
+.complaint-remove-confirm {
+  background: #fff1f0;
+  border-color: #f0aaa4 !important;
+  color: #b42318;
+}
+
+.complaint-assignment-panel {
+  background: #f7fafc;
+  border-radius: 7px;
+  margin-top: 7px;
+  padding: 7px;
+}
+
+.complaint-assignment-options {
+  display: grid;
+  gap: 5px;
+  grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
+}
+
+.complaint-assignment-options label {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #dde5ee;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  font-size: 10px;
+  font-weight: 650;
+  gap: 6px;
+  min-height: 30px;
+  padding: 5px 7px;
+}
+
+.complaint-assignment-options label:has(input:checked) {
+  background: #e9f8f5;
+  border-color: #8bc9c0;
+  color: #075f57;
+}
+
+.complaint-assignment-options input {
+  flex: none;
+  height: 16px;
+  margin: 0;
+  width: 16px;
+}
+
+.complaint-assignment-footer {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 7px;
+}
+
+.complaint-action-cancel {
+  background: #fff;
+  color: #475467;
+}
+
+.complaint-action-loading,
+.complaint-action-error {
+  color: var(--muted);
+  display: block;
+  font-size: 10px;
+  padding: 3px;
+}
+
+.complaint-action-error {
+  color: var(--danger);
+}
+
+.complaint-remove-panel {
+  align-items: center;
+  background: #fff4f2;
+  border-radius: 7px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 7px;
+  padding: 6px;
+}
+
+.complaint-existing.hidden,
+.complaint-assignment-panel.hidden,
+.complaint-remove-panel.hidden {
+  display: none;
+}
+
+.complaint-remove-panel > span {
+  color: #7a271a;
+  font-size: 10px;
+  font-weight: 750;
+  margin-right: auto;
+}
+
 @keyframes complaintWarningPulse {
   0%, 100% { opacity: 0.7; transform: scale(1); }
   50% { opacity: 1; transform: scale(1.1); }
