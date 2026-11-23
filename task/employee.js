@@ -642,7 +642,17 @@ function reasonPriority(reason) {
 }
 
 function compareRows(a, b) {
-  return dateSortValue(b.created_at) - dateSortValue(a.created_at);
+  const aInfo = breachInfo(a);
+  const bInfo = breachInfo(b);
+  const aOrder = !aInfo.applies ? 2 : aInfo.breached ? 1 : 0;
+  const bOrder = !bInfo.applies ? 2 : bInfo.breached ? 1 : 0;
+  if (aOrder !== bOrder) {
+    return aOrder - bOrder;
+  }
+  if (aOrder === 0 && aInfo.remaining !== bInfo.remaining) {
+    return aInfo.remaining - bInfo.remaining;
+  }
+  return dateSortValue(a.created_at) - dateSortValue(b.created_at);
 }
 
 function setupClients() {

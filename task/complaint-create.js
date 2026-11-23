@@ -21,6 +21,7 @@
   let loadingPromise = null;
   let searchTimer = null;
   let toastTimer = null;
+  let complaintCreationBusy = false;
   const openComplaintCache = new Map();
   const taskRowsCache = new Map();
   let teamMembersPromise = null;
@@ -165,6 +166,7 @@
   const results = modal.querySelector("#complaintSearchResults");
   const closeButton = modal.querySelector(".complaint-modal-close");
   const reloadButton = modal.querySelector(".complaint-reload-button");
+  const modalSubtitle = modal.querySelector(".complaint-create-head p");
 
   async function loadUsers(force = false) {
     if (usersLoaded && !force) {
@@ -233,8 +235,8 @@
     const button = card.querySelector(".complaint-create-submit");
     button.disabled = busy;
     button.innerHTML = busy
-      ? '<span class="complaint-button-spinner" aria-hidden="true"></span> Creating...'
-      : '<i class="fa-solid fa-thumbtack" aria-hidden="true"></i> Create complaint';
+      ? '<span class="complaint-button-spinner" aria-hidden="true"></span> Checking...'
+      : '<i class="fa-solid fa-thumbtack" aria-hidden="true"></i> Mark complaint';
   }
 
   function getTaskRows(windowName, force = false) {
@@ -478,6 +480,247 @@
     }
   }
 
+  async function assignCreatedComplaint(user, complaintId, selected) {
+    const payload = {
+      task: "Pending",
+      actiontime: nowLucknow(),
+      unpickremark: "",
+      usermail: currentActor(),
+      takenby: selected.join(",")
+    };
+    const response = await fetch(`${API_BASE}/${user.window}/tasks/complaints/${complaintId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.detail || data.message || `HTTP ${response.status}`);
+    }
+  }
+
+  function showCreatedUnallocatedOutcome(card, user, message) {
+    modalSubtitle.textContent = "Complaint saved";
+    closeButton.title = "Close";
+    closeButton.setAttribute("aria-label", "Close");
+    const choice = card.querySelector(".complaint-post-create");
+    choice.innerHTML = `
+      <div class="complaint-post-create-head">
+        <span class="complaint-success-icon" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+        <div>
+          <strong>Complaint created</strong>
+          <span class="complaint-post-create-copy">Currently unallocated</span>
+        </div>
+      </div>
+      <div class="complaint-post-identity">
+        <strong>${escapeHtml(user.name || "Unknown user")}</strong>
+        <span>${escapeHtml(user.userId || "-")}</span>
+        <span class="complaint-window-badge">${escapeHtml(user.window)}</span>
+      </div>
+      <span class="complaint-action-error">${escapeHtml(message)}</span>
+      <div class="complaint-post-create-actions complaint-post-create-actions-single">
+        <button class="complaint-post-keep" type="button"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Close</button>
+      </div>
+    `;
+    choice.querySelector(".complaint-post-keep").addEventListener("click", closeModal);
+  }
+
+  async function createComplaint(card, user, selected, button) {
+    if (complaintCreationBusy) {
+      return;
+    }
+    const category = card.querySelector(".complaint-category");
+    const detail = card.querySelector(".complaint-additional-detail");
+    const callingPhone = card.querySelector(".complaint-calling-phone");
+    const mode = card.querySelector(".complaint-mode");
+    const phone = cleanText(callingPhone.value);
+    const payload = {
+      user_id: user.userId,
+      name: user.name,
+      address: user.address,
+      reason: category.value,
+      additional_detail: category.value === "Other" ? cleanText(detail.value) : "",
+      Mode: category.value === "Other" ? mode.value : "Auto",
+      Power: user.power,
+      Phone: phone || user.registeredPhone,
+      registered_phone: user.registeredPhone,
+      calling_phone: phone,
+      Team: defaultTeam(user.window),
+      pon: user.pon
+    };
+    const choice = card.querySelector(".complaint-post-create");
+    const choiceButtons = Array.from(choice.querySelectorAll("button"));
+    const originalText = button.innerHTML;
+    complaintCreationBusy = true;
+    closeButton.disabled = true;
+    choiceButtons.forEach((item) => { item.disabled = true; });
+    button.innerHTML = '<span class="complaint-button-spinner" aria-hidden="true"></span> Creating...';
+
+    let data;
+    try {
+      const response = await fetch(`${API_BASE}/${user.window}/mark_complain`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      data = await response.json().catch(() => ({}));
+      const succeeded = response.ok && (data.status === "ok" || data.ok === true || data.demo === true);
+      if (!succeeded) {
+        throw new Error(data.message || data.detail || `HTTP ${response.status}`);
+      }
+    } catch (error) {
+      complaintCreationBusy = false;
+      closeButton.disabled = false;
+      notify(`Complaint creation failed: ${error.message}`);
+      choiceButtons.forEach((item) => { item.disabled = false; });
+      button.innerHTML = originalText;
+      return;
+    }
+
+    openComplaintCache.delete(`${user.window}|${user.userId}`);
+    taskRowsCache.delete(user.window);
+    users = users.filter((item) => !(item.window === user.window && item.userId === user.userId));
+    window.dispatchEvent(new CustomEvent("task:complaint-created", {
+      detail: { window: user.window, userId: user.userId }
+    }));
+
+    if (!selected.length) {
+      complaintCreationBusy = false;
+      closeButton.disabled = false;
+      notify("Complaint created unallocated", true);
+      closeModal();
+      return;
+    }
+
+    const complaintId = data.id || data.complaint_id || data.row?.id;
+    if (!complaintId) {
+      complaintCreationBusy = false;
+      closeButton.disabled = false;
+      notify("Complaint created, but team assignment could not start.");
+      showCreatedUnallocatedOutcome(card, user, "Complaint ID was not returned. Assign it later from Open Complaints.");
+      return;
+    }
+
+    button.innerHTML = '<span class="complaint-button-spinner" aria-hidden="true"></span> Assigning...';
+    try {
+      await assignCreatedComplaint(user, complaintId, selected);
+      complaintCreationBusy = false;
+      closeButton.disabled = false;
+      button.innerHTML = '<i class="fa-solid fa-check" aria-hidden="true"></i> Created & assigned';
+      notify("Complaint created and team assigned", true);
+      window.setTimeout(closeModal, 700);
+    } catch (error) {
+      complaintCreationBusy = false;
+      closeButton.disabled = false;
+      notify(`Complaint created, but assignment failed: ${error.message}`);
+      showCreatedUnallocatedOutcome(card, user, `Team assignment failed: ${error.message}. Assign it later from Open Complaints.`);
+    }
+  }
+
+  async function createAssignedComplaint(card, user, panel, button) {
+    const selected = Array.from(panel.querySelectorAll('input[type="checkbox"]:checked'))
+      .map((input) => cleanText(input.value))
+      .filter(Boolean);
+    if (!selected.length) {
+      notify("Select minimum 1 team member");
+      return;
+    }
+    await createComplaint(card, user, selected, button);
+  }
+
+  async function openPreCreateAssignment(card, user, panel) {
+    const toggle = card.querySelector(".complaint-post-assign");
+    const actions = card.querySelector(".complaint-post-create-actions");
+    actions.classList.add("hidden");
+    if (panel.dataset.loaded === "1") {
+      panel.classList.remove("hidden");
+      toggle.setAttribute("aria-expanded", "true");
+      return;
+    }
+    panel.classList.remove("hidden");
+    toggle.setAttribute("aria-expanded", "true");
+    panel.innerHTML = '<span class="complaint-action-loading">Loading team members...</span>';
+    try {
+      const members = Array.from(new Set(await getTeamMembers())).sort();
+      if (!members.length) {
+        throw new Error("No team members configured");
+      }
+      panel.innerHTML = `
+        <div class="complaint-post-assignment-title">Select team members</div>
+        <div class="complaint-assignment-options">
+          ${members.map((name) => `
+            <label><input type="checkbox" value="${escapeHtml(name)}"><span>${escapeHtml(name)}</span></label>
+          `).join("")}
+        </div>
+        <div class="complaint-assignment-footer">
+          <button class="complaint-action-cancel" type="button">Back</button>
+          <button class="complaint-assignment-save" type="button"><i class="fa-solid fa-user-check" aria-hidden="true"></i> Create & assign</button>
+        </div>
+      `;
+      panel.dataset.loaded = "1";
+      panel.querySelector(".complaint-action-cancel").addEventListener("click", () => {
+        panel.classList.add("hidden");
+        actions.classList.remove("hidden");
+        toggle.setAttribute("aria-expanded", "false");
+      });
+      const saveButton = panel.querySelector(".complaint-assignment-save");
+      saveButton.addEventListener("click", () => createAssignedComplaint(card, user, panel, saveButton));
+    } catch (error) {
+      panel.innerHTML = `
+        <span class="complaint-action-error">Team load failed: ${escapeHtml(error.message)}. No complaint was created.</span>
+        <div class="complaint-assignment-footer"><button class="complaint-action-cancel" type="button">Back</button></div>
+      `;
+      panel.querySelector(".complaint-action-cancel").addEventListener("click", () => {
+        panel.classList.add("hidden");
+        actions.classList.remove("hidden");
+        toggle.setAttribute("aria-expanded", "false");
+      });
+    }
+  }
+
+  function showPreCreateChoice(card, user) {
+    modal.classList.add("complaint-post-create-mode");
+    results.classList.add("complaint-post-create-active");
+    card.classList.add("complaint-created-card");
+    card.querySelector(".complaint-existing")?.classList.add("hidden");
+    card.querySelector(".complaint-create-fields")?.classList.add("hidden");
+    card.querySelector(".complaint-duplicate-warning")?.classList.add("hidden");
+    card.querySelector(".complaint-card-actions")?.classList.add("hidden");
+    modalSubtitle.textContent = "";
+    closeButton.title = "Close — cancel complaint";
+    closeButton.setAttribute("aria-label", "Close — cancel complaint");
+    const choice = card.querySelector(".complaint-post-create");
+    choice.innerHTML = `
+      <div class="complaint-post-create-head">
+        <span class="complaint-success-icon" aria-hidden="true"><i class="fa-solid fa-clipboard-check"></i></span>
+        <div>
+          <strong>Ready to create complaint</strong>
+        </div>
+      </div>
+      <div class="complaint-post-identity">
+        <strong>${escapeHtml(user.name || "Unknown user")}</strong>
+        <span>${escapeHtml(user.userId || "-")}</span>
+        <span class="complaint-window-badge">${escapeHtml(user.window)}</span>
+      </div>
+      <div class="complaint-post-create-actions">
+        <button class="complaint-post-assign" type="button" aria-expanded="false"><i class="fa-solid fa-users" aria-hidden="true"></i> Create & assign</button>
+        <button class="complaint-post-keep" type="button"><i class="fa-regular fa-clock" aria-hidden="true"></i> Create unallocated</button>
+      </div>
+      <div class="complaint-post-assignment hidden"></div>
+      <p class="complaint-post-safe-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Closing this window cancels the action; no complaint will be created.</p>
+    `;
+    choice.classList.remove("hidden");
+    status.textContent = "Review complete. Choose the final action.";
+    choice.querySelector(".complaint-post-keep").addEventListener("click", (event) => {
+      createComplaint(card, user, [], event.currentTarget);
+    });
+    const panel = choice.querySelector(".complaint-post-assignment");
+    choice.querySelector(".complaint-post-assign").addEventListener("click", () => {
+      openPreCreateAssignment(card, user, panel);
+    });
+    card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
   function renderOpenComplaints(card, user, openComplaints) {
     const holder = card.querySelector(".complaint-existing");
     if (!holder) {
@@ -598,7 +841,7 @@
       ${reasons ? `<span>${reasons}</span>` : ""}
       <div>
         <button class="complaint-warning-cancel" type="button">Cancel</button>
-        <button class="complaint-warning-continue" type="button">Create anyway</button>
+        <button class="complaint-warning-continue" type="button">Continue anyway</button>
       </div>
     `;
     warning.classList.remove("hidden");
@@ -606,15 +849,13 @@
       warning.classList.add("hidden");
     });
     warning.querySelector(".complaint-warning-continue").addEventListener("click", () => {
-      createComplaint(card, user, true);
+      prepareComplaint(card, user, true);
     });
   }
 
-  async function createComplaint(card, user, skipDuplicateCheck = false) {
+  async function prepareComplaint(card, user, skipDuplicateCheck = false) {
     const category = card.querySelector(".complaint-category");
     const detail = card.querySelector(".complaint-additional-detail");
-    const callingPhone = card.querySelector(".complaint-calling-phone");
-    const mode = card.querySelector(".complaint-mode");
     const warning = card.querySelector(".complaint-duplicate-warning");
     if (!category.value) {
       category.focus();
@@ -641,45 +882,8 @@
         // Match the existing Power UI behavior: creation can continue if duplicate lookup is unavailable.
       }
     }
-
-    const phone = cleanText(callingPhone.value);
-    const payload = {
-      user_id: user.userId,
-      name: user.name,
-      address: user.address,
-      reason: category.value,
-      additional_detail: category.value === "Other" ? cleanText(detail.value) : "",
-      Mode: category.value === "Other" ? mode.value : "Auto",
-      Power: user.power,
-      Phone: phone || user.registeredPhone,
-      registered_phone: user.registeredPhone,
-      calling_phone: phone,
-      Team: defaultTeam(user.window),
-      pon: user.pon
-    };
-
-    try {
-      const response = await fetch(`${API_BASE}/${user.window}/mark_complain`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const data = await response.json().catch(() => ({}));
-      const succeeded = response.ok && (data.status === "ok" || data.ok === true || data.demo === true);
-      if (!succeeded) {
-        throw new Error(data.message || data.detail || `HTTP ${response.status}`);
-      }
-      openComplaintCache.delete(`${user.window}|${user.userId}`);
-      users = users.filter((item) => !(item.window === user.window && item.userId === user.userId));
-      closeModal();
-      notify("Complaint created successfully", true);
-      window.dispatchEvent(new CustomEvent("task:complaint-created", {
-        detail: { window: user.window, userId: user.userId }
-      }));
-    } catch (error) {
-      notify(`Complaint creation failed: ${error.message}`);
-      setCardBusy(card, false);
-    }
+    setCardBusy(card, false);
+    showPreCreateChoice(card, user);
   }
 
   function buildCard(user) {
@@ -726,8 +930,9 @@
       </div>
       <div class="complaint-duplicate-warning hidden"></div>
       <div class="complaint-card-actions">
-        <button class="button complaint-create-submit" type="button"><i class="fa-solid fa-thumbtack" aria-hidden="true"></i> Create complaint</button>
+        <button class="button complaint-create-submit" type="button"><i class="fa-solid fa-thumbtack" aria-hidden="true"></i> Mark complaint</button>
       </div>
+      <div class="complaint-post-create hidden" aria-live="polite"></div>
     `;
     cardUsers.set(card, user);
     const category = card.querySelector(".complaint-category");
@@ -743,7 +948,7 @@
         mode.value = "Auto";
       }
     });
-    card.querySelector(".complaint-create-submit").addEventListener("click", () => createComplaint(card, user));
+    card.querySelector(".complaint-create-submit").addEventListener("click", () => prepareComplaint(card, user));
     if (statusObserver) {
       statusObserver.observe(card);
     } else if (user.userId) {
@@ -755,10 +960,14 @@
   function renderSearchResults() {
     const query = cleanText(searchInput.value).toLowerCase();
     results.innerHTML = "";
+    if (!usersLoaded) {
+      status.textContent = query.length >= 3
+        ? "Users are loading. Your search will start automatically."
+        : "Loading users from all windows...";
+      return;
+    }
     if (query.length < 3) {
-      status.textContent = usersLoaded
-        ? `${users.length} users ready. Type at least 3 characters to search.`
-        : "Type at least 3 characters to search.";
+      status.textContent = `${users.length} users ready. Type at least 3 characters to search.`;
       return;
     }
     const matches = users.filter((user) => user.searchText.includes(query));
@@ -777,8 +986,18 @@
   }
 
   function closeModal() {
+    if (complaintCreationBusy) {
+      notify("Please wait, complaint is being saved.");
+      return;
+    }
     modal.classList.remove("open");
+    modal.classList.remove("complaint-post-create-mode");
     document.body.classList.remove("complaint-modal-open");
+    results.classList.remove("complaint-post-create-active");
+    modalSubtitle.textContent = "Search users across all windows";
+    closeButton.title = "";
+    closeButton.disabled = false;
+    closeButton.setAttribute("aria-label", "Close");
     searchInput.value = "";
     results.innerHTML = "";
     status.textContent = usersLoaded

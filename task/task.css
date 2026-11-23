@@ -1167,6 +1167,10 @@ body.complaint-modal-open .fixed-scrollbar {
   margin: 2px 0 0;
 }
 
+.complaint-create-head p:empty {
+  display: none;
+}
+
 .complaint-modal-close {
   align-items: center;
   background: #fff;
@@ -1240,6 +1244,46 @@ body.complaint-modal-open .fixed-scrollbar {
   border-radius: 9px;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
   overflow: hidden;
+}
+
+.complaint-search-results.complaint-post-create-active {
+  flex: 0 1 auto;
+  grid-template-columns: minmax(0, 520px);
+  justify-content: center;
+  max-height: calc(90vh - 92px);
+}
+
+.complaint-post-create-mode .complaint-global-search,
+.complaint-post-create-mode .complaint-search-status {
+  display: none;
+}
+
+.complaint-post-create-mode .modal.complaint-create-modal {
+  height: auto;
+  max-height: calc(100vh - 24px);
+  max-width: min(560px, calc(100vw - 24px));
+}
+
+.complaint-post-create-active .complaint-create-card:not(.complaint-created-card) {
+  display: none;
+}
+
+.complaint-create-card.complaint-created-card {
+  animation: none;
+  background: #fff;
+  border-color: #70b9a8;
+  box-shadow: 0 10px 30px rgba(8, 124, 114, 0.14);
+  color: var(--text);
+  width: 100%;
+}
+
+.complaint-create-card.complaint-created-card .complaint-card-title {
+  background: linear-gradient(135deg, #edf9f7, #f8fbfd);
+}
+
+.complaint-created-card .complaint-card-title,
+.complaint-created-card .complaint-user-facts {
+  display: none;
 }
 
 .complaint-create-card.complaint-state-down {
@@ -1680,6 +1724,172 @@ body.complaint-modal-open .fixed-scrollbar {
   display: flex;
   justify-content: flex-end;
   padding: 6px 10px 9px;
+}
+
+.complaint-card-actions.hidden {
+  display: none;
+}
+
+.complaint-post-create {
+  background: #f5fbf9;
+  border-top: 1px solid #b8ddd4;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.complaint-post-create.hidden,
+.complaint-post-assignment.hidden {
+  display: none;
+}
+
+.complaint-post-create-head {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.complaint-success-icon {
+  align-items: center;
+  background: #087c72;
+  border-radius: 50%;
+  color: #fff;
+  display: inline-flex;
+  flex: none;
+  font-size: 16px;
+  height: 38px;
+  justify-content: center;
+  width: 38px;
+}
+
+.complaint-post-create-head > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.complaint-post-create-head strong {
+  color: #075f57;
+  font-size: 15px;
+}
+
+.complaint-post-create-copy {
+  color: #475467;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.complaint-post-create-actions {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.complaint-post-create-actions.hidden {
+  display: none;
+}
+
+.complaint-post-create-actions-single {
+  grid-template-columns: 1fr;
+}
+
+.complaint-post-create-actions button {
+  align-items: center;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 7px;
+  justify-content: center;
+  min-height: 40px;
+  padding: 7px 10px;
+}
+
+.complaint-post-assign {
+  background: #087c72;
+  border: 1px solid #087c72;
+  color: #fff;
+}
+
+.complaint-post-assign:hover,
+.complaint-post-assign:focus-visible {
+  background: #066a62;
+}
+
+.complaint-post-keep {
+  background: #fff;
+  border: 1px solid #9fb0c3;
+  color: #344054;
+}
+
+.complaint-post-keep:hover,
+.complaint-post-keep:focus-visible {
+  background: #f2f5f8;
+}
+
+.complaint-post-assignment {
+  background: #fff;
+  border: 1px solid #cddfdc;
+  border-radius: 9px;
+  padding: 9px;
+}
+
+.complaint-post-assignment-title {
+  color: #344054;
+  font-size: 11px;
+  font-weight: 850;
+  margin-bottom: 7px;
+}
+
+.complaint-post-identity {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #d8e6e3;
+  border-radius: 8px;
+  display: grid;
+  gap: 2px 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 8px 9px;
+}
+
+.complaint-post-identity strong {
+  color: #172033;
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.complaint-post-identity > span:not(.complaint-window-badge) {
+  color: #667085;
+  font-size: 10px;
+  grid-column: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.complaint-post-identity .complaint-window-badge {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.complaint-post-safe-note {
+  align-items: flex-start;
+  color: #667085;
+  display: flex;
+  font-size: 10px;
+  gap: 5px;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.complaint-modal-close:disabled {
+  cursor: wait;
+  opacity: 0.55;
 }
 
 .complaint-create-submit {
@@ -2166,6 +2376,10 @@ body.complaint-modal-open .fixed-scrollbar {
     padding: 6px;
   }
 
+  .complaint-create-backdrop.complaint-post-create-mode {
+    align-items: center;
+  }
+
   .modal.complaint-create-modal {
     height: calc(100vh - 12px);
     max-width: none;
@@ -2191,6 +2405,33 @@ body.complaint-modal-open .fixed-scrollbar {
   .complaint-search-results {
     grid-template-columns: 1fr;
     padding: 7px;
+  }
+
+  .complaint-search-results.complaint-post-create-active {
+    grid-template-columns: 1fr;
+    max-height: calc(100vh - 74px);
+  }
+
+  .complaint-post-create-mode .modal.complaint-create-modal {
+    height: auto;
+    max-height: calc(100vh - 12px);
+    max-width: none;
+  }
+
+  .complaint-post-create {
+    padding: 10px;
+  }
+
+  .complaint-post-create-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .complaint-post-create-actions button {
+    min-height: 42px;
+  }
+
+  .complaint-post-assignment .complaint-assignment-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .field label {
@@ -2709,6 +2950,22 @@ body.complaint-modal-open .fixed-scrollbar {
     display: block;
     padding: 22px 14px;
     text-align: center;
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .complaint-post-assignment .complaint-assignment-options {
+    grid-template-columns: 1fr;
+  }
+
+  .complaint-assignment-footer {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .complaint-assignment-footer button {
+    min-height: 40px;
     width: 100%;
   }
 }

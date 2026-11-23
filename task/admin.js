@@ -648,9 +648,23 @@ function compareRows(a, b) {
   return dateSortValue(b.created_at) - dateSortValue(a.created_at);
 }
 
+function compareRowsBySla(a, b) {
+  const aInfo = breachInfo(a);
+  const bInfo = breachInfo(b);
+  const aOrder = !aInfo.applies ? 2 : aInfo.breached ? 1 : 0;
+  const bOrder = !bInfo.applies ? 2 : bInfo.breached ? 1 : 0;
+  if (aOrder !== bOrder) {
+    return aOrder - bOrder;
+  }
+  if (aOrder === 0 && aInfo.remaining !== bInfo.remaining) {
+    return aInfo.remaining - bInfo.remaining;
+  }
+  return dateSortValue(a.created_at) - dateSortValue(b.created_at);
+}
+
 function compareRowsWithUnallocatedFirst(a, b) {
   const allocationOrder = Number(splitNames(a.takenby).length > 0) - Number(splitNames(b.takenby).length > 0);
-  return allocationOrder || compareRows(a, b);
+  return allocationOrder || compareRowsBySla(a, b);
 }
 
 function setupClients() {
