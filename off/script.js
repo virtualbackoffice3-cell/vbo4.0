@@ -94,10 +94,16 @@ if (!addressModal) {
 const addressModalText = addressModal.querySelector(".addressModalText");
 const addressModalClose = addressModal.querySelector(".addressModalClose");
 
-function openAddressModal(address) {
-  if (!address) return;
-  addressModalText.textContent = address;
+function openInfoModal(title, text) {
+  if (!addressModal) return;
+  const titleEl = addressModal.querySelector('strong');
+  if (titleEl) titleEl.textContent = title;
+  addressModalText.textContent = text;
   addressModal.style.display = "flex";
+}
+
+function openAddressModal(address) {
+  openInfoModal("Full Address", address);
 }
 
 function closeAddressModal() {
@@ -376,6 +382,10 @@ function getRegisteredPhone(r) {
   return r["Registered no"] || r.registered_phone || r.primary_phone || r.Phone || "";
 }
 
+function getCallingPhoneForDisplay(r) {
+  return String(r["Calling no"] || r.calling_phone || "").trim();
+}
+
 function getCallingPhone(r) {
   return r["Calling no"] || r.calling_phone || "";
 }
@@ -410,6 +420,12 @@ function syncAdditionalDetail(root) {
   const isOther = remark.value === "Other";
   detail.disabled = !isOther;
   if (!isOther) detail.value = "";
+  const remarksRow = root.querySelector(".card-row-remarks");
+  if (remarksRow) remarksRow.classList.toggle("hidden", !isOther);
+  const modeRow = root.querySelector(".card-row-mode");
+  if (modeRow) modeRow.classList.toggle("hidden", !isOther);
+  const modeSelEl = root.querySelector(".modeSel");
+  if (!isOther && modeSelEl) modeSelEl.value = "Auto";
 }
 
 function wireRemarkDetail(root) {
@@ -437,6 +453,10 @@ async function saveCallingPhone(r, root) {
   }
 
   const callingPhone = input.value.trim();
+  if (callingPhone !== "" && !/^\d{10}$/.test(callingPhone)) {
+    showToast("Please enter a valid 10-digit phone number");
+    return;
+  }
   const oldText = button.textContent;
   button.disabled = true;
   button.textContent = "Saving";
@@ -475,10 +495,11 @@ async function saveCallingPhone(r, root) {
 }
 
 function wireCallingPhoneSave(root, r) {
-  const button = root.querySelector(".callingPhoneSave");
-  if (!button) return;
-  button.onclick = () => saveCallingPhone(r, root);
-}
+      const button = root.querySelector(".callingPhoneSave");
+      if (button) {
+        button.onclick = () => saveCallingPhone(r, root);
+      }
+    }
 
 async function fetchOpenComplaintUsers(windowName) {
   const url = `${baseUrl}/${windowName}/heroesocr_latest?limit=5000`;
@@ -602,40 +623,33 @@ function showExistingComplaintsPopup(openComplaints, onContinue, markButton) {
 }
 
 /* ===============================
-   ✅ Mark Complaint Handler with Open Check (No spinner)
+/* ===============================
+   Mark Complaint Handler (Pre-Create Choice Flow)
 ================================= */
 async function handleMarkComplaint(r, cardElement, remarkInput, modeSelect, teamSelect, markButton) {
-  // First check for existing open complaints - NO SPINNER
   try {
     const openComplaints = await checkExistingOpenComplaints(r._window, r.Users || "");
-    
     if (openComplaints.length > 0) {
-      // Show confirmation popup
       showExistingComplaintsPopup(openComplaints, async () => {
-        // This is the continue action
-        await executeMarkComplaint(r, cardElement, remarkInput, modeSelect, teamSelect, markButton);
+        showPreCreateChoice(r, cardElement, remarkInput, modeSelect, teamSelect, markButton);
       }, markButton);
-      
-      // Re-enable button if we're showing popup (user might cancel)
       if (markButton) {
         markButton.disabled = false;
         markButton.innerHTML = '<i class="fa-solid fa-thumbtack"></i>';
       }
     } else {
-      // No open complaints, proceed directly
-      await executeMarkComplaint(r, cardElement, remarkInput, modeSelect, teamSelect, markButton);
+      showPreCreateChoice(r, cardElement, remarkInput, modeSelect, teamSelect, markButton);
     }
   } catch (error) {
     console.error("Error in mark complaint check:", error);
-    // If check fails, proceed anyway (fail open)
-    await executeMarkComplaint(r, cardElement, remarkInput, modeSelect, teamSelect, markButton);
+    showPreCreateChoice(r, cardElement, remarkInput, modeSelect, teamSelect, markButton);
   }
 }
 
 /* ===============================
-   ✅ Execute Mark Complaint (Actual API call)
+   Execute Mark Complaint (POST mark_complain + optional assign)
 ================================= */
-async function executeMarkComplaint(r, cardElement, remarkInput, modeSelect, teamSelect, markButton) {
+async function executeMarkComplaint(r, cardElement, remarkInput, modeSelect, teamSelect, markButton, assignTo, preCreateModal) {
   const callingPhone = getCallingPhone(r);
   const registeredPhone = getRegisteredPhone(r);
   const payload = {
@@ -644,44 +658,255 @@ async function executeMarkComplaint(r, cardElement, remarkInput, modeSelect, tea
     address: r.Location || "",
     reason: remarkInput.value || "",
     additional_detail: getAdditionalDetail(cardElement),
-    Mode: modeSelect.value,
+    Mode: (remarkInput && remarkInput.value === "Other") ? modeSelect.value : "Auto",
     Power: r.Power,
     Phone: callingPhone || registeredPhone || r["Last called no"] || "",
     registered_phone: registeredPhone,
     calling_phone: callingPhone,
-    Team: teamSelect.value,
+    Team: (teamSelect && teamSelect.value) ? teamSelect.value : getDefaultTeam(r._window),
     pon: r.PON || ""
   };
-  
+
   try {
     const response = await fetch(`${baseUrl}/${r._window}/mark_complain`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
-    const result = await response.json();
-    if (result.status === "ok") {
-      showToast("✅ Complaint marked successfully", true);
-      fadeOutAndRemove(cardElement);
-    } else {
-      showToast(result.message || "❌ Mark failed");
-      // Re-enable button if not removed
-      if (markButton && document.body.contains(cardElement)) {
-        markButton.disabled = false;
-        markButton.innerHTML = '<i class="fa-solid fa-thumbtack"></i>';
+    const result = await response.json().catch(() => ({}));
+    const succeeded = response.ok && (result.status === "ok" || result.ok === true || result.demo === true);
+    if (!succeeded) {
+      showToast(result.message || "Mark failed");
+      preCreateBusy = false;
+      resetPreCreateModalButtons(preCreateModal);
+      return;
+    }
+
+    if (assignTo && assignTo.length) {
+      let complaintId = result.id || result.complaint_id || (result.row && result.row.id);
+      if (!complaintId) {
+        complaintId = await tryFetchLatestComplaintId(r._window, r.Users);
       }
+      if (!complaintId) {
+        showToast("Complaint created but ID missing. Assign later from Open Complaints.");
+        closePreCreateModal();
+        fadeOutAndRemove(cardElement);
+        return;
+      }
+      try {
+        const assignResp = await fetch(`${baseUrl}/${r._window}/tasks/complaints/${complaintId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            task: "Pending",
+            actiontime: nowLucknowForAssign(),
+            takenby: assignTo.join(",")
+          })
+        });
+        const assignResult = await assignResp.json().catch(() => ({}));
+        if (!assignResp.ok) {
+          throw new Error(assignResult.detail || assignResult.message || `HTTP ${assignResp.status}`);
+        }
+        showToast("Complaint created & assigned", true);
+      } catch (assignErr) {
+        showToast(`Complaint created but assign failed: ${assignErr.message}`);
+        closePreCreateModal();
+        fadeOutAndRemove(cardElement);
+        return;
+      }
+    } else {
+      showToast("Complaint created unallocated", true);
     }
-  } catch {
-    showToast("❌ Mark failed");
-    if (markButton && document.body.contains(cardElement)) {
-      markButton.disabled = false;
-      markButton.innerHTML = '<i class="fa-solid fa-thumbtack"></i>';
-    }
+    closePreCreateModal();
+    fadeOutAndRemove(cardElement);
+  } catch (error) {
+    showToast("Mark failed");
+    preCreateBusy = false;
+    resetPreCreateModalButtons(preCreateModal);
   }
 }
 
 /* ===============================
-   ✅ Helpers
+   Pre-Create Choice Modal
+================================= */
+let preCreateState = null;
+let preCreateBusy = false;
+let teamMembersCache = null;
+let teamMembersCacheTs = 0;
+
+function nowLucknowForAssign() {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false
+  }).formatToParts(new Date()).reduce((acc, p) => { acc[p.type] = p.value; return acc; }, {});
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
+}
+
+async function getTeamMembersForPower(force) {
+  const now = Date.now();
+  if (!force && teamMembersCache && (now - teamMembersCacheTs) < 60000) return teamMembersCache;
+  const res = await fetch(`${baseUrl}/team-config`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Team config HTTP ${res.status}`);
+  const data = await res.json();
+  teamMembersCache = (data.members || []).map(m => String(m.name || "").trim()).filter(Boolean);
+  teamMembersCacheTs = now;
+  return teamMembersCache;
+}
+
+async function tryFetchLatestComplaintId(windowName, userId) {
+  try {
+    const res = await fetch(`${baseUrl}/${windowName}/heroesocr_user_complaints/${encodeURIComponent(userId)}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const rows = (data.rows || []).filter(r => String(r.status || "").toLowerCase() === "open");
+    if (!rows.length) return null;
+    rows.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    return rows[0].id || rows[0].complaint_id || null;
+  } catch { return null; }
+}
+
+function ensurePreCreateModal() {
+  let modal = document.getElementById("preCreateModal");
+  if (modal) return modal;
+  modal = document.createElement("div");
+  modal.id = "preCreateModal";
+  modal.className = "preCreateOverlay";
+  modal.innerHTML = `
+    <div class="preCreateBox" role="dialog" aria-modal="true">
+      <div class="preCreateHead">
+        <div>
+          <div class="preCreateTitle">Ready to create complaint</div>
+          <div class="preCreateSubtitle">Choose the final action</div>
+        </div>
+        <button class="preCreateClose" type="button" aria-label="Cancel">×</button>
+      </div>
+      <div class="preCreateIdentity">
+        <div class="preCreateIdentityName"></div>
+        <div class="preCreateIdentityMeta"></div>
+      </div>
+      <div class="preCreateBody"></div>
+      <p class="preCreateSafeNote"><i class="fa-solid fa-circle-info"></i> Closing this window cancels the action; no complaint will be created.</p>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  modal.addEventListener("click", (e) => { if (e.target === modal && !preCreateBusy) closePreCreateModal(); });
+  modal.querySelector(".preCreateClose").addEventListener("click", () => { if (!preCreateBusy) closePreCreateModal(); });
+  return modal;
+}
+
+function closePreCreateModal() {
+  const modal = document.getElementById("preCreateModal");
+  if (!modal) return;
+  modal.classList.remove("open");
+  if (preCreateState && preCreateState.markButton) {
+    const mb = preCreateState.markButton;
+    const ce = preCreateState.cardElement;
+    if (mb && ce && document.body.contains(ce)) {
+      mb.disabled = false;
+      mb.innerHTML = '<i class="fa-solid fa-thumbtack"></i>';
+    }
+  }
+  preCreateState = null;
+  preCreateBusy = false;
+}
+
+function resetPreCreateModalButtons(modal) {
+  if (!modal) return;
+  modal.querySelectorAll("button").forEach(b => { b.disabled = false; });
+}
+
+function showPreCreateChoice(r, cardElement, remarkInput, modeSelect, teamSelect, markButton) {
+  const modal = ensurePreCreateModal();
+  preCreateState = { r, cardElement, remarkInput, modeSelect, teamSelect, markButton };
+  preCreateBusy = false;
+  if (markButton) {
+    markButton.disabled = true;
+    markButton.innerHTML = '<span class="loading-spinner-small"></span>';
+  }
+  modal.querySelector(".preCreateIdentityName").textContent = r.Name || "Unknown user";
+  modal.querySelector(".preCreateIdentityMeta").textContent = `${r.Users || "-"} - ${r._window || "-"}`;
+  const body = modal.querySelector(".preCreateBody");
+  body.innerHTML = `
+    <div class="preCreateActions">
+      <button class="preCreateAssign" type="button"><i class="fa-solid fa-users"></i> Create & assign</button>
+      <button class="preCreateUnallocated" type="button"><i class="fa-regular fa-clock"></i> Create unallocated</button>
+    </div>
+    <div class="preCreateTeamPanel hidden">
+      <div class="preCreateTeamTitle">Select team members</div>
+      <div class="preCreateTeamOptions"><span class="preCreateTeamLoading">Loading team members...</span></div>
+      <div class="preCreateTeamFooter">
+        <button class="preCreateTeamBack" type="button">Back</button>
+        <button class="preCreateTeamSubmit" type="button"><i class="fa-solid fa-user-check"></i> Create & assign</button>
+      </div>
+    </div>
+  `;
+  modal.classList.add("open");
+
+  const actionsEl = body.querySelector(".preCreateActions");
+  const teamPanel = body.querySelector(".preCreateTeamPanel");
+  const teamOptions = body.querySelector(".preCreateTeamOptions");
+  const assignBtn = body.querySelector(".preCreateAssign");
+  const unallocBtn = body.querySelector(".preCreateUnallocated");
+  const backBtn = body.querySelector(".preCreateTeamBack");
+  const submitBtn = body.querySelector(".preCreateTeamSubmit");
+
+  assignBtn.addEventListener("click", async () => {
+    actionsEl.classList.add("hidden");
+    teamPanel.classList.remove("hidden");
+    teamOptions.innerHTML = '<span class="preCreateTeamLoading">Loading team members...</span>';
+    try {
+      const members = await getTeamMembersForPower(false);
+      if (!members.length) throw new Error("No team members configured");
+      teamOptions.innerHTML = members.map(name => `
+        <label class="preCreateTeamOption">
+          <input type="checkbox" value="${escapeHtml(name)}">
+          <span>${escapeHtml(name)}</span>
+        </label>
+      `).join("");
+    } catch (err) {
+      teamOptions.innerHTML = `<div class="preCreateTeamError">Team load failed: ${escapeHtml(err.message)}</div>`;
+    }
+  });
+
+  backBtn.addEventListener("click", () => {
+    teamPanel.classList.add("hidden");
+    actionsEl.classList.remove("hidden");
+  });
+
+  unallocBtn.addEventListener("click", async () => {
+    const state = preCreateState;
+    if (!state) return;
+    preCreateBusy = true;
+    unallocBtn.disabled = true;
+    assignBtn.disabled = true;
+    await executeMarkComplaint(state.r, state.cardElement, state.remarkInput, state.modeSelect, state.teamSelect, state.markButton, [], modal);
+    if (document.getElementById("preCreateModal") && document.getElementById("preCreateModal").classList.contains("open")) {
+      preCreateBusy = false;
+      unallocBtn.disabled = false;
+      assignBtn.disabled = false;
+    }
+  });
+
+  submitBtn.addEventListener("click", async () => {
+    const state = preCreateState;
+    if (!state) return;
+    const selected = Array.from(teamOptions.querySelectorAll('input[type="checkbox"]:checked')).map(i => i.value).filter(Boolean);
+    if (!selected.length) { showToast("Select minimum 1 team member"); return; }
+    preCreateBusy = true;
+    submitBtn.disabled = true;
+    backBtn.disabled = true;
+    await executeMarkComplaint(state.r, state.cardElement, state.remarkInput, state.modeSelect, state.teamSelect, state.markButton, selected, modal);
+    if (document.getElementById("preCreateModal") && document.getElementById("preCreateModal").classList.contains("open")) {
+      preCreateBusy = false;
+      submitBtn.disabled = false;
+      backBtn.disabled = false;
+    }
+  });
+}
+/* ===============================
+   Helpers
 ================================= */
 function setHeadingCountAndTimestamp(count, runtimeTs) {
   if (runtimeTs) userCount.textContent = `(${count}) ${runtimeTs}`;
@@ -810,7 +1035,9 @@ function addWarningBadge(card) {
     badge.title = "Already has open complaints";
     badge.innerHTML = "⚠️";
     header.appendChild(badge);
-  }
+    const removeBtn = card.querySelector(".remove-btn");
+  if (removeBtn) removeBtn.classList.remove("hidden");
+}
 }
 
 /* ===============================
@@ -1334,24 +1561,24 @@ function renderSingleCard(r, index, container) {
       <div class="card-row">
         <span class="card-label">Calling No:</span>
         <div class="phoneEdit">
-          <input class="callingPhoneInput" value="${escapeHtml(getCallingPhone(r))}" inputmode="tel">
+          <input class="callingPhoneInput" value="${escapeHtml(getCallingPhoneForDisplay(r))}" type="tel" maxlength="10" placeholder="10-digit no">
           <button class="callingPhoneSave" type="button">Save</button>
         </div>
       </div>
       <div class="card-row"><span class="card-label">PON:</span><span class="card-value">${r.PON || ""}</span></div>
       <div class="card-row"><span class="card-label">Location:</span><button class="card-value addressLink" type="button" title="${escapeHtml(r.Location || "")}">${r.Location || ""}</button></div>
       <div class="card-row"><span class="card-label">Power:</span><span class="card-value">${r.Power?.toFixed(2) || ""}</span></div>
-      <div class="card-row"><span class="card-label">Last status:</span><span class="card-value">${escapeHtml(lastStatusText)}</span></div>
+      <div class="card-row"><span class="card-label">Last status:</span><button class="card-value statusLink" type="button" title="${escapeHtml(lastStatusText)}" style="background:none;border:none;color:inherit;cursor:pointer;padding:0;text-align:right;">${escapeHtml(lastStatusText.length > 15 ? lastStatusText.substring(0, 15) + "..." : lastStatusText)}</button></div>
       <div class="card-row"><span class="card-label">MAC / Serial:</span><span class="card-value">${r.MAC || ""} / ${r.Serial || ""}</span></div>
       <div class="card-row"><span class="card-label">Task catagory:</span>${buildRemarkSelect(remarkValue)}</div>
-      <div class="card-row"><span class="card-label">Remarks:</span>${buildAdditionalDetailInput(remarkValue, r.additional_detail || "")}</div>
-      <div class="card-row">
+      <div class="card-row card-row-remarks hidden"><span class="card-label">Remarks:</span>${buildAdditionalDetailInput(remarkValue, r.additional_detail || "")}</div>
+      <div class="card-row card-row-team hidden">
         <span class="card-label">Team:</span>
         <select class="teamSel">
           <option>TeamAmanwiz</option><option>TeamMedanta</option><option>TeamSevai</option>
         </select>
       </div>
-      <div class="card-row">
+      <div class="card-row card-row-mode hidden">
         <span class="card-label">Mode:</span>
         <select class="modeSel">
           <option>Manual</option><option>Auto</option>
@@ -1359,7 +1586,7 @@ function renderSingleCard(r, index, container) {
       </div>
       <div style="margin-top:10px;display:flex;justify-content:flex-end;gap:10px;">
       <button class="mark-btn"><i class="fa-solid fa-thumbtack"></i></button>
-      <button class="remove-btn"><i class="fa-solid fa-trash"></i></button>
+      <button class="remove-btn${r._complain_open ? '' : ' hidden'}"><i class="fa-solid fa-trash"></i></button>
       </div>
     `;
 
@@ -1373,11 +1600,9 @@ function renderSingleCard(r, index, container) {
     }
   };
 
-  const teamSel = card.querySelector(".teamSel");
-  teamSel.value = r.Team || getDefaultTeam(r._window);
+  const teamSel = card.querySelector(".teamSel"); if (teamSel) if (teamSel) teamSel.value = r.Team || getDefaultTeam(r._window);
 
-  const modeSel = card.querySelector(".modeSel");
-  modeSel.value = r.Mode || "Manual";
+  const modeSel = card.querySelector(".modeSel"); if (modeSel) if (modeSel) modeSel.value = r.Mode || "Auto";
   const addressLink = card.querySelector(".addressLink");
   if (addressLink) {
     addressLink.onclick = (event) => {
@@ -1393,7 +1618,8 @@ function renderSingleCard(r, index, container) {
   markBtn.onclick = async (e) => {
     e.stopPropagation();
     
-    // 🔥 Prevent double click
+    // Prevent double click
+    if (!card.querySelector(".remarkInput").value) { showToast("Please select a Task Category before marking."); return; }
     if (markBtn.disabled) return;
     
     // 🔥 Loading state
@@ -1472,6 +1698,20 @@ function renderSingleCard(r, index, container) {
     }
   };
 
+  const statusLink = card.querySelector(".statusLink");
+  if (statusLink) {
+    statusLink.onclick = (e) => {
+      e.stopPropagation();
+      openInfoModal("Last Status", lastStatusText);
+    };
+  }
+  const addressLinkCard = card.querySelector(".addressLink");
+  if (addressLinkCard) {
+    addressLinkCard.onclick = (e) => {
+      e.stopPropagation();
+      openInfoModal("Full Address", r.Location || "");
+    };
+  }
   container.appendChild(card);
   setTimeout(() => card.classList.add("visible"), Math.min(index, 30) * 12);
   
@@ -1512,7 +1752,7 @@ async function renderTable() {
       const grp = r._page_id || "";
       if (grp !== lastGroup) {
         const sep = document.createElement("tr");
-        sep.innerHTML = `<td colspan="14" style="font-weight:800;padding:10px;background:#f5f5f5;">${grp}</td>`;
+        sep.innerHTML = `<td colspan="13" style="font-weight:800;padding:10px;background:#f5f5f5;">${grp}</td>`;
         fragment.appendChild(sep);
         lastGroup = grp;
       }
@@ -1544,44 +1784,37 @@ async function renderTable() {
           <div><span>Reg:</span> ${getRegisteredPhone(r) || ""}</div>
           <div class="phoneEdit">
             <span>Call:</span>
-            <input class="callingPhoneInput" value="${escapeHtml(getCallingPhone(r))}" inputmode="tel">
+            <input class="callingPhoneInput" value="${escapeHtml(getCallingPhoneForDisplay(r))}" type="tel" maxlength="10" placeholder="10-digit no">
             <button class="callingPhoneSave" type="button">Save</button>
           </div>
         </div>
       </td>
       <td>${r.Name || ""}</td>
       <td>${r.MAC || ""}<br><small>${r.Serial || ""}</small></td>
-      <td>${escapeHtml(lastStatusText)}</td>
+      <td>
+        <button class="statusLink" type="button" title="${escapeHtml(lastStatusText)}" style="background:none;border:none;color:var(--accent);cursor:pointer;text-align:center;padding:0;font-size:0.85rem;display:block;width:100%;">${escapeHtml(lastStatusText.length > 15 ? lastStatusText.substring(0, 15) + "..." : lastStatusText)}</button>
+      </td>
       <td>
         ${buildRemarkSelect(remarkValue)}
-        ${buildAdditionalDetailInput(remarkValue, r.additional_detail || "")}
-      </td>
-      <td class="teamCol resizableCol">
-        <select class="teamSel">
-          <option>TeamAmanwiz</option>
-          <option>TeamMedanta</option>
-          <option>TeamSevai</option>
-        </select>
+        <div class="card-row-remarks hidden" style="margin-top:4px;">${buildAdditionalDetailInput(remarkValue, r.additional_detail || "")}</div>
       </td>
       <td class="modeCol resizableCol">
-        <select class="modeSel">
-          <option>Manual</option>
-          <option>Auto</option>
-        </select>
+        <div class="card-row-mode hidden">
+          <select class="modeSel">
+            <option>Manual</option>
+            <option>Auto</option>
+          </select>
+        </div>
       </td>
       <td>${r.Power != null ? Number(r.Power).toFixed(2) : ""}</td>
       <td>
         <button class="mark-btn"><i class="fa-solid fa-thumbtack"></i></button>
-        <button class="remove-btn"><i class="fas fa-trash"></i></button>
+        <button class="remove-btn${r._complain_open ? '' : ' hidden'}"><i class="fas fa-trash"></i></button>
       </td>
       <td>
-  <button class="addressLink" 
-          onclick="openAddressModal('${escapeHtml(r.Location || "")}')" 
-          style="background:none; border:none; color:var(--accent); cursor:pointer; text-decoration:underline; font:inherit;">
-    ${escapeHtml((r.Location || "").substring(0, 10))}${(r.Location || "").length > 10 ? '...' : ''}
-  </button>
-</td>
-      <td>${statusEmoji}</td>
+        <button class="addressLink" type="button" title="${escapeHtml(r.Location || "")}" style="background:none;border:none;color:var(--accent);cursor:pointer;text-align:center;padding:0;font-size:0.85rem;display:block;width:100%;">${escapeHtml(r.Location ? (r.Location.length > 15 ? r.Location.substring(0, 15) + "..." : r.Location) : "")}</button>
+      </td>
+      <td>${statusEmoji} ${r["User status"] || ""}</td>
     `;
 
     tr.style.cursor = (isComplainsView && r._complain_open) ? "pointer" : "default";
@@ -1594,11 +1827,9 @@ async function renderTable() {
       }
     };
 
-    const teamSelect = tr.querySelector(".teamSel");
-    teamSelect.value = r.Team || getDefaultTeam(r._window);
+    const teamSelect = null;
 
-    const modeSelect = tr.querySelector(".modeSel");
-    modeSelect.value = r.Mode || "Manual";
+    const modeSelect = tr.querySelector(".modeSel"); if (modeSelect) modeSelect.value = r.Mode || "Auto";
     wireRemarkDetail(tr);
     wireCallingPhoneSave(tr, r);
 
@@ -1606,7 +1837,9 @@ async function renderTable() {
     const markBtn = tr.querySelector(".mark-btn");
     markBtn.onclick = async (e) => {
       e.stopPropagation();
-      
+
+      if (!tr.querySelector(".remarkInput").value) { showToast("Please select a Task Category before marking."); return; }
+
       if (markBtn.disabled) return;
       
       markBtn.disabled = true;
@@ -1680,6 +1913,22 @@ async function renderTable() {
       }
     };
 
+    wireRemarkDetail(tr);
+    wireCallingPhoneSave(tr, r);
+    const statusLink = tr.querySelector(".statusLink");
+    if (statusLink) {
+      statusLink.onclick = (e) => {
+        e.stopPropagation();
+        openInfoModal("Last Status", lastStatusText);
+      };
+    }
+    const addressLinkTr = tr.querySelector(".addressLink");
+    if (addressLinkTr) {
+      addressLinkTr.onclick = (e) => {
+        e.stopPropagation();
+        openInfoModal("Full Address", r.Location || "");
+      };
+    }
     fragment.appendChild(tr);
   }
   tbody.appendChild(fragment);

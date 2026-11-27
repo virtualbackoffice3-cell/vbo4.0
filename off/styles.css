@@ -361,7 +361,7 @@ header h1 {
 /* ===============================
    TABLE VIEW
 ================================= */
-#tableWrap {
+#tableWrap { display: block; width: 100%;
   overflow-x: auto;
 }
 
@@ -375,11 +375,12 @@ table {
 }
 
 thead th {
+  vertical-align: middle;
   background: #e6f7ff;
   color: var(--accent);
   padding: 8px;
   font-weight: 600;
-  text-align: left;
+  text-align: center;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -387,6 +388,8 @@ thead th {
 }
 
 tbody td {
+  vertical-align: middle;
+  text-align: center;
   padding: 8px;
   border-bottom: 1px solid var(--border);
 }
@@ -742,7 +745,7 @@ tbody tr.onlineRow td {
   font-size: 0.9rem;
   background: #fff;
   cursor: pointer;
-  text-align: left;
+  text-align: center;
   transition: var(--transition);
 
   /* dropdown arrow */
@@ -939,3 +942,141 @@ td .warning-emoji {
   margin-left: 4px;
   font-size: 12px;
 }
+
+
+/* ===============================
+   Pre-Create Choice Modal
+================================= */
+.hidden { display: none !important; }
+
+.preCreateOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 18px;
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+.preCreateOverlay.open { display: flex; }
+
+.preCreateBox {
+  width: min(520px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.3);
+  display: flex;
+  flex-direction: column;
+}
+
+.preCreateHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.preCreateTitle { font-weight: 800; font-size: 1rem; color: var(--text-primary); }
+.preCreateSubtitle { color: var(--text-secondary); font-size: 0.8rem; margin-top: 2px; }
+.preCreateClose {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 7px;
+  width: 34px; height: 34px;
+  font-size: 20px; line-height: 1;
+  cursor: pointer; color: var(--text-secondary);
+  flex: 0 0 auto;
+}
+.preCreateClose:hover { color: var(--danger); border-color: var(--danger); }
+
+.preCreateIdentity {
+  background: #f6f9fc;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.preCreateIdentityName { font-weight: 700; color: var(--accent); }
+.preCreateIdentityMeta { font-size: 0.8rem; color: var(--text-secondary); }
+
+.preCreateBody { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+
+.preCreateActions {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 480px) { .preCreateActions { grid-template-columns: 1fr 1fr; } }
+.preCreateActions button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 42px; padding: 8px 12px;
+  border-radius: 8px; font-weight: 800; font-size: 0.88rem; cursor: pointer;
+  border: 1px solid transparent;
+}
+.preCreateAssign { background: var(--accent); border-color: var(--accent); color: #fff; }
+.preCreateAssign:hover { background: #0659b3; border-color: #0659b3; }
+.preCreateUnallocated { background: #fff; border-color: var(--border); color: var(--text-primary); }
+.preCreateUnallocated:hover { background: #f2f5f8; }
+.preCreateActions button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.preCreateTeamPanel {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+}
+.preCreateTeamTitle { font-weight: 800; font-size: 0.85rem; color: var(--text-primary); margin-bottom: 8px; }
+.preCreateTeamOptions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.preCreateTeamOption {
+  display: flex; align-items: center; gap: 8px;
+  background: #fff; border: 1px solid var(--border);
+  border-radius: 6px; padding: 7px 9px; cursor: pointer;
+  font-size: 0.83rem; font-weight: 600;
+}
+.preCreateTeamOption:has(input:checked) {
+  background: rgba(0, 123, 255, 0.08);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.preCreateTeamOption input { accent-color: var(--accent); width: 16px; height: 16px; }
+.preCreateTeamLoading, .preCreateTeamError { color: var(--text-secondary); font-size: 0.83rem; padding: 6px 4px; }
+.preCreateTeamError { color: var(--danger); }
+.preCreateTeamFooter {
+  display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px;
+}
+.preCreateTeamFooter button {
+  min-height: 34px; padding: 7px 12px; border-radius: 7px;
+  font-weight: 700; font-size: 0.83rem; cursor: pointer;
+}
+.preCreateTeamBack { background: #fff; border: 1px solid var(--border); color: var(--text-primary); }
+.preCreateTeamSubmit { background: var(--accent); border: 1px solid var(--accent); color: #fff; }
+.preCreateTeamFooter button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.preCreateSafeNote {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  padding: 0 16px 14px;
+  margin: 0;
+  display: flex; align-items: flex-start; gap: 6px;
+}
+.preCreateSafeNote i { color: var(--accent); margin-top: 1px; }
+/* Fix alignment for first 7 columns */
+thead th:nth-child(-n+7), tbody td:nth-child(-n+7) { text-align: left !important; }
+
+/* Force horizontal scrollbar and no-wrap for table */
+table { min-width: 1400px; white-space: nowrap; }
+
+.statusLink:hover { color: var(--accent) !important; text-decoration: underline; }
